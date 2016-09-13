@@ -1,0 +1,183 @@
+XXX
+XXX WARNING: old character encoding and/or character set
+XXX
+PENCTL(1)                                                            PENCTL(1)
+
+
+
+NNAAMMEE
+       penctl
+
+
+SSYYNNOOPPSSIISS
+       ppeennccttll host:port command
+
+
+EEXXAAMMPPLLEE
+       penctl lbhost:8888 roundrobin
+
+       Turns off client tracking on the load balancer running on lbhost.
+
+
+DDEESSCCRRIIPPTTIIOONN
+       _P_e_n_c_t_l connects to the optional control socket on a pen load balancer.  It reads commands from the command
+       line, performs minimal syntax checking and sends them to pen. Replies, if any, are printed on stdout.
+
+       The program can also be used through the cgi script penctl.cgi, which allows pen to be controlled from any
+       web browser.
+
+
+OOPPTTIIOONNSS
+       _h_o_s_t_:_p_o_r_t
+              Specifies a control port where the load balancer listens for commands.
+
+
+CCOOMMMMAANNDDSS
+       _a_c_l _N _p_e_r_m_i_t_|_d_e_n_y _s_o_u_r_c_e_i_p _[_m_a_s_k_]
+              Adds  an entry to access list N, where N is a number from 0 to 9. The source and mask addresses are
+              in the usual dotted quad notation. If mask is omitted, it defaults to 255.255.255.255.
+
+       _n_o _a_c_l _N
+              Deletes all entries from access list N. The resulting access list permits all traffic.
+
+       _a_s_c_i_i  Communication dumps in ascii format (cf option -a).
+
+       _n_o _a_s_c_i_i
+              Communication dumps in hex format.
+
+       _b_l_a_c_k_l_i_s_t
+              Return current blacklist time in seconds.
+
+       _b_l_a_c_k_l_i_s_t _T
+              Set the blacklist time in seconds.
+
+       _b_l_o_c_k  Do not make sockets nonblocking.
+
+       _n_o _b_l_o_c_k
+              Make sockets nonblocking.
+
+       _c_l_i_e_n_t___a_c_l _N
+              Check connecting clients against access list N (default 0).
+
+       _c_l_i_e_n_t_s___m_a_x
+              Return max number of clients.
+
+       _c_o_n_n___m_a_x
+              Return max number of simultaneous connections.
+
+       _c_o_n_t_r_o_l
+              Return address and port where pen listens for control connections.
+
+       _c_o_n_t_r_o_l___a_c_l
+              Check accesses to the control port against access list N (default 0).
+
+       _d_e_b_u_g  Return current debug level.
+
+       _d_e_b_u_g _N
+              Set debug level to N.
+
+       _d_e_l_a_y_e_d___f_o_r_w_a_r_d
+              Always wait for the next round of the main loop before forwarding data. Normally pen  tries  to  do
+              that immediately.
+
+       _n_o _d_e_l_a_y_e_d___f_o_r_w_a_r_d
+              Try  to  forward  data  immediately,  to avoid the overhead of copying it to a temporary buffer and
+              waiting for the next main loop round.
+
+       _e_x_i_t   Exit. Only available if pen was started with the -X option.
+
+       _h_a_s_h   Use a hash on the client IP address for initial server selection.
+
+       _n_o _h_a_s_h
+              Do not use a hash.
+
+       _h_t_t_p   Add X-Forwarded-For headers to http requests.
+
+       _n_o _h_t_t_p
+              Do not add X-Forwarded-For headers.
+
+       _i_n_c_l_u_d_e _F_I_L_E
+              Read commands from file.
+
+       _l_i_s_t_e_n Return local address and port pen listens to for incoming client connections.
+
+       _l_o_g    Show where pen is logging, if anywhere.
+
+       _l_o_g _F_I_L_E
+              Log to FILE.
+
+       _m_o_d_e   Write a summary of the current mode of operation. The  listed  modes  are  block,  delayed_forward,
+              hash, roundrobin, stubborn.
+
+       _n_o _l_o_g Turn off logging.
+
+       _p_i_d    Return the process id of the running daemon
+
+       _p_r_i_o   Use the priority based algorithm.
+
+       _n_o _p_r_i_o
+              Do not use the priority based algorithm.
+
+       _r_e_c_e_n_t _[_N_]
+              Shows which clients have connected in the last N seconds (default 300).
+
+       _r_o_u_n_d_r_o_b_i_n
+              Use round-robin server selection without client tracking
+
+       _n_o _r_o_u_n_d_r_o_b_i_n
+
+
+       _s_e_r_v_e_r _N _[ _a_c_l _A _|_a_d_d_r_e_s_s _A _| _p_o_r_t _P _| _m_a_x _M _| _h_a_r_d _H _| _b_l_a_c_k_l_i_s_t _T _| _w_e_i_g_h_t _W _| _p_r_i_o _P _]
+              Change  acl,  address,  port, weight, priority and/or max connections for server N, or blacklist it
+              for T seconds.
+
+       _s_e_r_v_e_r_s
+              List address, port, weight, priority and max number of simultaneous  connections  for  each  remote
+              server.
+
+       _s_t_a_t_u_s Print status information in html format.
+
+       _s_t_u_b_b_o_r_n
+              If the initial server selection is unavailable, close the client connection without trying another
+
+       _n_o _s_t_u_b_b_o_r_n
+
+       _t_i_m_e_o_u_t
+              Return current connect timeout in seconds.
+
+       _t_i_m_e_o_u_t _N
+              Set connect timeout to N seconds.
+
+       _t_r_a_c_k_i_n_g _N
+              Set  tracking  time,  i.e.  how  long  clients  will be remembered. The default 0 will never expire
+              clients based on time.
+
+       _w_e_b___s_t_a_t_s
+              Return file name of html status reports, if any.
+
+       _w_e_b___s_t_a_t_s _F_I_L_E
+              Set the name of html status reports.
+
+       _n_o _w_e_b___s_t_a_t_s
+              Do not generate html status reports.
+
+       _w_e_i_g_h_t Use weight for server selection.
+
+       _n_o _w_e_i_g_h_t
+              Do not use weight for server selection.
+
+       _w_r_i_t_e _[_F_I_L_E_]
+              Write the current configuration into a file which can be used to start pen. If FILE is omitted, the
+              configuration is written into pen’s original configuration file.
+
+
+SSEEEE AALLSSOO
+       pen(1)
+
+
+AAUUTTHHOORR
+       Copyright (C) 2002-2008 Ulric Eriksson, <ulric@siag.nu>.
+
+
+
+                                     LOCAL                           PENCTL(1)

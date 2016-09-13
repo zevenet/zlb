@@ -1,0 +1,112 @@
+#!/usr/bin/perl
+### BEGIN INIT INFO
+# Provides:          minihttpd
+# Required-Start:    
+# Required-Stop:     
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: minihttpd
+# Description:
+#
+### END INIT INFO
+
+###############################################################################
+#
+#     Zen Load Balancer Software License
+#     This file is part of the Zen Load Balancer software package.
+#
+#     Copyright (C) 2014 SOFINTEL IT ENGINEERING SL, Sevilla (Spain)
+#
+#     This library is free software; you can redistribute it and/or modify it
+#     under the terms of the GNU Lesser General Public License as published
+#     by the Free Software Foundation; either version 2.1 of the License, or 
+#     (at your option) any later version.
+#
+#     This library is distributed in the hope that it will be useful, but 
+#     WITHOUT ANY WARRANTY; without even the implied warranty of 
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+#     General Public License for more details.
+#
+#     You should have received a copy of the GNU Lesser General Public License
+#     along with this library; if not, write to the Free Software Foundation,
+#     Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+#
+###############################################################################
+
+require ("/usr/local/zenloadbalancer/config/global.conf");
+require ("/usr/local/zenloadbalancer/www/functions.cgi");
+$dest_htpasswd = "/usr/local/zenloadbalancer/www/.htpasswd";
+$orig_htpasswd = "/usr/local/zenloadbalancer/app/mini_httpd/.htpasswd";
+
+$gui = &GUIip();
+$eject=$ARGV[0];
+use Tie::File;
+
+if (!$eject && $eject !~ /stop|start|restart|status/)
+{
+	print "Usage: /etc/init.d/mini_httpd.pl stop|start|restart|status\n";
+	exit;
+}
+
+if ($eject eq "start")
+{
+	print "Starting web interface...\n";
+	open FR, "<$confhttp";
+	@file = <FR>;
+	close FR;
+	#check if exist the pass file
+	if ( ! -e "$dest_htpasswd"){
+                use File::Copy;
+                copy ("$orig_htpasswd","$dest_htpasswd");
+	}
+	if (grep(/host=\*/,@file))	
+		{
+		print "Zen GUI is running over all network interfaces, you have to change it to a real interface on Zen GUI > Settings > Server, otherwise all interfaces will be stopped when Zen Load Balancer stops...\n"
+		}
+	my @run = system("/usr/local/zenloadbalancer/app/mini_httpd/mini_httpd -C /usr/local/zenloadbalancer/app/mini_httpd/mini_httpd.conf 2> /dev/null");
+	if ($? == 0)
+		{
+		print "Zen Load Balancer GUI running now\n";
+		}
+	else
+		{
+		print "Error running Zen Load Balancer GUI\n";
+		}
+	#firt: check interfaces configured and running
+
+
+}
+
+
+
+
+if ($eject eq "stop")
+{
+	print "Stopping web interface...\n";
+	my @run = `pkill -9 mini_httpd 2> /dev/null `;
+
+}
+
+
+if ($eject eq "restart")
+{
+	sleep 5;
+	open FR, "/var/run/mini_httpd.pid";
+	$pid = <FR>;
+	chomp($pid);
+	kill 9, $pid;
+        if ( ! -e "$dest_htpasswd"){
+                use File::Copy;
+                copy ("$orig_htpasswd","$dest_htpasswd");
+        }
+	my @run = system("/usr/local/zenloadbalancer/app/mini_httpd/mini_httpd -C /usr/local/zenloadbalancer/app/mini_httpd/mini_httpd.conf 2> /dev/null");
+
+}
+
+
+
+if ($eject eq "status")
+{
+
+
+}

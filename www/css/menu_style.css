@@ -1,0 +1,156 @@
+/*
+###############################################################################
+#
+#     Zevenet Software License
+#     This file is part of the Zevenet software package.
+#
+#     Copyright (C) 2014 SOFINTEL IT ENGINEERING SL, Sevilla (Spain)
+#
+#     This library is free software; you can redistribute it and/or modify it
+#     under the terms of the GNU Lesser General Public License as published
+#     by the Free Software Foundation; either version 2.1 of the License, or
+#     (at your option) any later version.
+#
+#     This library is distributed in the hope that it will be useful, but
+#     WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+#     General Public License for more details.
+#
+#     You should have received a copy of the GNU Lesser General Public License
+#     along with this library; if not, write to the Free Software Foundation,
+#     Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+#
+###############################################################################
+*/
+/*.menu{
+	border:none;
+	border:0px;
+	margin:0px;
+	padding:0px;
+	font-size:12px;
+	font-weight:bold;
+        font:"Helvetica Neue", Arial, Helvetica, sans-serif;
+
+	}*/
+.menu ul{
+	/*background:#333333;*/
+	/*background:#2c2c2c;*/
+	/*background:#585858 url('../img/btn-bg-dark-active.gif') repeat-x bottom;*/
+	/*background: url('../img/btn-bg-dark-active.png') repeat-x bottom;*/
+	/*background: #34ad72;*/
+	background: #888989;
+	height:32px;
+	list-style:none;
+	margin:0;
+	padding:0;
+	}
+	.menu li{
+		float:left;
+		padding:0px;
+		}
+	.menu li a{
+		/*background:#2c2c2c url("../img/menu_style/seperator.gif") bottom right no-repeat;*/
+		/*background:#585858 url('../img/btn-bg-dark-active.gif') repeat-x bottom;*/
+		/*background: url('../img/btn-bg-dark-active.png') repeat-x bottom;*/
+		color:#fff;
+		display:block;
+		font-weight:normal;
+		line-height:32px;
+		margin:0px;
+		padding:0px 25px;
+		text-align:center;
+		text-decoration:none;
+		}
+		.menu li a:hover, .menu ul li:hover a{
+			/*background: #2580a2 url("../img/menu_style/hover.gif") bottom center no-repeat;*/
+			/*background: #b2da42 url("../img/menu_style/hover.gif") bottom center no-repeat;*/
+			background: #67e5a3;
+			color:#FFFFFF;
+			text-decoration:none;
+			}
+	.menu li ul{
+		/*background:#2c2c2c;*/
+		/*background:#585858 url('../img/btn-bg-dark-active.gif') repeat-x bottom;*/
+		/*background: #d40000 url('../img/btn-bg-dark-active-tp.png') repeat-x bottom;*/
+		background: none;
+		display:none;
+		height:auto;
+		padding:0px;
+		margin:0px;
+		/*border:1px solid #585858;*/
+		position:absolute;
+		width:225px;
+		z-index:200;
+		/*top:1em;
+		left:0;*/
+
+	        /*-moz-border-radius-topleft:5px;
+	        -moz-border-radius-topright:5px;*/
+	        -moz-border-radius-bottomleft:5px;
+	        -moz-border-radius-bottomright:5px;
+        	/*-webkit-border-top-left-radius:5px;
+        	-webkit-border-top-right-radius:5px;*/
+        	-webkit-border-bottom-left-radius:5px;
+        	-webkit-border-bottom-right-radius:5px;
+
+		}
+	.menu li:hover ul{
+		display:block;
+
+		}
+	.menu li li {
+		/*background:url('../img/menu_style/sub_sep.gif') bottom left no-repeat;*/
+		/*background:#585858 url('../img/btn-bg-dark-active.gif') repeat-x bottom;*/
+		background:#21b573;
+		display:block;
+		float:none;
+		margin:0px;
+		padding:0px;
+		width:225px;
+		}
+	.menu li:hover li a{
+		background:none;
+
+		}
+	.menu li ul a{
+		display:block;
+		height:32px;
+		font-size:12px;
+		font-style:normal;
+		margin:0px;
+		padding:0px 10px 0px 15px;
+		text-align:left;
+		}
+	.menu li ul a:hover, .menu li ul li:hover a{
+			/*background:#2580a2 url('../img/menu_style/hover_sub.gif') center left no-repeat;*/
+			/*background:#a5c0dc url('../img/menu_style/hover_sub.gif') center left no-repeat;*/
+			/*background:#b2da42 url('../img/menu_style/hover_sub.gif') center left no-repeat;*/
+			background:#67e5a3;
+			border:0px;
+			color:#ffffff;
+			text-decoration:none;
+		}
+	.menu p{
+		clear:left;
+		}
+	.menu {
+		/*background:#d40000;*/
+	        /*border:1px solid #9d9d9d;*/
+		/*border:1px solid #585858;*/
+	        /*border-top:0;*/
+		margin:0px 15px;
+		padding:0;
+
+	        /*-moz-border-radius-topleft:5px;
+	        -moz-border-radius-topright:5px;*/
+	        -moz-border-radius-bottomleft:5px;
+	        -moz-border-radius-bottomright:5px;
+        	/*-webkit-border-top-left-radius:5px;
+        	-webkit-border-top-right-radius:5px;*/
+        	-webkit-border-bottom-left-radius:5px;
+        	-webkit-border-bottom-right-radius:5px;
+
+        	font-size:12px;
+	        font-weight:bold;
+       		font:"Helvetica Neue", Arial, Helvetica, sans-serif;
+	}

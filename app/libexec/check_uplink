@@ -1,0 +1,48 @@
+#!/usr/bin/env perl
+
+$base="/usr/local/zenloadbalancer";
+require "$base/config/global.conf";
+require "$basedir/functions.cgi";
+
+$farmname = $ARGV[0];
+$count = $ARGV[1];
+
+if ($count eq ""){
+	$count = 1;
+}
+
+my $filename = &getFarmFile($farmname);
+my $type = &getFarmType($farmname);
+
+
+if (-e "$configdir/$filename" && $type eq "datalink"){
+	my @backends = &getFarmServers($farmname);
+	foreach $line(@backends){
+		my @lines = split("\;", $line);
+		my $index = @lines[0];
+		my $backend = @lines[1];
+		my $status = @lines[5];
+		chomp($status);
+		if ($backend ne "" && $backend =~ /\./){
+			my @run = `ping -c $count $backend`;
+			my $output = $?;
+			if ($output ne 0 && $status eq "up"){
+				&logfile("disabling datalink backend $index with ip $backend for the $farmname farm");
+				&setFarmBackendStatus($farmname,$index,"down"); # disable backend
+				&runFarmStop($farmname,"true");
+				&runFarmStart($farmname,"true");
+				#&flushCacheRoutes();
+			}
+			if ($output eq 0 && $status eq "down"){
+				&logfile("enabling datalink backend $index with ip $backend for the $farmname farm");
+				&setFarmBackendStatus($farmname,$index,"up"); # enable backend
+				&runFarmStop($farmname,"true");
+				&runFarmStart($farmname,"true");
+				#&flushCacheRoutes();
+			}
+		}
+	}
+}
+
+
+

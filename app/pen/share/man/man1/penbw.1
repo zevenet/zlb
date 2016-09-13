@@ -1,0 +1,81 @@
+.\"
+.\" editor: nano
+.\"
+.TH penbw 1 "January 25, 2010" penbw "penbw manual"
+.LO 1
+.SH NAME
+penbw \- pen backend watcher: monitor & automatically blacklist backends of pen 
+.SH SYNOPSIS
+.B penbw
+.RB [ \-fnd ]
+.RB [ -V | --version ] 
+.RB [ -h | --help ] 
+.RB [ \-s 
+.IR sec ] 
+.RB [ \-t 
+.IR sec ] 
+PENCTLHOST:PENCTLPORT 
+
+.SH DESCRIPTION
+.B penbw
+is a small utility written in C for 
+.B pen
+that monitors (by default http-)backend servers of pen in the background as daemon and if detect a backend as "failed" blacklist it through the provided pen control port similiar to "penctl host:port server 0 blacklist 300"
+
+.B pen
+itself is able to detect if a backend is down and will blacklist on the fly. But if for ex. the backend is still accepting connections and simply sending back bogus or nothing, pen will not detect that, as pen doesn't care about application-level protocols. This is where penbw comes in.
+
+.SH REQUIREMENTS
+All you need is a from the host running penbw reachable control port (opt -C to pen) of pen. Even if the given control port is not available penbw will run/keep running and "wait" for the given control port to be available, so there is no need to restart penbw after pen has been restarted.
+
+penbw connects directly to the control port, so it isn't even neccessary to have pen(ctl) binarys on the host running penbw. However, running penbw on the host that is running pen is recommended.
+
+.SH EXAMPLE
+.TP
+If you would start pen like this:
+
+# pen [options to pen] -C 127.0.0.1:1080
+.TP
+start penbw like that:
+
+# penbw 127.0.0.1:1080
+.TP
+That's it. Logging is going to syslog.
+
+.SH OPTIONS
+.TP
+.B \-\^u " username"
+switch to unprivileged user if starting as privileged user
+.I username
+after startup and basic sanity checks
+.TP
+.B \-\^s " sec"
+Specifies the time in seconds to wait after each round of checks [60]
+.TP
+.B \-\^t " sec"
+Specifies the timeout for connects/reads/writes to backend servers and to pen [5]
+.TP
+.B \-\^b " sec"
+Specifies the interval for logging timing information gathered during the tests of the backend servers [3600]
+.TP
+.B \-\^f
+Stay in foreground
+.TP
+.B \-\^n
+Don't actually blacklist backends detected as "failed" - check and report only
+.TP
+.B \-\^d
+Increase debug-level by 1 (repeat -d for more)
+.TP
+.B \-\^h | --help
+print short help/usage and exit
+.TP
+.B \-\^V | --version
+print version and exit
+
+
+.SH "AUTHOR"
+Thomas A.F. Eckhardt <tafe unkelhaeusser net> - penbw is based on pen(ctl) by Ulric Eriksson <ulric siag nu>
+.SH "SEE ALSO"
+pen(1), penctl(1)
+

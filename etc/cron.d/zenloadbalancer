@@ -1,0 +1,2 @@
+*/5 * * * *	root	/usr/local/zenloadbalancer/app/zenrrd/zenrrd.pl &>/dev/null
+*/10  * * * * 	root	/usr/local/zenloadbalancer/app/zenntp/zenntp.pl &>/dev/null

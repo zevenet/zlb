@@ -1,0 +1,10 @@
+/usr/local/zenloadbalancer/logs/*.log {
+        daily
+        compress
+        missingok
+        rotate 7
+        compress
+        notifempty
+        create 640 root root
+        sharedscripts
+}
