@@ -32,5 +32,5 @@ ln -sf "$CURDIR/etc/logrotate.d/zenloadbalancer" "/etc/logrotate.d/zenloadbalanc
 
 
 # Setup zenloadbalancer service at boot time
+update-rc.d gdnsd disable
 update-rc.d zenloadbalancer defaults
-
