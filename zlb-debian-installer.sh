@@ -20,6 +20,7 @@ apt-get install make rrdtool libnet-netmask-perl libnet-ssh-perl libexpect-perl 
 # Install some perl dependencies not available in Debian
 perl -MCPAN -e 'install GD::3DBarGrapher'
 perl -MCPAN -e 'install Net::SSH::Expect'
+perl -MCPAN -e 'install File::Grep'
 
 # Apply some configuration etc/ symbolic links
 ln -sf "$CURDIR" "$DSTDIR"
