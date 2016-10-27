@@ -38,7 +38,7 @@ print "
 ##content 3-2 INI
 print "<div class=\"container_12\">";
 print "	<div class=\"grid_12\">";
-print "		<div class=\"box-header\">Zen Load Balancer license</div>";
+print "		<div class=\"box-header\">ZEVENET Load Balancer License</div>";
 print "		<div class=\"box stats\">";
 
 #print content
@@ -47,7 +47,7 @@ print "<form method=\"get\" action=\"index.cgi\">";
 
 #print "<input type=\"hidden\" name=\"id\" value=\"$id\"
 print "<textarea  name=\"license\" cols=\"80\" rows=\"20\" align=\"center\" readonly>";
-open FR, "/usr/local/zenloadbalancer/license.txt";
+open FR, "/usr/local/zenloadbalancer/LICENSE";
 while ( <FR> )
 {
 	print "$_";
