@@ -17,9 +17,13 @@ Currently, there is only available the installer for Debian Jessie.
 
 ### Requirements
 Please, take into account these requirements before installing the load balancer:
+
 1. You'll need at least 1,5 GB of storage.
+
 2. Install a fresh and basic Debian Jessie (32 bits) system with *openssh* and the basic system tools package recommended during the distro installation.
+
 3. Configure the load balancer with a static IP address. ZEVENET Load Balancer doesn't support DHCP yet.
+
 4. Configure the *apt* repositories in order to be able to install some dependencies.
 
 ### Installation on Debian Jessie
