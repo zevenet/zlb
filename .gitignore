@@ -1,0 +1,25 @@
+#
+# Ignore all the changes in the following paths
+#
+
+# Farms, certificates and network configurations
+/config/*
+
+# Backup files
+/backups/*
+
+# Log files
+/logs/*
+
+# Web GUI configuration files
+/app/mini_httpd/mini_httpd/htpasswd
+/app/mini_httpd/mini_httpd/.htpasswd
+/app/mini_httpd/mini_httpd/*.conf
+/app/mini_httpd/mini_httpd/*.pem
+
+# rrd databases
+/app/zenrrd/rrd/*
+
+# Temporary graphs
+/www/img/graphs/*
+
