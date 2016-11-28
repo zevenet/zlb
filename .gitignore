@@ -12,8 +12,6 @@
 /logs/*
 
 # Web GUI configuration files
-/app/mini_httpd/mini_httpd/htpasswd
-/app/mini_httpd/mini_httpd/.htpasswd
 /app/mini_httpd/mini_httpd/*.conf
 /app/mini_httpd/mini_httpd/*.pem
 
