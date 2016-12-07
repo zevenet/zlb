@@ -1,0 +1,25 @@
+##
+## cherokee.conf.performance -- Cherokee HTTP server configuration file
+##
+## High performance serving static content
+##
+## NOTE: This file is NOT meant to be edited by hand.
+##
+
+# Server
+#
+server!bind!1!port = 80
+server!timeout = 5
+server!keepalive = 1
+server!keepalive_max_requests = 1000
+server!server_tokens = full
+server!panic_action = /usr/local/zenloadbalancer/app/cherokee/bin/cherokee-panic
+server!pid_file = /usr/local/zenloadbalancer/app/cherokee/var/run/cherokee.pid
+
+# Default virtual server
+#
+vserver!1!nick = default
+vserver!1!collect_statistics = 0
+vserver!1!document_root = /usr/local/zenloadbalancer/www
+vserver!1!rule!1!match = default
+vserver!1!rule!1!handler = file

@@ -1,0 +1,77 @@
+#! /bin/bash
+
+### BEGIN INIT INFO
+# Provides:          cherokee
+# Required-Start:
+# Required-Stop:
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: cherokee
+# Description:
+#
+### END INIT INFO
+
+#
+# cherokee:
+# Start the Cherokee Web Server.
+#
+# http://www.cherokee-project.com/
+#
+
+NAME=cherokee
+PATH=/bin:/usr/bin:/sbin:/usr/sbin:/usr/local/bin:/usr/local/lib/cherokee
+DAEMON=/usr/local/zenloadbalancer/app/cherokee/sbin/cherokee
+PIDFILE=/usr/local/zenloadbalancer/app/cherokee/var/run/$NAME.pid
+CONF=/usr/local/zenloadbalancer/app/cherokee/etc/cherokee/cherokee.conf
+
+trap "" 1
+export LANG=C
+export PATH
+
+test -f $DAEMON || exit 0
+
+case "$1" in
+  start)
+    echo -n "Starting cherokee web server: $NAME"
+    start-stop-daemon --start -b --exec $DAEMON
+    ;;
+
+  stop)
+    echo -n "Stopping cherokee web server: $NAME"
+    start-stop-daemon --stop --pidfile $PIDFILE --oknodo --signal TERM --exec $DAEMON --retry 30
+    ;;
+
+  reload)
+    echo -n "Reloading $NAME configuration"
+    start-stop-daemon --stop --pidfile $PIDFILE --signal HUP
+    ;;
+
+  rotate-logs)
+    echo -n "Rotating logs"
+    start-stop-daemon --stop --pidfile $PIDFILE --signal USR2
+    ;;
+
+  restart)
+    echo -n "Restarting the server closing all the opened connections"
+    sleep 5
+    start-stop-daemon --stop --pidfile $PIDFILE --signal USR1
+    ;;
+
+  force-restart)
+    $0 stop
+    $0 start
+    ;;
+
+  *)
+    echo "Usage: /etc/init.d/$NAME {start|stop|reload|rotate-logs|restart|force-restart}"
+    exit 1
+    ;;
+esac
+
+if [ $? -eq 0 ]; then
+	echo -e "\t\t[ OK ]"
+	exit 0
+else
+	echo -e "\t\t[ Failed ]"
+	exit 1
+fi

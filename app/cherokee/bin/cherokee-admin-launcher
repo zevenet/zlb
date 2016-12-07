@@ -1,0 +1,527 @@
+#!/usr/bin/env python2
+
+# -*- coding: utf-8; mode: python -*-
+#
+# Cherokee-admin
+#
+# Authors:
+#      Alvaro Lopez Ortega <alvaro@alobbs.com>
+#
+# Copyright (C) 2001-2014 Alvaro Lopez Ortega
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of version 2 of the GNU General Public
+# License as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+# 02110-1301, USA.
+#
+
+import re
+import os
+import sys
+import time
+import glob
+import fcntl
+import select
+import signal
+import urllib2
+import threading
+import subprocess
+
+
+# Constants
+ADMIN_HOST           = "localhost"
+ADMIN_PORT           = 9090
+ADMIN_LAUNCH_TIMEOUT = 15
+
+# Paths
+cherokee_admin_path = 'cherokee-admin'
+cherokee_admin_envs = {}
+runner              = None
+exiting             = False
+desktop_preferred   = None
+
+# Defaults
+PATH_PREFIXES  = ['/usr', '/usr/local', '/opt/local', '/usr/gnu', '/opt/cherokee', '/opt/cherokee-dev']
+DEFAULT_PATHS  = [os.path.join (x,'sbin') for x in PATH_PREFIXES]
+DEFAULT_PATHS += [os.path.join (x,'bin')  for x in PATH_PREFIXES]
+
+
+def set_non_blocking (fd):
+    fl = fcntl.fcntl (fd, fcntl.F_GETFL)
+    fcntl.fcntl (fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+
+
+def report_error (description, title="ERROR"):
+    # MacOS X
+    osascript_bin = bin_in_path ("osascript")
+    if osascript_bin:
+        dialog  = "display dialog \\\"%(description)s\\\" with title \\\"%(title)s\\\" buttons \\\"Close\\\" with icon stop" %(locals())
+        command = "osascript -e 'tell application \"Finder\"' -e \"activate\" -e \"%(dialog)s\" -e 'end tell'" %(locals())
+        os.system (command)
+
+    # Text mode
+    print '[%(title)s] - %(description)s'%(locals())
+
+
+def find_sudo_askpass():
+    cwd = os.path.abspath (os.path.realpath (__file__) + '/..')
+
+    # MacOS X: osascript
+    osascript_bin = bin_in_path ("osascript")
+    askpass_bin   = bin_in_path ("cherokee-macos-askpass", [cwd])
+
+    if osascript_bin and askpass_bin:
+        return askpass_bin
+
+    # X-Window
+    def check_gnome():
+        gaskpass_bin = bin_in_path ('gaskpass')
+        if gaskpass_bin:
+            return gaskpass_bin
+
+        extra_paths = ['/usr/lib*/openssh/']
+        gnome_ssh_askpass_bin = bin_in_path ('gnome-ssh-askpass', extra_paths)
+        if gnome_ssh_askpass_bin:
+            return gnome_ssh_askpass_bin
+
+    def check_kde():
+        ksshaskpass_bin = bin_in_path ('ksshaskpass')
+        if ksshaskpass_bin:
+            return ksshaskpass_bin
+
+        kwalletaskpass_bin = bin_in_path ('kwalletaskpass')
+        if kwalletaskpass_bin:
+            return kwalletaskpass_bin
+
+    X_display = os.getenv ("DISPLAY")
+    if X_display:
+        # Your desktop first
+        if desktop_preferred == 'gnome':
+            bin = check_gnome()
+            if bin: return bin
+
+        if desktop_preferred == 'kde':
+            bin = check_kde()
+            if bin: return bin
+
+        # Then, a few neutral options
+
+        # GTK+
+        gtk_led_askpass_bin = bin_in_path ('gtk-led-askpass')
+        if gtk_led_askpass_bin:
+            return gtk_led_askpass_bin
+
+        # X11
+        extra_paths = ['/usr/lib*/ssh/']
+        x11_ssh_askpass_bin = bin_in_path ('x11-ssh-askpass', extra_paths)
+        if x11_ssh_askpass_bin:
+            return x11_ssh_askpass_bin
+
+        # Finally, the 'other' desktop
+        if desktop_preferred == 'gnome':
+            bin = check_kde()
+            if bin: return bin
+
+        if desktop_preferred == 'kde':
+            bin = check_gnome()
+            if bin: return bin
+
+
+def build_command_as_root (cmd, internal_envs=[]):
+    assert type(cmd) == list
+
+    command = internal_envs[:] + cmd[:]
+    env     = os.environ.copy()
+
+    # If not root
+    uid = os.getuid()
+    if uid != 0:
+        if not os.getenv ('SUDO_ASKPASS'):
+            askpass = find_sudo_askpass()
+            if not askpass:
+                report_error ("Did not find a suitable SUDO_ASKPASS application")
+            else:
+                env['SUDO_ASKPASS'] = askpass
+
+        # Add sudo
+        use_askpass = (env.get('SUDO_ASKPASS') != None)
+        if use_askpass:
+            command = [bin_in_path('sudo'), '-A'] + command
+        else:
+            command = [bin_in_path('sudo')] + command
+
+    return (command, env)
+
+
+def run_as_root (cmd):
+    cmd_env = build_command_as_root (cmd)
+    command, env = cmd_env
+    return subprocess.call (command, env=env, shell=False, close_fds=True)
+
+
+class Admin_Runner (threading.Thread):
+   def __init__ (self, event_launched):
+      threading.Thread.__init__ (self)
+      self.daemon = True
+
+      self.url        = ''
+      self.user       = ''
+      self.password   = ''
+      self.needs_auth = True
+      self.popen      = None
+
+      self.launching = True
+      self.event_launched = event_launched
+
+      internal_envs = []
+      for k in cherokee_admin_envs:
+          internal_envs += ["%s=%s"%(k, cherokee_admin_envs[k])]
+
+      cmd = [cherokee_admin_path] + sys.argv[1:]
+      cmd_env = build_command_as_root (cmd, internal_envs)
+      self.command = cmd_env[0]
+      self.environ = cmd_env[1]
+
+      # Detect -u, --unsecure, -<something>u
+      self._check_auth()
+
+   def _check_auth (self):
+      # Detects --unsecure
+      self.needs_auth = not ('--unsecure' in sys.argv)
+
+      # Detects -u and -<something>u
+      for arg in sys.argv:
+          if len(arg) >= 2 and arg[0] == '-' and arg[1] != '-':
+              if 'u' in arg:
+                  self.needs_auth = False
+
+   def run (self):
+       try:
+           return self._run_guts()
+       except KeyboardInterrupt:
+           pass
+
+   def _run_guts (self):
+       p = subprocess.Popen (self.command,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE,
+                             env=self.environ, close_fds=True)
+       self.popen = p
+
+       stdout_f,  stderr_f  = (p.stdout, p.stderr)
+       stdout_fd, stderr_fd = stdout_f.fileno(), stderr_f.fileno()
+       stdout,    stderr    = '', ''
+
+       set_non_blocking (stdout_fd)
+       set_non_blocking (stderr_fd)
+
+       global exiting
+       while not exiting:
+           # Poll I/O activity
+           r,w,e = select.select([stdout_fd, stderr_fd], [], [stdout_fd, stderr_fd], 1)
+
+           if e:
+               print "ERROR: select", e
+               break
+
+           # Read output
+           new_line = False
+
+           if stdout_fd in r:
+               data = stdout_f.read(1024)
+               if not data: break
+               os.write (sys.stdout.fileno(), data)
+               stdout += data
+               new_line = '\n' in data
+
+           if stderr_fd in r:
+               data = stderr_f.read(1024)
+               if not data: break
+               os.write (sys.stderr.fileno(), data)
+               stderr += data
+               new_line = '\n' in data
+
+           # Launching status
+           if not self.launching:
+               continue
+
+           got_info = bool(self.url)
+           if self.needs_auth:
+               got_info &= bool(self.user) and bool(self.password)
+
+           if got_info:
+               self.launching = False
+               self.event_launched.set()
+
+               stdout = ''
+               stderr = ''
+               continue
+
+           # Parse connection info
+           if new_line:
+               tmp = re.findall (r'\s+URL:\s+(http.+)\n', stdout)
+               if tmp:
+                   self.url = tmp[0]
+
+               tmp = re.findall (r'\s+User:\s+(\w+)', stdout)
+               if tmp:
+                   self.user = tmp[0]
+
+               tmp = re.findall (r'\s+One-time Password:\s+(\w+)', stdout)
+               if tmp:
+                   self.password = tmp[0]
+
+       # Error or process exited
+       exiting = True
+       self.event_launched.set()
+
+       print "Cheroke admin exiting..."
+
+
+def http_GET_admin (host=ADMIN_HOST, port=ADMIN_PORT, req='/'):
+    URI = "http://%s:%s%s" %(host, port, req)
+    try:
+        resp = urllib2.urlopen (URI)
+    except urllib2.URLError, e:
+        description = str(e)
+        for key in ('61,', '111,', 'connection refused'):
+            if key in description.lower():
+                return False
+        return description
+    except Exception, e:
+        return str(e)
+
+    content = resp.read()
+    return content
+
+
+_bin_in_path_cache = {}
+def bin_in_path (bin, extra_paths=[]):
+    global _bin_in_path_cache
+
+    # Cache hit
+    if bin in _bin_in_path_cache:
+        return _bin_in_path_cache[bin]
+
+    # Cache miss: check it out
+    paths_tmp = os.getenv('PATH').split(':') + extra_paths + DEFAULT_PATHS
+
+    # Solve ? and *
+    paths = []
+    for p in paths_tmp:
+        paths += glob.glob(p)
+
+    # Check file
+    for e in paths:
+        fp = os.path.join (e, bin)
+        if os.access (fp, os.X_OK):
+            _bin_in_path_cache[bin] = fp
+            return fp
+
+    _bin_in_path_cache[bin] = False
+
+
+def launch_browser (url, user, password):
+   if user and password:
+      host = re.findall (r'http://(.+)/', url)[0]
+      URI = 'http://%(user)s:%(password)s@%(host)s/' %(locals())
+   else:
+      URI = url
+
+   # MacOS X
+   if os.access ("/usr/bin/open", os.X_OK):
+       return os.system ("open '%(URI)s'" %(locals()))
+
+   # Your desktop
+   if desktop_preferred == 'gnome' and bin_in_path ('gnome-open'):
+       return os.system ("gnome-open '%(URI)s'" %(locals()))
+
+   elif desktop_preferred == 'kde':
+       if bin_in_path ('kde-open'):
+           return os.system ("kde-open '%(URI)s'" %(locals()))
+       elif bin_in_path ('kfmclient'):
+           return os.system ("kfmclient openURL '%(URI)s'" %(locals()))
+
+   # A few neutral options
+   if bin_in_path ('xdg-open'):
+      return os.system ("xdg-open '%(URI)s'" %(locals()))
+
+   # Last option: 'the other' desktop
+   if desktop_preferred == 'gnome':
+       if bin_in_path ('kde-open'):
+           return os.system ("kde-open '%(URI)s'" %(locals()))
+       elif bin_in_path ('kfmclient'):
+           return os.system ("kfmclient openURL '%(URI)s'" %(locals()))
+
+   elif desktop_preferred == 'kde' and bin_in_path ('gnome-open'):
+       return os.system ("gnome-open '%(URI)s'" %(locals()))
+
+   # Error
+   report_error ("Did not find a way to open: %(url)s" %(locals()))
+
+
+def find_cherokee_admin():
+   global cherokee_admin_path
+
+   # Development
+   path = os.path.abspath (os.path.realpath (__file__) + '/../cherokee-admin')
+   if os.path.exists (path):
+      cherokee_admin_path = path
+      return
+
+   # Proper installation
+   path = os.path.abspath (os.path.realpath (__file__) + '/../../sbin/cherokee-admin')
+   if os.path.exists (path):
+      cherokee_admin_path = path
+      return
+
+   # Not found
+   return True
+
+def figure_cherokee_admin_envs():
+   global cherokee_admin_envs
+
+   if sys.platform == 'darwin':
+       ld_env = 'DYLD_LIBRARY_PATH'
+   else:
+       ld_env = 'LD_LIBRARY_PATH'
+   ld_env_val = os.getenv (ld_env) or ''
+
+   # Installation
+   lib_path = os.path.abspath (os.path.realpath (__file__) + '/../../lib')
+   if not glob.glob('%s/libcherokee*' %(lib_path)):
+       # Development
+       lib_path = os.path.abspath (os.path.realpath (__file__) + '/../.libs')
+       if not glob.glob('%s/libcherokee*' %(lib_path)):
+           # No libcherokee found
+           return True
+
+   if not lib_path in ld_env_val:
+       if ld_env_val:
+           cherokee_admin_envs[ld_env] = '%s:%s' %(ld_env_val, lib_path)
+       else:
+           cherokee_admin_envs[ld_env] = lib_path
+
+
+def quit_signal (num, stack):
+    global exiting
+    exiting = True
+    print
+    print "Cherokee-admin-launcher exiting.."
+
+def browser_signal (num, stack):
+    if (not runner) or exiting:
+        return
+    launch_browser (runner.url, runner.user, runner.password)
+
+
+def do_launching():
+    global desktop_preferred
+
+    # Find cherokee-admin
+    error = find_cherokee_admin()
+    if error:
+        report_error ("Could not find cherokee-admin")
+        return
+
+    error = figure_cherokee_admin_envs()
+    if error:
+        report_error ("Could not figure cherokee-admin environment variables")
+        return
+
+    # Desktop preferrence
+    ps_lines = [l.lower() for l in os.popen ("ps ax").readlines()]
+    procs_gnome = len (filter (lambda l: "gnome" in l, ps_lines))
+    procs_kde   = len (filter (lambda l: "kde"   in l, ps_lines))
+
+    if procs_kde > procs_gnome:
+        desktop_preferred = 'kde'
+    else:
+        desktop_preferred = 'gnome'
+
+    # Ensure port is empty
+    print "Checking TCP port %(ADMIN_PORT)s availability.."%(globals()),
+    response = http_GET_admin()
+    if not response:
+        print "OK"
+    else:
+        print
+        report_error ("The 9090 port is already in use.")
+        raise SystemExit
+
+    # Launch Cherokee-admin
+    event_launched = threading.Event()
+
+    global runner
+    runner  = Admin_Runner (event_launched)
+    command = runner.command[:]
+
+    runner.start()
+
+    print "Launching: %s" %(' '.join (command))
+    event_launched.wait()
+
+    # Wait for it to be available
+    print "Connecting..",
+    wait_timeout = time.time() + ADMIN_LAUNCH_TIMEOUT
+
+    while True:
+        if exiting:
+            return
+
+        response = http_GET_admin()
+        if response:
+            print "OK"
+            break
+        if time.time() < wait_timeout:
+            time.sleep(0.3)
+        else:
+            print "Timeout"
+            return
+
+    # Launching browser
+    print "Launching browser..",
+    launch_browser (runner.url, runner.user, runner.password)
+    print "OK"
+
+def clean_up():
+   # Exiting
+   if runner and runner.popen and runner.popen.pid:
+       kill_command = ['/bin/sh', '-c', 'kill %s'%(runner.popen.pid)]
+       run_as_root (kill_command)
+       try:
+           os.waitpid (runner.popen.pid, 0)
+       except OSError:
+           pass
+
+if __name__ == '__main__':
+   if '--help' in sys.argv:
+      os.system ('%(cherokee_admin_path)s --help' %(globals()))
+      raise SystemExit
+
+   # Set signal handlers
+   signal.signal (signal.SIGINT,  quit_signal)
+   signal.signal (signal.SIGTERM, quit_signal)
+   signal.signal (signal.SIGHUP , browser_signal)
+
+   # admin and broweser
+   try:
+       do_launching()
+   except KeyboardInterrupt:
+       exiting = True
+
+   # Wait for it to finish
+   while not exiting:
+       time.sleep (.1)
+
+   # Final clean up
+   clean_up()
