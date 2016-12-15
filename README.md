@@ -37,7 +37,7 @@ apt-get install git
 cd /usr/local
 git clone https://github.com/zevenet/zlb.git
 cd /usr/local/zlb
-./zlb_debian_installer.sh
+./zlb-debian-installer.sh
 ```
 The installer script will install all the dependencies from the *apt* repository, it'll migrate the network configuration and some perl libraries from *CPAN*. Answer *yes* to all questions to proceed with the installation of every component.
 
