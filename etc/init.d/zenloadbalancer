@@ -56,7 +56,7 @@ sub runhttpsgui()
 	}
 	elsif ( defined $pid )
 	{
-		system ( "/etc/init.d/minihttpd start > /dev/null &" );
+		system ( "/etc/init.d/cherokee start > /dev/null &" );
 		exit ( 0 );
 	}
 }

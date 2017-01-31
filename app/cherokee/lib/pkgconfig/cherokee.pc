@@ -1,0 +1,11 @@
+prefix=/usr/local/zenloadbalancer/app/cherokee
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+
+Name: Cherokee
+Description: Cherokee web server framework
+Version: 1.2.104
+Libs: -L${libdir} -lcherokee-base -lcherokee-server -lcherokee-client
+Cflags: -I${includedir} -I${includedir}/cherokee

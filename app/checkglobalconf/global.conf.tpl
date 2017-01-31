@@ -15,7 +15,7 @@ $timeouterrors="60";
 #File configuration Zen Cluster
 $filecluster="/usr/local/zenloadbalancer/config/cluster.conf";
 #File configuration GUI
-$confhttp="/usr/local/zenloadbalancer/app/mini_httpd/mini_httpd.conf";
+$confhttp="/usr/local/zenloadbalancer/app/cherokee/etc/cherokee/cherokee.conf";#update
 #.<b>ntp server</b>
 $ntp="pool.ntp.org";
 #Do backup to

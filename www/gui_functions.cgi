@@ -24,36 +24,77 @@
 #get ip GUI
 sub GUIip()
 {
-	open FO, "<$confhttp";
-	@file  = <FO>;
-	$guiip = @file[0];
-	@guiip = split ( "=", $guiip );
-	chomp ( @guiip );
-	@guiip[1] =~ s/\ //g;
-	return @guiip[1];
+        my $gui_ip;    # output
+
+        open my $fh, "<", "$confhttp";
+
+        # read line matching 'server!bind!1!interface = <IP>'
+        my $config_item = 'server!bind!1!interface';
+
+        while ( my $line = <$fh> )
+        {
+                if ( $line =~ /$config_item/ )
+                {
+                        ( undef, $gui_ip ) = split ( "=", $line );
+                        last;
+                }
+        }
+
+        close $fh;
+
+        chomp ( $gui_ip );
+        $gui_ip =~ s/\s//g;
+
+        if ( &ipisok($gui_ip,4) ne "true" )
+        {
+                $gui_ip = "*";
+        }
+
+        return $gui_ip;
 
 }
 
 #function that read the https port for GUI
 sub getGuiPort($minihttpdconf)
 {
-	( $minihttpdconf ) = @_;
-	open FR, "<$minihttpdconf";
-	@minihttpdconffile = <FR>;
-	my @guiportline = split ( "=", @minihttpdconffile[1] );
-	close FR;
-	return @guiportline[1];
+        my $gui_port;    # output
+
+        open my $fh, "<", "$confhttp";
+
+        # read line matching 'server!bind!1!port = <PORT>'
+        my $config_item = 'server!bind!1!port';
+
+        while ( my $line = <$fh> )
+        {
+                if ( $line =~ /$config_item/ )
+                {
+                        ( undef, $gui_port ) = split ( "=", $line );
+                        last;
+                }
+        }
+
+        #~ my @httpdconffile = <$fr>;
+        close $fh;
+
+        chomp ( $gui_port );
+        $gui_port =~ s/\s//g;
+
+        return $gui_port;
 }
 
 #function that write the https port for GUI
-sub setGuiPort($httpsguiport,$minihttpdconf)
+sub setGuiPort($httpsguiport)
 {
-	( $httpsguiport, $minihttpdconf ) = @_;
-	$httpsguiport =~ s/\ //g;
-	use Tie::File;
-	tie @array, 'Tie::File', "$minihttpdconf";
-	@array[1] = "port=$httpsguiport\n";
-	untie @array;
+        my ( $httpsguiport ) = @_;
+
+        $httpsguiport =~ s/\ //g;
+
+        use Tie::File;
+        tie my @array, 'Tie::File', "$confhttp";
+
+        @array[2] = "server!bind!1!port = $httpsguiport\n";
+
+        untie @array;
 }
 
 #function that create the menu for manage the vips in HTTP Farm Table

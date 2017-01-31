@@ -110,7 +110,15 @@ if ( $action eq "Save Management IP" )
 	# save http gui ip
 	use Tie::File;
 	tie @array, 'Tie::File', "$confhttp";
-	@array[0] = "host=$ipgui\n";
+	if ( $ipgui =~ /^\*$/ )
+        {
+                @array[1] = "#server!bind!1!interface = \n";
+                &logfile( "The interface where is running is --All interfaces--" );
+        }
+        else
+        {
+                @array[1] = "server!bind!1!interface = $ipgui\n";
+	}
 	untie @array;
 
 	# save snmp ip
@@ -131,7 +139,7 @@ if ( $action eq "Save Management IP" )
 
 if ( $action eq "Change GUI https port" )
 {
-	&setGuiPort( $guiport, $confhttp );
+	&setGuiPort( $guiport );
 }
 
 if ( $action eq "Restart Management Services" )
@@ -150,8 +158,8 @@ if ( $action eq "Restart Management Services" )
 			&setSnmpdStatus( 'true' );     # starting snmp
 		}
 
-		# minihttpd restart
-		system ( "/etc/init.d/minihttpd restart > /dev/null &" );
+		# webserver restart
+		system ( "/etc/init.d/cherokee restart > /dev/null &" );
 		exit ( 0 );
 	}
 	if ( $ipgui =~ /^$/ )
@@ -241,9 +249,9 @@ print "<div class=\"box stats\">";
 
 open FR, "<$confhttp";
 
-@file     = <FR>;
-$hosthttp = $file[0];
-close FR;
+#@file     = <FR>;
+#$hosthttp = $file[1];
+#close FR;
 print "<b>Management interface where is running GUI service and SNMP (if enabled).</b>";
 print "<font size=\"1\"> If cluster is up you only can select \"--All interfaces--\" option, or \"the cluster interface\". Changes need restart management services.</font>";
 print "<form method=\"get\" action=\"index.cgi\">";
@@ -253,8 +261,10 @@ opendir ( DIR, "$configdir" );
 @files = grep ( /^if.*/, readdir ( DIR ) );
 closedir ( DIR );
 
-@ipguic = split ( "=", $file[0] );
-$hosthttp = $ipguic[1];
+print "hola $file[1]";
+@ipguic = split ( "=", $file[1] );
+#$hosthttp = $ipguic[1];
+my $hosthttp = &GUIip();
 chomp ( $hosthttp );
 
 open FR, "<$filecluster";

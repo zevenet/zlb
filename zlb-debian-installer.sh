@@ -26,8 +26,14 @@ perl -MCPAN -e 'install File::Grep'
 ln -sf "$CURDIR" "$DSTDIR"
 ln -sf "$CURDIR/etc/cron.d/zenloadbalancer" "/etc/cron.d/zenloadbalancer"
 ln -sf "$CURDIR/etc/init.d/zenloadbalancer" "/etc/init.d/zenloadbalancer"
-ln -sf "$CURDIR/etc/init.d/minihttpd" "/etc/init.d/minihttpd"
+ln -sf "$CURDIR/etc/init.d/cherokee" "/etc/init.d/cherokee"
 ln -sf "$CURDIR/etc/logrotate.d/zenloadbalancer" "/etc/logrotate.d/zenloadbalancer"
+
+#delete old content
+if [ -f /etc/init.d/minihttpd ]
+then
+	rm -f /etc/init.d/minihttpd
+fi
 
 # Migrate network interfaces configuration to zevenet compliant
 
