@@ -3810,7 +3810,7 @@ sub getFarmList()
 	my @files5 = grep ( /\_gslb.cfg$/, readdir ( DIR ) );
 	closedir ( DIR );
 	my @files = ( @files, @files2, @files3, @files4, @files5 );
-	return @files;
+	return sort @files;
 }
 
 sub getFarmName($farmfile)
