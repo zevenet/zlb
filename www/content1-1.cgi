@@ -108,7 +108,7 @@ foreach $file ( @files )
 	my $farmname = &getFarmName( $file );
 	my $type     = &getFarmType( $farmname );
 
-	print "<td>$farmname</td><td>$type</td>";
+	print "<td><a href=\"index.cgi?id=1-2&action=editfarm&farmname=$farmname\">$farmname</a></td><td>$type</td>";
 	$status = &getFarmStatus( $farmname );
 	if ( $status ne "up" )
 	{
