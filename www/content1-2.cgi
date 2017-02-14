@@ -224,7 +224,7 @@ foreach $file ( @files )
 			}
 
 			#print the farm description name
-			print "<td>$name</td>";
+			print "<td><a href=\"index.cgi?id=$id&action=editfarm&farmname=$name\">$name</a></td>";
 
 			#print the virtual ip
 			$vip = &getFarmVip( "vip", $name );
