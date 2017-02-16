@@ -712,7 +712,7 @@ $type1 = "enabled";
 $type2 = "enabled and compare backends";
 print "<b>Rewrite Location headers.</b>";
 print "<br>";
-$rewritelocation = &getFarmRewriteL( $fname );
+$rewritelocation = &getFarmRewriteL( $farmname );
 print "<form method=\"get\" action=\"index.cgi\">";
 print "<input type=\"hidden\" name=\"action\" value=\"editfarm-rewritelocation\">";
 print "<input type=\"hidden\" name=\"id\" value=\"$id\">";
