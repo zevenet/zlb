@@ -595,7 +595,7 @@ if ( $action eq "editfarm-addservice" )
 #change farmguardian values
 if ( $action eq "editfarm-farmguardian" )
 {
-	$fguardianconf = &getFarmGuardianFile( $fname, $service );
+	$fguardianconf = &getFarmGuardianFile( $farmname, $service );
 
 	if ( &isnumber( $timetocheck ) eq "false" )
 	{

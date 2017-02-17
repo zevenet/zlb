@@ -423,7 +423,7 @@ if ( $action eq "editfarm-xforwardedfor" )
 #change farmguardian values
 if ( $action eq "editfarm-farmguardian" )
 {
-	$fguardianconf = &getFarmGuardianFile( $fname, "" );
+	$fguardianconf = &getFarmGuardianFile( $farmname, "" );
 
 	if ( &isnumber( $timetocheck ) eq "false" )
 	{

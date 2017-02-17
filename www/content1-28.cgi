@@ -188,7 +188,7 @@ if ( $action eq "editfarm-saveserver" )
 	#}
 	if ( &checkmport( $port_server ) eq "true" )
 	{
-		my $port = &getFarmVip( "vipp", $fname );
+		my $port = &getFarmVip( "vipp", $farmname );
 		if ( $port_server == $port )
 		{
 			$port_server = "";
@@ -351,7 +351,7 @@ if ( $action eq "editfarm-TTL" )
 #change farmguardian values
 if ( $action eq "editfarm-farmguardian" )
 {
-	$fguardianconf = &getFarmGuardianFile( $fname, "" );
+	$fguardianconf = &getFarmGuardianFile( $farmname, "" );
 
 	if ( &isnumber( $timetocheck ) eq "false" )
 	{
