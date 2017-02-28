@@ -82,7 +82,7 @@ print "<div id=\"page-header\"></div>";
 
 if ( $action eq "See logs" && $nlines !~ /^$/ && $filelog !~ /^$/ )
 {
-	if ( -e $filelog )
+	if ( -e $filelog && ( $filelog =~ /^\/usr\/local\/zenloadbalancer\/logs\// || $filelog =~ /^\/var\/log\//) && $filelog !~ /\.\./)
 	{
 		if ( $nlines =~ m/^\d+$/ )
 		{
@@ -112,7 +112,7 @@ if ( $action eq "See logs" && $nlines !~ /^$/ && $filelog !~ /^$/ )
 	}
 	else
 	{
-		&errormsg( "We can not find the file $filelog" );
+		 print "<b>The file $filelog can't be found</b>";
 	}
 }
 
