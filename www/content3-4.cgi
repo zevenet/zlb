@@ -33,7 +33,7 @@ print "
 
 #my $cgiurl = $ENV{SCRIPT_NAME}."?".$ENV{QUERY_STRING};
 my $cgiurl   = $ENV{ SCRIPT_NAME };
-my $htpasswd = '/usr/local/zlb/app/cherokee/etc/cherokee/.htpasswd';
+my $htpasswd = '/usr/local/zenloadbalancer/app/cherokee/etc/cherokee/.htpasswd';
 
 # Print form if not a valid form
 #if(!( ($pass || $newpass || $trustedpass) && check_valid_user() && verify_passwd()) ) {
