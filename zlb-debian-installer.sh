@@ -35,6 +35,9 @@ then
 	rm -f /etc/init.d/minihttpd
 fi
 
+# Required module at boot time to enable connections stats
+echo "ip_conntrack" >> /etc/modules-load.d/modules.conf
+
 # Migrate network interfaces configuration to zevenet compliant
 
 
