@@ -156,6 +156,15 @@ if ( $action eq "editfarm-restart" )
 #delete server
 if ( $action eq "editfarm-deleteserver" )
 {
+	my $proto = &getFarmProto( $farmname );
+	my $ip_addr = undef;
+
+	if ( $proto eq 'udp' && $fstate ne "down" )
+	{
+		my @servers = &getFarmServers( $farmname );
+		( undef, $ip_addr ) = split( /;/, $servers[ $id_server ] );
+	}
+
 	$status = &runFarmServerDelete( $id_server, $farmname );
 	if ( $status != -1 )
 	{
@@ -163,6 +172,12 @@ if ( $action eq "editfarm-deleteserver" )
                 {
                         &runFarmStop( $farmname, "false" );
                         &runFarmStart( $farmname, "false" );
+
+						if ( $proto eq 'udp' )
+						{
+							system("$conntrack -D -p udp -r $ip_addr >/dev/null 2>&1");
+						}
+
                 }
 		&successmsg( "The real server with ID $id_server of the $farmname farm has been deleted" );
 	}
