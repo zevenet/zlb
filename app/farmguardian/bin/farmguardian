@@ -355,8 +355,21 @@ if ( -e $fileconfig )
 					}
 					if ( $type eq "l4xnat" )
 					{
+						my $proto = &getFarmProto( $farmname );
+						my $ip_addr = undef;
+
+						if ( $proto eq 'udp' )
+						{
+							my @servers = &getFarmServers( $farmname );
+							( undef, $ip_addr ) = split( /;/, $servers[ $j ] );
+						}
 						&setFarmBackendStatus( $farmname, $j, "fgDOWN" );
 						&sendL4ConfChange( $farmname );
+
+						if ( $proto eq 'udp' )
+						{
+							system("$conntrack -D -p udp -r $ip_addr >/dev/null 2>&1");
+						}
 					}
 
 					@backendstatus[$j] = "fgDOWN";
