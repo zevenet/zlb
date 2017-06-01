@@ -324,5 +324,17 @@ sub genIptMasquerade($fname,$nattype,$index,$proto,$mark,$state)
 	return $rule;
 }
 
+# get conntrack sessions
+sub getConntrackExpect($args)
+{
+        ( $args ) = @_;
+        open CONNS, "</proc/net/nf_conntrack_expect";
+
+        #open CONNS, "</proc/net/nf_conntrack";
+        my @expect = <CONNS>;
+        close CONNS;
+        return @expect;
+}
+
 # do not remove this
 1
