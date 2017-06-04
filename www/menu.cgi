@@ -54,7 +54,7 @@ print "
 			<li><a href=\"#\"><img src=\"../img/icons/small/comment.png\"> <b>About</b></a>
 				<ul>
                 			<li><a href=\"index.cgi?id=4-1\"><img src=\"../img/icons/small/page_2.png\"> License</a></li>
-					<li><a href=\"http:\\www.zevenet.com\" target=\"_blank\"><img src=\"../img/icons/small/script.png\"> ZEVENET LB v$version </a></li>
+					<li><a href=\"http:\\www.zevenet.com\" target=\"_blank\"><img src=\"../img/favicon-wh.png\"> ZEVENET LB v$version </a></li>
 
 				</ul>
 			</li>
