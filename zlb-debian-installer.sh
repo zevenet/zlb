@@ -15,7 +15,7 @@ DSTDIR="/usr/local/zenloadbalancer"
 CURDIR=`pwd`
 
 # Install dependencies
-apt-get install make rrdtool libnet-netmask-perl libnet-ssh-perl libexpect-perl expect libproc-daemon-perl libnetwork-ipv4addr-perl librrds-perl libio-interface-perl libdata-validate-ip-perl rsync libpcap0.8 ntpdate liblinux-inotify2-perl iputils-arping openssl unzip snmpd conntrack pound ucarp gdnsd libgd-perl apt-transport-https
+apt-get install make rrdtool libnet-netmask-perl libnet-ssh-perl libexpect-perl expect libproc-daemon-perl libnetwork-ipv4addr-perl librrds-perl libio-interface-perl libdata-validate-ip-perl rsync libpcap0.8 ntpdate liblinux-inotify2-perl iputils-arping openssl unzip snmpd conntrack pound ucarp gdnsd libgd-perl apt-transport-https libaprutil1
 
 # Install some perl dependencies not available in Debian
 perl -MCPAN -e 'install GD::3DBarGrapher'

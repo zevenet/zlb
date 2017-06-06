@@ -34,6 +34,7 @@ print "
 #my $cgiurl = $ENV{SCRIPT_NAME}."?".$ENV{QUERY_STRING};
 my $cgiurl   = $ENV{ SCRIPT_NAME };
 my $htpasswd = '/usr/local/zenloadbalancer/app/cherokee/etc/cherokee/.htpasswd';
+my $htpasswdbin= '/usr/local/zenloadbalancer/app/cherokee/sbin/htpasswd';
 
 # Print form if not a valid form
 #if(!( ($pass || $newpass || $trustedpass) && check_valid_user() && verify_passwd()) ) {
@@ -173,8 +174,5 @@ sub verify_passwd
 sub change_passwd
 {
 	my $login = $ENV{ REMOTE_USER };
-	tie @array, 'Tie::File', "$htpasswd";
-	my ( $index ) = grep { $array[$_] =~ /$login/ } 0 .. $#array;
-	$array[$index] = "$login:" . crypt ( $newpass, $pass );
-	untie @array;
+	my @exec = `$htpasswdbin -bd $htpasswd $login $newpass `;
 }
