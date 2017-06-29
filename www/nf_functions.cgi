@@ -21,6 +21,8 @@
 #
 ###############################################################################
 
+use Fcntl qw(:flock SEEK_END);
+
 #
 sub loadNfModule($modname,$params)
 {
@@ -324,17 +326,35 @@ sub genIptMasquerade($fname,$nattype,$index,$proto,$mark,$state)
 	return $rule;
 }
 
-# get conntrack sessions
-sub getConntrackExpect($args)
+#lock iptables
+sub setIptLock    # ($lockfile)
 {
-        ( $args ) = @_;
-        open CONNS, "</proc/net/nf_conntrack_expect";
+	my $ipt_lockfile = shift;
 
-        #open CONNS, "</proc/net/nf_conntrack";
-        my @expect = <CONNS>;
-        close CONNS;
-        return @expect;
+	if ( flock ( $ipt_lockfile, LOCK_EX ) )
+	{
+		&logfile( "Success locking IPTABLES" );
+	}
+	else
+	{
+		&logfile( "Cannot lock iptables: $!" );
+	}
+}
+
+#unlock iptables
+sub setIptUnlock    # ($lockfile)
+{
+	my $ipt_lockfile = shift;
+
+	if ( flock ( $ipt_lockfile, LOCK_UN ) )
+	{
+		&logfile( "Success unlocking IPTABLES" );
+	}
+	else
+	{
+		&logfile( "Cannot unlock iptables: $!" );
+	}
 }
 
 # do not remove this
-1
+1;

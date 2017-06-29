@@ -2616,6 +2616,18 @@ sub _runFarmStart($fname,$writeconf)
 				push ( @tnat,    $red );
 			}
 
+			## lock iptables use ##
+			my $open_rc = open ( my $ipt_lockfile, '>', $iptlock );
+
+			if ( $open_rc )
+			{
+				&setIptLock( $ipt_lockfile );
+			}
+			else
+			{
+				&logfile( "Cannot open $iptlock: $!" );
+			}
+
 			# not used
 			foreach $nraw ( @traw )
 			{
@@ -2734,6 +2746,13 @@ sub _runFarmStart($fname,$writeconf)
 						$status = -1;
 					}
 				}
+			}
+
+			## unlock iptables use ##
+			if ( $open_rc )
+			{
+				&setIptUnlock( $ipt_lockfile );
+				close $ipt_lockfile;
 			}
 
 			# Enable IP forwarding

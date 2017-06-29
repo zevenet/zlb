@@ -27,7 +27,7 @@ $rttables = "/etc/iproute2/rt_tables";
 #this file
 $globalcfg = "/usr/local/zenloadbalancer/config/global.conf";
 #version ZEN
-$version="4.0.4";#update
+$version="4.0.5";#update
 #Cipher PCI
 $cipher_pci="DEFAULT";#update
 #BUY SSL Certificates
@@ -120,6 +120,10 @@ $defaultgw="";
 $defaultgwif="";
 #Number of gratuitous pings
 $pingc="1";
+
+## L4xNat - netfilter
+# Iptables lock filename
+$iptlock = "/tmp/iptables.lock";
 
 #Directory where is check script. In this directory you can save your own check scripts. 
 $libexec_dir="/usr/local/zenloadbalancer/app/libexec";
