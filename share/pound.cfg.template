@@ -1,0 +1,60 @@
+######################################################################
+##GLOBAL OPTIONS
+User		"root"
+Group		"root"
+## allow PUT and DELETE also (by default only GET, POST and HEAD)?:
+#ExtendedHTTP	0
+## Logging: (goes to syslog by default)
+##	0	no logging
+##	1	normal
+##	2	extended
+##	3	Apache-style (common log format)
+#LogFacility	local5
+LogLevel 	0
+## check timeouts:
+Timeout		45
+ConnTO		20
+Alive		10
+Client		30
+Control 	"/tmp/[DESC]_pound.socket"
+
+
+#HTTP(S) LISTENERS
+ListenHTTP
+	Err414 "[CONFIGDIR]/[DESC]_Err414.html"
+	Err500 "[CONFIGDIR]/[DESC]_Err500.html"
+	Err501 "[CONFIGDIR]/[DESC]_Err501.html"
+	Err503 "[CONFIGDIR]/[DESC]_Err503.html"
+	Address [IP]
+	Port [PORT]
+	xHTTP 4
+	RewriteLocation 1
+
+	#Cert "/usr/local/zevenet/config/zencert.pem"
+	#Ciphers "ALL"
+	#Disable SSLv3
+	#SSLHonorCipherOrder 1
+	#ZWACL-INI
+
+	#ZWACL-END
+
+
+	#Service "[DESC]"
+		##False##HTTPS-backend##
+		#DynScale 1
+		#BackendCookie "ZENSESSIONID" "domainname.com" "/" 0
+		#HeadRequire "Host: "
+		#Url ""
+		#Redirect ""
+		#Session
+			#Type nothing
+			#TTL 120
+			#ID "sessionname"
+		#End
+		#BackEnd
+
+		#End
+	#End
+
+
+End

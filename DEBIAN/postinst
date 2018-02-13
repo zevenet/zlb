@@ -1,0 +1,90 @@
+#!/bin/bash
+###############################################################################
+#
+#    Zevenet Software License
+#    This file is part of the Zevenet Load Balancer software package.
+#
+#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###############################################################################
+
+GLOBALCF="/usr/local/zevenet/config/global.conf"
+GLOBALCFT="/usr/local/zevenet/share/global.conf.template"
+
+[ ! "$1" == "configure" ] && echo "Installation aborted $1 $2" && exit 1
+[   "$1" == "configure" ] && echo "Completing the Zevenet installation..."
+
+# upgrading global.conf
+/usr/local/zevenet/app/zbin/checkglobalconf.cgi
+
+# Enable root access through SSH
+SSHDCONFIG="/etc/ssh/sshd_config"
+if [[ `grep -c "^PermitRootLogin.*yes" $SSHDCONFIG` == '0' ]]; then
+	sed -i -e 's/^PermitRootLogin.*/PermitRootLogin yes/' $SSHDCONFIG
+	/etc/init.d/ssh reload 2> /dev/null
+fi
+
+# Disable services
+
+# SNMP service
+if [[ -f /etc/snmp/snmpd.conf && `grep -c '#zenlb' /etc/snmp/snmpd.conf` == '0' ]]; then
+	/etc/init.d/snmpd stop
+	update-rc.d snmpd disable
+	cp /usr/local/zevenet/share/snmpd.conf.template /etc/snmp/snmpd.conf
+fi
+
+# Disable SNMP debugging messages in log
+if [[ `grep -c 'LSd' /etc/default/snmpd` == '1' ]]; then
+	sed -i -e 's/LSd/LS6d/' /etc/default/snmpd
+fi
+
+# Start ssh server after zevenet service
+sed -i 's/^\# Required-Start:.*/# Required-Start:\t\$remote_fs \$syslog zevenet/g' /etc/init.d/ssh
+sed -i 's/^\# Required-Stop:.*/# Required-Stop:\t\$remote_fs \$syslog zevenet/g'   /etc/init.d/ssh
+
+# Restore already existing zlb-stop and zlb-start
+if [ -f /tmp/zlb-start ]; then
+	mv /tmp/zlb-start /usr/local/zevenet/config/
+fi
+if [ -f /tmp/zlb-stop ]; then
+	mv /tmp/zlb-stop /usr/local/zevenet/config/
+fi
+
+chmod +x /usr/local/zevenet/config/zlb-start
+chmod +x /usr/local/zevenet/config/zlb-stop
+
+# Install check_uplink
+ZBIN_PATH="/usr/local/zevenet/bin"
+LIBEXEC_PATH="/usr/lib/nagios/plugins"
+if [ ! -L ${LIBEXEC_PATH}/check_uplink ]; then
+	ln -s ${ZBIN_PATH}/check_uplink ${LIBEXEC_PATH}/check_uplink
+fi
+
+# Restarting zevenet service
+echo "Zevenet will be unavailable while the service is restarting."
+/etc/init.d/zevenet stop
+/etc/init.d/zevenet start
+
+# Add Zevenet Load Balancer service to boot process
+update-rc.d zevenet defaults
+
+# Setup motd.tail
+cp /etc/motd.tail /etc/motd
+
+# Change prompt color
+sed -i "s/1;30m/0;37m/g" /etc/bash.bashrc 2> /dev/null
+
+echo "Zevenet Load Balancer installation completed."

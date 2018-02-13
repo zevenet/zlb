@@ -1,0 +1,167 @@
+#!/bin/bash
+###############################################################################
+#
+#    Zevenet Software License
+#    This file is part of the Zevenet Load Balancer software package.
+#
+#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###############################################################################
+
+tmp_name=`/bin/date +%Y%m%d_%H%M`
+hostname=`hostname`
+home_dir="/usr/local/zevenet"
+ss_dir="supportsave_${hostname}_${tmp_name}"
+prefix="/tmp"
+
+if [ -d "$1" ]; then
+	prefix=${1}
+fi
+
+backup_dir="${prefix}/${ss_dir}"
+
+config_paths=`perl -MZevenet::Config -e 'print getGlobalConfiguration("backupfor");'`;
+zbindir=`perl -MZevenet::Config -e 'print getGlobalConfiguration("zbindir");'`;
+
+monitoring_paths="${home_dir}/app/zenrrd/rrd ${home_dir}/logs /var/log/messages* /var/log/syslog* /var/log/cherokee* ${home_dir}/node_status";
+
+
+echo "Saving information for support in the path ${backup_dir}.tar.gz"
+/bin/mkdir $backup_dir
+
+
+echo "Saving system information:"
+#################################
+
+echo "- Hardware"
+/usr/sbin/dmidecode                     >> $backup_dir/dmi.txt
+/bin/hostname                           >> $backup_dir/dmi.txt
+
+echo "- Modules"
+/sbin/lsmod                             >> $backup_dir/lsmod.txt
+
+echo "- Packages"
+dpkg -l                                 >> $backup_dir/package_list.txt
+
+echo "- Processes"
+echo "ps aux"                           >> $backup_dir/ps.txt
+/bin/ps aux                             >> $backup_dir/ps.txt
+
+echo "- Resources"
+echo "--- Uptime information ---"       >> $backup_dir/system_resources.txt
+/usr/bin/uptime                         >> $backup_dir/system_resources.txt
+echo -e "\n--- Memory information ---"  >> $backup_dir/system_resources.txt
+/usr/bin/free -m                        >> $backup_dir/system_resources.txt
+echo -e "\n--- CPU information ---"     >> $backup_dir/system_resources.txt
+cat /proc/cpuinfo                       >> $backup_dir/system_resources.txt
+echo -e "\n--- TOP information ---"     >> $backup_dir/system_resources.txt
+/usr/bin/top -b -n1                     >> $backup_dir/system_resources.txt
+
+echo "- Partitions"
+/bin/df -h                              >> $backup_dir/partitions.txt 2>&1
+
+echo "- Time"
+${zbindir}/zenntp.pl                    >> $backup_dir/ntp_test.txt 2>&1
+
+
+echo "Saving network information:"
+##################################
+
+echo "- Interfaces"
+/sbin/ifconfig -a                       >> $backup_dir/ifconfig.txt
+/sbin/ip link show                      >> $backup_dir/ip_link.txt
+/sbin/ip addr show                      >> $backup_dir/ip_addr.txt
+
+echo "- Routes"
+for i in `cat /etc/iproute2/rt_tables  | grep "table_" | awk {'print $2'}`
+do
+    echo "ip route list table $i"       >> $backup_dir/route.txt
+    /sbin/ip route list table $i        >> $backup_dir/route.txt
+done
+echo "ip route list table main"         >> $backup_dir/route.txt
+/sbin/ip route list table main          >> $backup_dir/route.txt
+echo "ip rule list"                     >> $backup_dir/route.txt
+/sbin/ip rule list                      >> $backup_dir/route.txt
+
+echo "- Sockets"
+echo "netstat -putan"                   >> $backup_dir/netstat.txt
+/bin/netstat -putan                     >> $backup_dir/netstat.txt
+echo "netstat -nr"                      >> $backup_dir/netstat.txt
+/bin/netstat -nr                        >> $backup_dir/netstat.txt
+
+echo "- Netfilter"
+echo "Filter table "                    >> $backup_dir/netfilter.txt
+/sbin/iptables -nL -t filter            >> $backup_dir/netfilter.txt
+echo -e "\nNAT table "                  >> $backup_dir/netfilter.txt
+/sbin/iptables -nL -t nat               >> $backup_dir/netfilter.txt
+echo -e "\nMangle table "               >> $backup_dir/netfilter.txt
+/sbin/iptables -nL -t mangle            >> $backup_dir/netfilter.txt
+echo -e "\nRaw table "                  >> $backup_dir/netfilter.txt
+/sbin/iptables -nL -t raw               >> $backup_dir/netfilter.txt
+
+echo "- ARP table"
+/usr/sbin/arp -n                        >> $backup_dir/arp_table.txt
+if [ -f /sbin/arptables ];
+then
+	echo "- ARP filtering"
+	/sbin/arptables -L                      >> $backup_dir/arp_filtering.txt
+fi
+
+echo "- nf_conntrack"
+if [ -f /usr/sbin/conntrack ];
+then
+    /usr/sbin/conntrack -L              >> $backup_dir/conntrack.txt 2>&1
+fi
+
+echo "- xt_recent"
+if [ -e /proc/net/xt_recent/ ];
+then
+    for file in $(ls -1 /proc/net/xt_recent/); do
+        echo "Recent table for $file"   >> $backup_dir/recent.txt
+        cat /proc/net/xt_recent/$file   >> $backup_dir/recent.txt
+    done
+fi
+
+if [ -f /sbin/ipset ]; then
+	echo "- ipset"
+    /sbin/ipset save                    >> $backup_dir/ipset_tables.txt 2>&1
+fi
+
+
+echo "Saving configuration files"
+#################################
+echo `dpkg -l | grep zevenet\  | awk '{print $3}'` > /zevenet_version
+/bin/tar zcf $backup_dir/config.tar.gz $config_paths 2>/dev/null
+rm /zevenet_version
+
+
+echo "Saving monitoring files"
+##############################
+/bin/cp ${home_dir}/www/*.pem $backup_dir 2>/dev/null
+/bin/tar zcf $backup_dir/monitoring.tar.gz $monitoring_paths 2>/dev/null
+
+
+echo "Packing supportsave"
+##########################
+cd ${prefix}
+/bin/tar zcf ${ss_dir}.tar.gz ${ss_dir} 2>/dev/null
+cd - >/dev/null
+
+echo "Cleaning temporal files"
+##########################
+/bin/rm -rf ${backup_dir}
+
+ls -lh ${backup_dir}.tar.gz

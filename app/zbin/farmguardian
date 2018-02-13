@@ -1,0 +1,409 @@
+#!/usr/bin/perl 
+###############################################################################
+#
+#    Zevenet Software License
+#    This file is part of the Zevenet Load Balancer software package.
+#
+#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###############################################################################
+
+##farmguardian 4.1
+#this script is a service that check all Bakends or servers in a farm
+#using a script to monitorice the status of backends.  If the execution script return
+# <> 0 this script put in blacklist the backendserver. This script check
+#the timeout execution of a script
+#parameters:
+#
+#	>./farmguardian farmname [-s <service>] [-l]
+#
+#fileconfig_penguardian structure:
+#[farmname]:::[timeout]:::[timetocheck]:::[script args]:::[logs]
+
+use strict;
+#~ use Data::Dumper;
+use Proc::Daemon;
+use POSIX ":sys_wait_h";
+
+use Zevenet::Log;
+use Zevenet::Config;
+use Zevenet::Farm::Core;
+
+# print usage help if no argument was given
+if ( !defined $ARGV[0] )
+{
+	print
+	  "FarmGuardian v4.1. Check Backends Servers in a Farm and enable or disable the load balancing\n";
+	print "\thelp: farmguardian farmname [-s <service>] [-l]\n";
+	print
+	  "\t\t-s <service>\t: Launch FarmGuardian for a certain HTTP/S farm service\n";
+	print "\t\t-l\t\t: Enable logs\n";
+
+	exit 0;
+}
+
+# declare global variables
+my $farmname = "$ARGV[0]";
+my $service  = '';
+my $fservice = '';
+
+# validate FARM TYPE
+my $type = &getFarmType( $farmname );
+unless ( $type =~ /^(?:http|https|l4xnat)$/ )
+{
+	my $msg = "FarmGuardian does not support $type farm profile";
+	&zenlog( $msg );
+	exit -1;
+}
+
+# handle service argument
+if ( $ARGV[1] eq "-s" )
+{
+	$service  = "$ARGV[2]";
+	$fservice = "${service}_";
+}
+
+# declare config files/path
+my $configdir  = &getGlobalConfiguration( 'configdir' );
+my $pidfile    = "${farmname}_${fservice}guardian.pid";
+my $file       = "${farmname}_${fservice}guardian.conf";
+my $fileconfig = "$configdir/$file";
+
+
+### logging ###
+my $logging = 'disabled';
+
+if ( "$ARGV[1]" eq '-l' || "$ARGV[3]" eq '-l' )
+{
+	$logging = 'enabled';
+}
+
+### check for farmguardian configuration file available ###
+my $timetocheck;
+my $check_cmd_tpl;
+my $enabled;
+
+if ( !-e $fileconfig )
+{
+	my $msg = "Abort: file $fileconfig not found";
+	
+	if ( $logging eq 'enabled' )
+	{
+		&zenlog( $msg );
+	}
+	else
+	{
+		print "$msg\n";
+	}
+
+	exit -1;
+}
+else
+{
+	my $line;
+
+	open ( my $fi, '<', "$fileconfig" );
+	if ( ! $fi )
+	{
+		my $msg = "Cannot open file $fileconfig: $!";
+
+		if ( $logging eq 'enabled' )
+		{
+			&zenlog( $msg );
+		}
+		else
+		{
+			print "$msg\n";
+		}
+
+		die;
+	}
+
+	while ( <$fi> )
+	{
+		$line = $_;    # read last line
+	}
+
+	close $fi;
+
+	my @args = split ( ":::", $line );
+	$timetocheck   = $args[1];
+	$check_cmd_tpl = $args[2];
+	$enabled       = $args[3];
+}
+
+# check if the service is enabled in the current farm
+if ( $enabled ne 'true' )
+{
+	&zenlog( "FarmGuardian is disabled in the farm $farmname - $service\n" );
+	exit 0;
+}
+
+# create farmguardian pidfile
+my $filepid = "/var/run/$pidfile";
+{
+	open ( my $fo, '>', "$filepid" );
+	if ( !$fo )
+	{
+		my $msg = "Cannot open file $filepid: $!";
+
+		if ( $logging eq 'enabled' )
+		{
+			&zenlog( $msg );
+		}
+		else
+		{
+			print "$msg\n";
+		}
+
+		die;
+	}
+	
+	print $fo "$$";
+	close $fo;
+}
+
+#Ask for the farm type
+$type = 'http' if $type eq 'https';
+
+my $libexec_dir = &getGlobalConfiguration('libexec_dir');
+my $poundctl;
+my $portadmin;
+
+if ($type eq 'l4xnat')
+{
+	require Zevenet::Farm::L4xNAT::Backend;
+}
+elsif ($type eq 'http')
+{
+	require Zevenet::Farm::HTTP::Backend;
+	require Zevenet::Farm::HTTP::Config;
+	require Zevenet::Farm::HTTP::Service;
+
+	$poundctl = &getGlobalConfiguration('poundctl');
+	$portadmin = &getHTTPFarmSocket( $farmname );
+}
+
+#Get servers list
+while ( 1 )
+{
+	my @backendid;
+	my @backendserv;
+	my @backendport;
+	my @backendstatus;
+	my $timeout = '';
+	my $i       = 0;
+	my $j       = 0;
+
+	### Collect variable values for the diferent farm types ###
+
+	# Collect HTTP/S farm variables values
+	if ( $type eq 'http' )
+	{
+		system ( "$poundctl -c $portadmin 2>&1 >/dev/null" );
+
+		if ( $? != 0 )
+		{
+			my $msg = "Farm $farmname is down, abort.";
+
+			if ( $logging eq 'enabled' )
+			{
+				&zenlog( $msg );
+			}
+			else
+			{
+				print "$msg\n";
+			}
+
+			exit 1;
+		}
+
+		my $backendsvs = &getHTTPFarmVS( $farmname, $service, "backends" );
+
+		foreach my $line ( split ( "\n", $backendsvs ) )
+		{
+			my @subbe = split ( ' ', $line );
+			$backendid[$i]     = $subbe[1];
+			$backendserv[$i]   = $subbe[3];
+			$backendport[$i]   = $subbe[5];
+			$backendstatus[$i] = &getHTTPBackendStatusFromFile( $farmname, $i, $service );
+			$i++;
+		}
+
+		# get the farm's timeout
+		#~ $timeout = &getFarmTimeout( $farmname );
+	}
+	elsif ( $type eq 'l4xnat' )    # Collect L4xNAT farm variables values
+	{
+		my @be = &getL4FarmBackendStatusCtl( $farmname );
+
+		foreach my $line ( @be )
+		{
+			my @subbe = split ( ';', $line );
+			$backendid[$i]     = $i;
+			$backendserv[$i]   = $subbe[2];
+			$backendport[$i]   = $subbe[3];
+			chomp( $backendstatus[$i] = $subbe[7]);
+			$i++;
+		}
+	}
+
+	# Use the default timetocheck as the timeout for the backends response
+	if ( $timeout eq '' )
+	{
+		$timeout = $timetocheck;
+	}
+
+	# print farm check details
+	if ( $logging eq 'enabled' )
+	{
+		my $logline = '';
+		$logline .= "Farm $farmname - ";
+		$logline .= "timetocheck $timetocheck - ";
+		$logline .= "portadmin $portadmin - " if defined $portadmin;
+		$logline .= "command $check_cmd_tpl";
+
+		&zenlog( $logline );
+	}
+
+	# backend loop. checking every backend.
+  BACKEND_IDX:
+	while ( $j < $i )
+	{
+		my $logline;
+		if ( $logging eq 'enabled' )
+		{
+			$logline .= "Farm $farmname - ";
+			$logline .= "server[$backendid[$j]] $backendserv[$j]";
+			$logline .= ":$backendport[$j]" if $backendport[$j];
+			$logline .= " - status $backendstatus[$j] - ";
+		}
+
+		# jump to next backend if this one is in maintenance
+		if ( $backendstatus[$j] =~ /maintenance/ )
+		{
+			$j++;
+			next BACKEND_IDX;
+		}
+
+		my $command = $check_cmd_tpl;
+
+		# substitute HOST and PORT variables for this backend's values
+		$command =~ s/HOST/$backendserv[$j]/;
+		$command =~ s/PORT/$backendport[$j]/;
+
+		#execute the binary to check
+		$command = "$libexec_dir/$command";
+
+		my @output;
+		my $timedout  = 0;
+		my $errorcode = '';
+
+		# run actual backend check
+		eval {
+			local $SIG{ ALRM } = sub { return; };
+
+			#~ alarm $timeout;
+			$timedout  = 1 if ( alarm $timeout ) != 0;
+			@output    = `$command`;
+			$errorcode = $?;
+			alarm 0;
+		}
+		or do
+		{
+			my $kid;
+			$timedout = 1;
+
+			do
+			{
+				$kid = waitpid ( -1, WNOHANG );
+			} while $kid > 0;
+		};
+
+		# being verbose the check output
+		if ( $logging eq 'enabled' )
+		{
+			&zenlog( $logline . "timedout $timedout - errorcode $errorcode" );
+		}
+
+		### Enable backend
+		my $auxLog;
+		if ( $timedout == 0 && $errorcode == 0 && $backendstatus[$j] =~ /down/i )
+		{
+			if ( $logging eq 'enabled' )
+			{
+				&zenlog(
+				  "**execution OK in server $j - errorcode:$errorcode - timedout:$timedout - backend state:$backendstatus[$j]");
+			}
+
+			# Enabling backend for every type of farm supported
+			if ( $type eq 'http' )
+			{
+				my $idsv = &getFarmVSI( $farmname, $service );
+				system ( "$poundctl -c $portadmin -B 0 $idsv $j" );
+				&setHTTPFarmBackendStatusFile( $farmname, $j, 'active', $idsv );
+				$auxLog = " in farm: '$farmname', service: '$service'";
+			}
+			elsif ( $type eq 'l4xnat' )
+			{
+				&setL4FarmBackendStatus( $farmname, $j, 'up' );
+				$auxLog = " in farm: '$farmname'";
+			}
+
+			$backendstatus[$j] = 'active';
+
+			# WARNING: This message format is expected by 'sec'
+			&zenlog("BackEnd $backendserv[$j]:$backendport[$j] resurrect$auxLog");
+		}
+		### Disable backend
+		elsif (	( $timedout == 1 || $errorcode != 0 ) && $backendstatus[$j] ne 'fgDOWN' )
+		{
+			if ( $logging eq 'enabled' )
+			{
+				&zenlog("**execution error in ' $command ', output::**\n@output");
+			}
+
+			# Disabling backend for every type of farm supported
+			#if exec error put in blacklist the server
+			if ( $type eq 'http' )
+			{
+				my $idsv = &getFarmVSI( $farmname, $service );
+				system ( "$poundctl -c $portadmin -b 0 $idsv $j" );
+				&setHTTPFarmBackendStatusFile( $farmname, $j, 'fgDOWN', $idsv );
+				&setHTTPFarmBackendsSessionsRemove( $farmname, $service, $j );
+				$auxLog = " in farm: '$farmname', service: '$service'";
+			}
+			elsif ( $type eq 'l4xnat' )
+			{
+				&setL4FarmBackendStatus( $farmname, $j, 'fgDOWN' );
+				$auxLog = " in farm: '$farmname'";
+			}
+
+			$backendstatus[$j] = 'fgDOWN';
+
+			# WARNING: This message format is expected by 'sec'
+			&zenlog("BackEnd $backendserv[$j]:$backendport[$j] down$auxLog");
+		}
+		$j++;
+	}
+
+	#~ &zenlog( "backendid " . Dumper( \@backendid ) );
+	#~ &zenlog( "backendserv " . Dumper( \@backendserv ) );
+	#~ &zenlog( "backendport " . Dumper( \@backendport ) );
+	#~ &zenlog( "backendstatus " . Dumper( \@backendstatus ) );
+
+	sleep ( $timetocheck );
+}
