@@ -31,7 +31,7 @@ sub farms_name_l4 # ( $farmname )
 	my $farmname = shift;
 
 	my $out_p;
-	my @out_b;
+	my $out_b;
 
 	my $vip   = &getFarmVip( "vip",  $farmname );
 	my $vport = &getFarmVip( "vipp", $farmname );
@@ -43,14 +43,14 @@ sub farms_name_l4 # ( $farmname )
 
 	my @ttl = &getFarmMaxClientTime( $farmname, "" );
 	my $timetolimit = $ttl[0] + 0;
-	
+
 	# Farmguardian
 	my @fgconfig    = &getFarmGuardianConf( $farmname, "" );
 	my $fguse       = $fgconfig[3];
 	my $fgcommand   = $fgconfig[2];
 	my $fgtimecheck = $fgconfig[1];
 	my $fglog       = $fgconfig[4];
-	
+
 	if ( !$fgtimecheck ) { $fgtimecheck = 5; }
     if ( !$fguse ) { $fguse = "false"; }
     if ( !$fglog  ) { $fglog = "false"; }
@@ -78,12 +78,12 @@ sub farms_name_l4 # ( $farmname )
 	};
 
 	# Backends
-	@out_b = &getL4FarmBackends( $farmname );
+	$out_b = &getL4FarmBackends( $farmname );
 
 	my $body = {
 				 description => "List farm $farmname",
 				 params      => $out_p,
-				 backends    => \@out_b,
+				 backends    => $out_b,
 	};
 
 	if ( eval{ require Zevenet::IPDS; } )

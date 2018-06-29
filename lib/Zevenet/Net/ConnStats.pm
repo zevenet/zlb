@@ -23,27 +23,20 @@
 
 use strict;
 
-my %conntrack_proto = (
-						icmp => 1,
-						tcp  => 6,
-						udp  => 17,
-						gre  => 47,
-);
-
 =begin nd
 Function: getConntrack
 
 	Get the connections list.
 
 Parameters:
-	orig_src -
-	orig_dst -
-	reply_src -
-	reply_dst -
-	protocol -
+	orig_src - 
+	orig_dst - 
+	reply_src - 
+	reply_dst - 
+	protocol - 
 
 Returns:
-	array ref - Filtered netstat array reference.
+	list - Filtered netstat array.
 
 See Also:
 	Output to: <getNetstatFilter>
@@ -73,15 +66,8 @@ sub getConntrack    # ($orig_src, $orig_dst, $reply_src, $reply_dst, $protocol)
 	my $conntrack_cmd =
 	  "$conntrack -L $orig_src $orig_dst $reply_src $reply_dst $protocol 2>/dev/null";
 
-	# return an array reference
-	my @output = `$conntrack_cmd`;
-	my $output = \@output;
-
-	# my $conns_count = scalar @output;
-	# &zenlog( "getConntrack command: $conntrack_cmd" );
-	# &zenlog( "getConntrack returned $conns_count connections." );
-
-	return $output;
+	#~ &zenlog( $conntrack_cmd );
+	return `$conntrack_cmd`;
 }
 
 =begin nd
@@ -97,7 +83,7 @@ Parameters:
 	netstat - Output from getConntrack
 
 Returns:
-	array ref - Filtered netstat array reference.
+	list - Filtered netstat array.
 
 See Also:
 	Input from: <getConntrack>
@@ -110,202 +96,26 @@ See Also:
 	<getHTTPBackendEstConns>, <getHTTPFarmEstConns>, <getHTTPBackendTWConns>, <getHTTPBackendSYNConns>, <getHTTPFarmSYNConns>, <getGSLBFarmEstConns>
 =cut
 # Returns array execution of netstat
-sub getNetstatFilter    # ($proto,$state,$ninfo,$fpid,$netstat)
+sub getNetstatFilter    # ($proto,$state,$ninfo,$fpid,@netstat)
 {
-	my ( $proto, $state, $ninfo, $fpid, $netstat ) = @_;
+	my ( $proto, $state, $ninfo, $fpid, @netstat ) = @_;
 
 	my $lfpid = $fpid;
 	chomp ( $lfpid );
 
+	#print "proto $proto ninfo $ninfo state $state pid $fpid<br/>";
 	if ( $lfpid )
 	{
 		$lfpid = "\ $lfpid\/";
 	}
-
 	if ( $proto ne "tcp" && $proto ne "udp" )
 	{
 		$proto = "";
 	}
+	my @output =
+	  grep { /${proto}.*\ ${ninfo}\ .*\ ${state}.*${lfpid}/ } @netstat;
 
-	my $filter = "${proto}.* ${ninfo} .* ${state}.*${lfpid}";
-	my @output = grep( /$filter/, @{ $netstat } );
-	my $output = \@output;
-
-	# my $conns_count = scalar @output;
-	# &zenlog( "getNetstatFilter filter: '$filter'" );
-	# &zenlog( "getNetstatFilter returned $conns_count connections." );
-
-	return $output;
-}
-
-=begin nd
-Function: getConntrackParams
-
-	Get Conntrack params for a filter
-
-	Example:
-
-	my $filter = {
-				   proto         => 'tcp',
-				   orig_dst      => $vip,
-				   orig_port_dst => $vip_port,
-				   state         => 'ESTABLISHED',
-	};
-
-Parameters:
-	hash ref - Filter of connections
-
-	FILTER PARAMETERS
-
-	src, orig_src IP_ADDRESS
-		Match only entries whose source address in the original direction equals the one specified as argument.  Implies "--mask-src" when CIDR notation is used.
-
-	dst, orig_dst IP_ADDRESS
-		Match only entries whose destination address in the original direction equals the one specified as argument.  Implies "--mask-dst" when CIDR notation is used.
-
-	reply_src IP_ADDRESS
-		Match only entries whose source address in the reply direction equals the one specified as argument.
-
-	reply_dst IP_ADDRESS
-		Match only entries whose destination address in the reply direction equals the one specified as argument.
-
-	proto PROTO
-		Specify layer four (TCP, UDP, ...) protocol.
-
-	family PROTO
-		Specify layer three (ipv4, ipv6) protocol This option is only required in conjunction with "-L, --dump". If this option is not passed, the default layer 3 protocol will be IPv4.
-
-	timeout TIMEOUT
-		Specify the timeout.
-
-	mark MARK[/MASK]
-		Specify  the conntrack mark.  Optionally, a mask value can be specified.  In "--update" mode, this mask specifies the bits that should be zeroed before XORing the MARK value into the ctmark.  Otherwise, the mask is logically
-		  ANDed with the existing mark before the comparision.  In "--create" mode, the mask is ignored.
-
-	label LABEL
-		Specify a conntrack label. This option is only available in conjunction with "-L, --dump", "-E, --event", "-U --update" or "-D --delete". Match entries whose labels match at least those specified.  Use multiple -l commands
-		to specify multiple labels that need to be set. Match entries whose labels matches at least those specified as arguments. --label-add LABEL Specify the conntrack label to add to to the selected conntracks.  This option is only available in conjunction with "-I, --create" or "-U, --update". --label-del [LABEL] Specify the conntrack label to delete from the selected conntracks. If no label is given, all labels are  deleted. This option is only available in conjunction with "-U, --update".
-
-	secmark SECMARK
-		Specify the conntrack selinux security mark.
-
-	status [ASSURED|SEEN_REPLY|FIXED_TIMEOUT|EXPECTED|UNSET][,...]
-		Specify the conntrack status.
-
-	src_nat
-		Filter source NAT connections.
-
-	dst_nat
-		Filter destination NAT connections.
-
-	any_nat
-		Filter any NAT connections.
-
-	zone
-		Filter by conntrack zone. See iptables CT target for more information.
-
-	orig_zone
-		Filter by conntrack zone in original direction.  See iptables CT target for more information.
-
-	reply_zone
-		Filter by conntrack zone in reply direction.  See iptables CT target for more information.
-
-	tuple_src IP_ADDRESS
-		Specify the tuple source address of an expectation.  Implies "--mask-src" when CIDR notation is used.
-
-	tuple_dst IP_ADDRESS
-		Specify the tuple destination address of an expectation.  Implies "--mask-dst" when CIDR notation is used.
-
-	mask_src IP_ADDRESS
-		Specify  the  source  address mask.  For conntrack this option is only available in conjunction with "-L, --dump", "-E, --event", "-U --update" or "-D --delete".  For expectations this option is only available in conjunction with "-I, --create".
-
-	mask_dst IP_ADDRESS
-		Specify the destination address mask.  Same limitations as for "--mask-src".
-
-
-
-	PROTOCOL FILTER PARAMETERS
-
-	TCP-specific fields:
-
-	sport, orig_port_src PORT
-		Source port in original direction
-
-	dport, orig_port_dst PORT
-		Destination port in original direction
-
-	reply_port_src PORT
-		Source port in reply direction
-
-	reply_port_dst PORT
-		Destination port in reply direction
-
-	state [NONE | SYN_SENT | SYN_RECV | ESTABLISHED | FIN_WAIT | CLOSE_WAIT | LAST_ACK | TIME_WAIT | CLOSE | LISTEN]
-		TCP state
-
-
-	UDP-specific fields:
-
-	sport, orig_port_src PORT
-		Source port in original direction
-
-	dport, orig_port_dst PORT
-		Destination port in original direction
-
-	reply_port_src PORT
-		Source port in reply direction
-
-	reply_port_dst PORT
-		Destination port in reply direction
-
-Returns:
-	unsigned integer - Number of connections found with the filter applied.
-=cut
-sub getConntrackParams    # ($filter)
-{
-	my ( $filter ) = @_;
-
-	my $conntrack_bin = &getGlobalConfiguration('conntrack');
-	my $conntrack_params = '';
-
-	# define protocol first
-	if ( exists $filter->{ proto } )
-	{
-		$conntrack_params .= "--proto $conntrack_proto{ $filter->{ proto } } ";
-	}
-
-	foreach my $filter_key ( keys %$filter )
-	{
-		next if $filter_key eq 'proto';
-
-		my $param = $filter_key;
-		$param =~ s/_/-/g;
-
-		$conntrack_params .= "--$param $filter->{ $filter_key } ";
-	}
-
-	#~ &zenlog( "getConntrackParams conntrack_params: $conntrack_params" );
-
-	return $conntrack_params;
-}
-
-sub getConntrackCount
-{
-	my ( $conntrack_params ) = @_;
-
-	my $conntrack_bin = &getGlobalConfiguration('conntrack');
-	my $conntrack_cmd = "$conntrack_bin -L $conntrack_params 2>&1 >/dev/null";
-
-	#~ &zenlog( "getConntrackCount conntrack_cmd: $conntrack_cmd" );
-
-	my $summary = `$conntrack_cmd`;
-	my $error   = $?;
-	my ( $count )  = $summary =~ m/: ([0-9]+) flow entries have been shown./;
-
-	&zenlog( "getConntrackCount: An error happened running conntrack command: $conntrack_cmd" ) if $error;
-	#~ &zenlog( "getConntrackCount found $count connections." );
-
-	return $count + 0;
+	return @output;
 }
 
 1;

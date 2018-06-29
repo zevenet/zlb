@@ -381,6 +381,12 @@ sub _runL4FarmStop    # ($farm_name,$writeconf)
 		# remove conntrack
 		&resetL4FarmBackendConntrackMark( $server );
 
+		unless ( defined $table_if )
+		{
+			&zenlog("Warning: Skipping removal of backend $server->{ tag } routing rule. Interface table not found.");
+			next;
+		}
+
 		my $ip_cmd = "$ip_bin rule del fwmark $server->{ tag } table table_$table_if";
 		&logAndRun( $ip_cmd );
 	}
@@ -420,6 +426,7 @@ sub setL4NewFarmName    # ($farm_name,$new_farm_name)
 	my ( $farm_name, $new_farm_name ) = @_;
 
 	require Tie::File;
+	require Zevenet::Netfilter;
 
 	my $farm_filename     = &getFarmFile( $farm_name );
 	my $farm_type         = &getFarmType( $farm_name );
@@ -461,7 +468,6 @@ sub setL4NewFarmName    # ($farm_name,$new_farm_name)
 	}
 
 	# Rename fw marks for this farm
-	require Zevenet::Netfilter;
 	&renameMarks( $farm_name, $new_farm_name );
 
 	$farm = &getL4FarmStruct( $new_farm_name );

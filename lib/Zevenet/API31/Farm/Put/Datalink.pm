@@ -80,6 +80,7 @@ sub modify_datalink_farm    # ( $json_obj, $farmname )
 			}
 
 			#Change farm name
+			require Zevenet::Farm::Action;
 			my $fnchange = &setNewFarmName( $farmname, $json_obj->{ newfarmname } );
 			if ( $fnchange == -1 )
 			{

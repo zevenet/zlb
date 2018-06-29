@@ -62,6 +62,15 @@ sub farm_actions    # ( $json_obj, $farmname )
 	}
 	elsif ( $json_obj->{ action } eq "start" )
 	{
+		# check if the ip exists in any interface
+		my $ip = &getFarmVip( "vip", $farmname );
+		require Zevenet::Net::Interface;
+		if ( !&getIpAddressExists( $ip ) )
+		{
+			my $msg = "The virtual ip $ip is not defined any interface.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+
 		my $status = &runFarmStart( $farmname, "true" );
 
 		if ( $status )
@@ -78,6 +87,15 @@ sub farm_actions    # ( $json_obj, $farmname )
 		{
 			my $msg =
 			  "Error trying to stop the farm in the action restart in farm $farmname.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+
+		# check if the ip exists in any interface
+		my $ip = &getFarmVip( "vip", $farmname );
+		require Zevenet::Net::Interface;
+		if ( !&getIpAddressExists( $ip ) )
+		{
+			my $msg = "The virtual ip $ip is not defined any interface.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 

@@ -115,7 +115,7 @@ sub setGlobalConfiguration		# ( parameter, value )
 
 	my $global_conf_file = &getGlobalConfiguration ( 'globalcfg' );
 	my $output = -1;
-
+	
 	require Tie::File;
 	tie my @global_hf, 'Tie::File', $global_conf_file;
 
@@ -128,7 +128,7 @@ sub setGlobalConfiguration		# ( parameter, value )
 		}
 	}
 	untie @global_hf;
-
+	
 	return $output;
 }
 

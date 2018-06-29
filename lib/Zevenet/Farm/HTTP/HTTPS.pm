@@ -28,7 +28,7 @@ my $configdir = &getGlobalConfiguration( 'configdir' );
 =begin nd
 Function: getHTTPFarmDHStatus
 
-	Obtain the status of the DH file
+	[NOT USED] Obtain the status of the DH file
 
 Parameters:
 	farmname - Farm name
@@ -79,6 +79,10 @@ sub setHTTPFarmDHStatus    # ($farm_name, $newstatus)
 	my $dhfile = "$configdir\/$farm_name\_dh2048.pem";
 	my $output        = 0;
 
+	#lock file
+	require Zevenet::Farm::HTTP::Config;
+	my $lock_fh = &lockHTTPFile( $farm_name );
+
 	tie my @filefarmhttp, 'Tie::File', "$configdir/$farm_filename";
 	foreach my $row (@filefarmhttp)
 	{
@@ -90,6 +94,8 @@ sub setHTTPFarmDHStatus    # ($farm_name, $newstatus)
 		}
 	}
 	untie @filefarmhttp;
+
+	&unlockfile( $lock_fh );
 
 	unlink ( "$dhfile" ) if -e "$dhfile" && $newstatus eq "off";
 
@@ -142,7 +148,7 @@ sub getFarmCertificate    # ($farm_name)
 =begin nd
 Function: setFarmCertificate
 
-	Configure a certificate for a HTTP farm
+	[NOT USED] Configure a certificate for a HTTP farm
 
 Parameters:
 	certificate - certificate file name
@@ -168,6 +174,10 @@ sub setFarmCertificate    # ($cfile,$farm_name)
 	&zenlog( "setting 'Certificate $cfile' for $farm_name farm $farm_type" );
 	if ( $farm_type eq "https" )
 	{
+		# lock file
+		require Zevenet::Farm::HTTP::Config;
+		my $lock_fh = &lockHTTPFile( $farm_name );
+
 		tie my @array, 'Tie::File', "$configdir/$farm_filename";
 		for ( @array )
 		{
@@ -178,6 +188,8 @@ sub setFarmCertificate    # ($cfile,$farm_name)
 			}
 		}
 		untie @array;
+
+		&unlockfile( $lock_fh );
 	}
 
 	return $output;
@@ -196,6 +208,7 @@ Returns:
 
 BUG
 	Not finish
+
 =cut
 sub validateHTTPFarmDH    # ($farm_name)
 {
@@ -233,6 +246,7 @@ Parameters:
 
 Returns:
 	Integer - return 0 on success or different of 0 on failure
+
 =cut
 sub genDHFile    # ($farm_name)
 {
@@ -269,6 +283,7 @@ Parameters:
 
 Returns:
 	Integer - return 0 on success or -1 on failure
+
 =cut
 sub setFarmCipherList    # ($farm_name,$ciphers,$cipherc)
 {
@@ -282,8 +297,12 @@ sub setFarmCipherList    # ($farm_name,$ciphers,$cipherc)
 	my $output        = -1;
 
 	require Tie::File;
-	tie my @array, 'Tie::File', "$configdir/$farm_filename";
 
+	# lock file
+	require Zevenet::Farm::HTTP::Config;
+	my $lock_fh = &lockHTTPFile( $farm_name );
+
+	tie my @array, 'Tie::File', "$configdir/$farm_filename";
 	for my $line ( @array )
 	{
 		# takes the first Ciphers line only
@@ -328,6 +347,8 @@ sub setFarmCipherList    # ($farm_name,$ciphers,$cipherc)
 	}
 	untie @array;
 
+	&unlockfile( $lock_fh );
+
 	return $output;
 }
 
@@ -341,6 +362,7 @@ Parameters:
 
 Returns:
 	scalar - return a string with cipher value or -1 on failure
+
 =cut
 sub getFarmCipherList    # ($farm_name)
 {
@@ -406,6 +428,46 @@ sub getFarmCipherSet    # ($farm_name)
 	return $output;
 }
 
+
+=begin nd
+Function: getFarmCipherSSLOffLoadingSupport
+
+	Get if the process supports aes aceleration
+
+Parameters:
+	none -.
+
+Returns:
+	Integer - return 1 if proccess support AES aceleration or 0 if it doesn't
+		support it
+
+=cut
+sub getFarmCipherSSLOffLoadingSupport
+{
+	my $output = 0;
+	my $proc_cpu = "/proc/cpuinfo";
+
+	if ( -f $proc_cpu )
+	{
+		open my $fh, "<", $proc_cpu;
+
+		my $line;
+		while ( $line = <$fh> )
+		{
+			if ( $line =~ /^flags.* aes / )
+			{
+				$output = 1;
+				last;
+			}
+
+		}
+		close $fh;
+	}
+
+	return $output;
+}
+
+
 =begin nd
 Function: getHTTPFarmDisableSSL
 
@@ -417,6 +479,7 @@ Parameters:
 
 Returns:
 	Integer - 1 on disabled, 0 on enabled or -1 on failure
+
 =cut
 sub getHTTPFarmDisableSSL    # ($farm_name, $protocol)
 {
@@ -457,6 +520,7 @@ Parameters:
 
 Returns:
 	Integer - Error code: 0 on success or -1 on failure
+
 =cut
 sub setHTTPFarmDisableSSL    # ($farm_name, $protocol, $action )
 {
@@ -470,6 +534,10 @@ sub setHTTPFarmDisableSSL    # ($farm_name, $protocol, $action )
 
 	if ( $farm_type eq "https" )
 	{
+		# lock file
+		require Zevenet::Farm::HTTP::Config;
+		my $lock_fh = &lockHTTPFile( $farm_name );
+
 		tie my @file, 'Tie::File', "$configdir/$farm_filename";
 
 		if ( $action == 1 )
@@ -497,6 +565,8 @@ sub setHTTPFarmDisableSSL    # ($farm_name, $protocol, $action )
 		}
 
 		untie @file;
+
+		&unlockfile( $lock_fh );
 	}
 
 	return $output;

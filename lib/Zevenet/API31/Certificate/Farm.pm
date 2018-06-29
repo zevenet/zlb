@@ -24,9 +24,6 @@ use strict;
 
 use Zevenet::Farm::Core;
 use Zevenet::Farm::Base;
-my $EE = eval { require Zevenet::Farm::HTTP::HTTPS::Ext; } ? 1: undef;
-
-unless ( $EE ) { require Zevenet::Farm::HTTP::HTTPS; }
 
 # POST /farms/FARM/certificates (Add certificate to farm)
 sub add_farm_certificate    # ( $json_obj, $farmname )
@@ -55,9 +52,11 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 	}
 
 	my $cert_in_use;
-	if ( $EE )
+	my $sni;
+	if ( eval { require Zevenet::Farm::HTTP::HTTPS::Ext; } )
 	{
-		$cert_in_use = grep ( /^$json_obj->{ file }$/, &getFarmCertificatesSNI( $farmname ) );
+		$sni = 1;
+		$cert_in_use = grep ( /^$json_obj->{ file }$/, &getFarmCertificatesSNI( [$farmname] ) );
 	}
 	else
 	{
@@ -72,7 +71,7 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 
 	# FIXME: Show error if the certificate is already in the list
 	my $status;
-	if ( $EE )
+	if ( $sni )
 	{
 		$status = &setFarmCertificateSNI( $json_obj->{ file }, $farmname );
 	}
@@ -91,7 +90,7 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 	}
 
 	# no errors found, return succesful response
-	&zenlog( "ZAPI Success, trying to add a certificate to the farm." );
+	&zenlog( "Success, trying to add a certificate to the farm." );
 
 	my $message =
 	  "The certificate $json_obj->{file} has been added to the farm $farmname, you need restart the farm to apply";
@@ -121,7 +120,7 @@ sub delete_farm_certificate    # ( $farmname, $certfilename )
 
 	my $desc = "Delete farm certificate";
 
-	unless ( $EE )
+	unless ( eval { require Zevenet::Farm::HTTP::HTTPS::Ext; } )
 	{
 		my $msg = "HTTPS farm without certificate is not allowed.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -142,8 +141,9 @@ sub delete_farm_certificate    # ( $farmname, $certfilename )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	my $number =
-	  scalar grep ( /^$certfilename$/, &getFarmCertificatesSNI( $farmname ) );
+    my @certSNI = &getFarmCertificatesSNI( $farmname );
+
+	my $number = scalar grep ( { $_ eq $certfilename } @certSNI );
 	if ( !$number )
 	{
 		my $msg = "Certificate is not used by the farm.";
@@ -169,12 +169,11 @@ sub delete_farm_certificate    # ( $farmname, $certfilename )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-   # check if removing the certificate would leave the SNI list empty, not supported
+	# check if removing the certificate would leave the SNI list empty, not supported
 	if ( $status == 1 )
 	{
 		&zenlog(
-			"It's not possible to delete all certificates, at least one is required for HTTPS."
-		);
+			"It's not possible to delete all certificates, at least one is required for HTTPS."	);
 
 		my $msg =
 		  "It isn't possible to delete all certificates, at least one is required for HTTPS profiles";
@@ -197,7 +196,7 @@ sub delete_farm_certificate    # ( $farmname, $certfilename )
 		$body->{ status } = 'needed restart';
 	}
 
-	&zenlog( "ZAPI Success, trying to delete a certificate to the SNI list." );
+	&zenlog( "Success, trying to delete a certificate to the SNI list." );
 	&httpResponse( { code => 200, body => $body } );
 }
 

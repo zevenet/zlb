@@ -42,7 +42,7 @@ my $months = qr/(?:[1-9]|1[0-2])/;
 my $dayofmonth = qr/(?:[1-9]|[1-2]\d|3[01])/;		# day of month
 
 my $hostname = qr/[a-z][a-z0-9\-]{0,253}[a-z0-9]/;
-my $service  = qr/[a-zA-Z0-9][a-zA-Z0-9\-]*/;
+my $service  = qr/[a-zA-Z0-9][a-zA-Z0-9_\-\.]*/;
 my $zone     = qr/(?:$hostname\.)+[a-z]{2,}/;
 
 my $vlan_tag    = qr/\d{1,4}/;

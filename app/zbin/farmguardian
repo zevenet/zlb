@@ -1,4 +1,4 @@
-#!/usr/bin/perl 
+#!/usr/bin/perl
 ###############################################################################
 #
 #    Zevenet Software License
@@ -42,6 +42,7 @@ use Zevenet::Log;
 use Zevenet::Config;
 use Zevenet::Farm::Core;
 
+
 # print usage help if no argument was given
 if ( !defined $ARGV[0] )
 {
@@ -59,6 +60,7 @@ if ( !defined $ARGV[0] )
 my $farmname = "$ARGV[0]";
 my $service  = '';
 my $fservice = '';
+my $zcluster_send_action = "/usr/local/zevenet/app/zbin/zcluster-send-action";
 
 # validate FARM TYPE
 my $type = &getFarmType( $farmname );
@@ -99,7 +101,7 @@ my $enabled;
 if ( !-e $fileconfig )
 {
 	my $msg = "Abort: file $fileconfig not found";
-	
+
 	if ( $logging eq 'enabled' )
 	{
 		&zenlog( $msg );
@@ -171,7 +173,7 @@ my $filepid = "/var/run/$pidfile";
 
 		die;
 	}
-	
+
 	print $fo "$$";
 	close $fo;
 }
@@ -361,6 +363,8 @@ while ( 1 )
 			{
 				&setL4FarmBackendStatus( $farmname, $j, 'up' );
 				$auxLog = " in farm: '$farmname'";
+
+				system ( "$zcluster_send_action farm restart $farmname &" ) if -f $zcluster_send_action;
 			}
 
 			$backendstatus[$j] = 'active';
@@ -390,6 +394,8 @@ while ( 1 )
 			{
 				&setL4FarmBackendStatus( $farmname, $j, 'fgDOWN' );
 				$auxLog = " in farm: '$farmname'";
+
+				system ( "$zcluster_send_action farm restart $farmname &" ) if -f $zcluster_send_action;
 			}
 
 			$backendstatus[$j] = 'fgDOWN';

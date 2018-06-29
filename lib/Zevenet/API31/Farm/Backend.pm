@@ -78,6 +78,13 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		}
 
 		# validate IP
+		if ( ! $json_obj->{ ip } )
+		{
+			my $msg = "Invalid backend IP value. It cannot be in blank.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+
+		# validate IP
 		if ( !&getValidFormat( 'IPv4_addr', $json_obj->{ ip } ) )
 		{
 			my $msg = "Invalid backend IP value.";

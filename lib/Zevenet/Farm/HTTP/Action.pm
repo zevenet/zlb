@@ -36,12 +36,12 @@ Parameters:
 Returns:
 	Integer - return 0 on success or different of 0 on failure
 
-FIXME: 
+FIXME:
 	Control error if fail when restore backend status
 =cut
 sub _runHTTPFarmStart    # ($farm_name)
 {
-	my ( $farm_name ) = @_;
+	my ( $farm_name, $writeconf ) = @_;
 
 	require Zevenet::System;
 	require Zevenet::Farm::HTTP::Backend;
@@ -54,7 +54,7 @@ sub _runHTTPFarmStart    # ($farm_name)
 	my $args = ( $ssyncd_enabled eq 'true' ) ? '-s': '';
 
 	&zenlog( "Checking $farm_name farm configuration" );
-	&getHTTPFarmConfigIsOK( $farm_name );
+	return -1 if( &getHTTPFarmConfigIsOK( $farm_name ) );
 
 	my $cmd = "$pound $args -f $configdir\/$farm_filename -p $piddir\/$farm_name\_pound.pid";
 	$status = &zsystem( "$cmd 2>/dev/null" );
@@ -63,6 +63,20 @@ sub _runHTTPFarmStart    # ($farm_name)
 	{
 		# set backend at status before that the farm stopped
 		&setHTTPFarmBackendStatus( $farm_name );
+
+		# write status in configuration file
+		if ( $writeconf eq "true" )
+		{
+			require Zevenet::Farm::HTTP::Config;
+			my $lock_fh = &lockHTTPFile( $farm_name );
+
+			require Tie::File;
+			tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
+			@configfile = grep !/^\#down/, @configfile;
+			untie @configfile;
+
+			&unlockfile ( $lock_fh );
+		}
 	}
 	else
 	{
@@ -173,7 +187,7 @@ sub setHTTPNewFarmName    # ($farm_name,$new_farm_name)
 			require Tie::File;
 			tie my @configfile, 'Tie::File', "$farm_filename";
 
-			# Lines to change: 
+			# Lines to change:
 			#Name		BasekitHTTP
 			#Control 	"/tmp/BasekitHTTP_pound.socket"
 			#\tErr414 "/usr/local/zevenet/config/BasekitHTTP_Err414.html"

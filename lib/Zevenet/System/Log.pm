@@ -67,6 +67,7 @@ sub getLogs
 		my $filepath = "$logdir/$line";
 		chomp ( $filepath );
 		my $datetime_string = ctime( stat ( $filepath )->mtime );
+		$datetime_string = `date -d "${datetime_string}" +%F" "%T" "%Z -u`;
 		push @logs, { 'file' => $line, 'date' => $datetime_string };
 	}
 

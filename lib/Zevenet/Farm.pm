@@ -23,6 +23,10 @@
 
 use strict;
 
+BEGIN {
+	eval { require Zevenet::Farm::Ext; }
+}
+
 # Dependencies
 use Zevenet::Farm::HTTP;
 use Zevenet::Farm::L4xNAT;

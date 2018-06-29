@@ -42,13 +42,22 @@ foreach my $farmfile ( &getFarmList() )
 		next;
 	}
 
+	my $synconns = 0;
+	my $globalconns = 0;
 	my $ERROR;
-	my $db_farm = "$farm-farm.rrd";
-	my $vip     = &getFarmVip( "vip", $farm );
 
-	my $netstat     = &getConntrack( "", $vip, "", "", "" );
-	my $synconns    = &getFarmSYNConns( $farm, $netstat ); # SYN_RECV connections
-	my $globalconns = &getFarmEstConns( $farm, $netstat ); # ESTABLISHED connections
+	my $db_farm = "$farm-farm.rrd";
+	my $vip = &getFarmVip("vip", $farm);
+
+	my @netstat = &getConntrack("", $vip, "", "", "");
+
+	# SYN_RECV connections
+	my @synconnslist = &getFarmSYNConns($farm,@netstat);
+	$synconns = @synconnslist;
+
+	# ESTABLISHED connections
+	my @gconns = &getFarmEstConns($farm,@netstat);
+	$globalconns = @gconns;
 
 	if ( $globalconns eq '' || $synconns eq '' )
 	{
@@ -79,7 +88,7 @@ foreach my $farmfile ( &getFarmList() )
 			"RRA:MIN:0.5:288:372",		# yearly - every 1 day - 372 reg
 			"RRA:AVERAGE:0.5:288:372",	# yearly - every 1 day - 372 reg
 			"RRA:MAX:0.5:288:372";		# yearly - every 1 day - 372 reg
-
+	
 		if ( $ERROR = RRDs::error )
 		{
 			print "$0: Error: Unable to generate the swap rrd database: $ERROR\n";
@@ -89,8 +98,8 @@ foreach my $farmfile ( &getFarmList() )
 	print "$0: Info: $farm Farm Connections Stats ...\n";
 	print "$0: Info:	Pending: $synconns\n";
 	print "$0: Info:	Established: $globalconns\n";
-	print "$0: Info: Updating data in $rrdap_dir/$rrd_dir/$db_farm ...\n";
 
+	print "$0: Info: Updating data in $rrdap_dir/$rrd_dir/$db_farm ...\n";
 	RRDs::update "$rrdap_dir/$rrd_dir/$db_farm",
 		"-t", "pending:established",
 		"N:$synconns:$globalconns";

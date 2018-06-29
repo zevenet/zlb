@@ -432,7 +432,7 @@ sub setL4FarmBackendStatus    # ($farm_name,$server_id,$status)
 	{
 		$output |= &refreshL4FarmRules( \%farm );
 
-		if ( $status eq 'fgDOWN' && $farm{ persist } eq 'ip' )
+		if ( $status eq 'fgDOWN' && $farm{ lbalg } ne 'prio' && $farm{ persist } eq 'ip' )
 		{
 			&setL4FarmBackendsSessionsRemove( $farm{ name }, $server_id );
 		}
@@ -978,7 +978,7 @@ sub resetL4FarmBackendConntrackMark
 	# return_code = 1 -> not found/deleted
 	# WARNIG: STDOUT must be null so cherokee does not receive this output
 	# as http headers.
-	my $return_code = system ( "$cmd >/dev/null 2>&1" );
+	my $return_code = system( "$cmd 2>/dev/null" );
 
 	if ( &debug() )
 	{

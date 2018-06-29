@@ -60,6 +60,7 @@ sub getBackup
 		use Time::localtime qw(ctime);
 
 		my $datetime_string = ctime( stat ( $filepath )->mtime );
+		$datetime_string = `date -d "${datetime_string}" +%F"  "%T" "%Z -u`;
 		push @backups, { 'name' => $line, 'date' => $datetime_string };
 
 	}

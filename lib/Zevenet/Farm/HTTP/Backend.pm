@@ -50,6 +50,10 @@ sub setHTTPFarmServer # ($ids,$rip,$port,$priority,$timeout,$farm_name,$service)
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
 
+	# lock file
+	require Zevenet::Farm::HTTP::Config;
+	my $lock_fh = &lockHTTPFile( $farm_name );
+
 	require Tie::File;
 	tie my @contents, 'Tie::File', "$configdir\/$farm_filename";
 
@@ -220,6 +224,7 @@ sub setHTTPFarmServer # ($ids,$rip,$port,$priority,$timeout,$farm_name,$service)
 		}
 	}
 	untie @contents;
+	&unlockfile( $lock_fh );
 
 	return $output;
 }
@@ -248,6 +253,10 @@ sub runHTTPFarmServerDelete    # ($ids,$farm_name,$service)
 	my $j             = -1;
 	my $sw            = 0;
 
+	# lock file
+	require Zevenet::Farm::HTTP::Config;
+	my $lock_fh = &lockHTTPFile( $farm_name );
+
 	require Tie::File;
 	tie my @contents, 'Tie::File', "$configdir\/$farm_filename";
 
@@ -274,6 +283,8 @@ sub runHTTPFarmServerDelete    # ($ids,$farm_name,$service)
 		}
 	}
 	untie @contents;
+
+	&unlockfile( $lock_fh );
 
 	if ( $output != -1 )
 	{
@@ -419,11 +430,6 @@ sub getHTTPFarmBackendsStatus_old    # ($farm_name,@content)
 	return @backends_data;
 }
 
-
-
-
-
-
 =begin nd
 Function: getHTTPFarmBackends
 
@@ -447,13 +453,13 @@ sub getHTTPFarmBackends    # ($farm_name,$service)
 
 	my $backendsvs = &getHTTPFarmVS( $farmname, $service, "backends" );
 	my @be         = split ( "\n", $backendsvs );
-	my @be_status  = @{ &getHTTPFarmBackendsStatus( $farmname, $service ) };
+	my @be_status = @{ &getHTTPFarmBackendsStatus( $farmname, $service ) };
 	my @out_ba;
 
 	foreach my $subl ( @be )
 	{
-		my @subbe = split ( ' ', $subl );
-		my $id    = $subbe[1] + 0;
+		my @subbe       = split ( "\ ", $subl );
+		my $id          = $subbe[1] + 0;
 
 		my $ip   = $subbe[3];
 		my $port = $subbe[5] + 0;
@@ -476,7 +482,6 @@ sub getHTTPFarmBackends    # ($farm_name,$service)
 			weight  => $prio
 		};
 	}
-
 	return \@out_ba;
 }
 
@@ -526,9 +531,7 @@ sub getHTTPFarmBackendsStatus    # ($farm_name,@content)
 			#		"established" = $established_connections
 			#	}
 
-			next if $be->{ service } ne $service;
-
-			push ( @status, $be->{ status } );
+			push @status, $be->{ 'status' } if	( $be->{service} eq $service);
 		}
 	}
 	# farm status is down
@@ -538,13 +541,12 @@ sub getHTTPFarmBackendsStatus    # ($farm_name,@content)
 
 		my $backendsvs = &getHTTPFarmVS( $farm_name, $service, "backends" );
 		my @be         = split ( "\n", $backendsvs );
-		my $id         = 0;
+		my $id = 0;
 
 		# @be is used to get size of backend array
-		for ( @be )
+		for (@be)
 		{
 			my $backendstatus = &getHTTPBackendStatusFromFile( $farm_name, $id, $service );
-
 			if ( $backendstatus eq "maintenance" )
 			{
 				$backendstatus = "maintenance"
@@ -594,7 +596,7 @@ sub getHTTPBackendStatusFromFile    # ($farm_name,$backend,$service)
 	}
 
 	$index = &getFarmVSI( $farm_name, $service );
-	open FG, "$stfile";
+	open FG, '<', $stfile;
 
 	while ( my $line = <FG> )
 	{
@@ -619,7 +621,6 @@ sub getHTTPBackendStatusFromFile    # ($farm_name,$backend,$service)
 
 	return $output;
 }
-
 
 =begin nd
 Function: setHTTPFarmBackendStatusFile
@@ -720,7 +721,6 @@ sub setHTTPFarmBackendStatusFile    # ($farm_name,$backend,$status,$idsv)
 	}
 
 }
-
 
 =begin nd
 Function: getHTTPFarmBackendsClients

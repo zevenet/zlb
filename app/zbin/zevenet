@@ -188,32 +188,34 @@ if ( $action eq "start" )
 								  status  => "up",
 				);
 
-				# Write interface file
+				# Write iface file
 				if ( $interface{ name } )
 				{
-					&zenlog( "Writing interface: $interface{ name }" );
+					&zenlog( "Writing iface: $interface{ name }" );
 					&setInterfaceConfig( \%interface ) ;
 
-					# gateway
+					#configure gateway
 					if ( $interface{ gateway } )
 					{
 						&zenlog( "Writing gateway: $interface{ gateway }" );
 						setGlobalConfiguration( 'defaultgw', $gateway );
 						setGlobalConfiguration( 'defaultgwif', $ifname );
 					}
-
-					# route table
-					&zenlog( "Writing route table: $interface{ name }" );
-					&writeRoutes( $interface{ name } );
 				}
 			}
 
-			# overwriting interfaces file
-			open my $if_file, '>', '/etc/network/interfaces';
-			print $if_file "#zenmodified\n";
-			print $if_file "auto lo\n";
-			print $if_file "iface lo inet loopback\n";
-			close $if_file;
+			#deleting interfaces file
+			open FW, ">/etc/network/interfaces";
+			print FW "#zenmodified\n";
+			print FW "auto lo\n";
+			print FW "iface lo inet loopback\n";
+			close FW;
+
+			# Routes
+			# FIXME: there is a function for this, it should be used.
+			open FW, ">>/etc/iproute2/rt_tables";
+			print FW "200\ttable_$interface{ name }\n";
+			close FW;
 		}
 	}
 
@@ -221,14 +223,14 @@ if ( $action eq "start" )
 
 	my $mgmt_ip    = &getHttpServerIp();
 	my $ip_bin     = &getGlobalConfiguration( 'ip_bin' );
-	my @interfaces = &getInterfaceTypeList('nic');
+	my @interfaces = @{ &getConfigInterfaceList() };
 
 	&zenlog("zevenet: Setting up NIC interfaces...");
 
 	# first real interfaces
-	foreach my $iface ( @interfaces )
+	foreach my $iface ( &getInterfaceTypeList('nic'), &getInterfaceTypeList('bond') )
 	{
-		# interfaces as eth0 for example
+		#interfaces as eth0 for example
 		if ( $$iface{ name } eq $$iface{ dev } )
 		{
 			use IO::Interface ':flags';
@@ -282,7 +284,6 @@ if ( $action eq "start" )
 	&eload( module => $mod, func => 'start_service' ) if $eload;
 
 	&zenlog("zevenet: Setting up VLAN interfaces...");
-	@interfaces = @{ &getConfigInterfaceList() };
 
 	# vlans interfaces (ie. eth0.20)
 	foreach my $iface ( @interfaces )
@@ -333,12 +334,10 @@ if ( $action eq "start" )
 		}
 	}
 
-	# Hook to enable cluster
-	if ( $eload )
-	{
-		&zenlog("zevenet: Setting up Cluster...");
-		&eload( module => $mod, func => 'enable_cluster' );
-	}
+	&zenlog("zevenet: Setting up Cluster...");
+
+	# enable cluster hook
+	&eload( module => $mod, func => 'enable_cluster' ) if $eload;
 
 	&zenlog("zevenet: Setting up virtual interfaces...");
 

@@ -171,6 +171,7 @@ sub getFarmVipStatus    # ($farm_name)
 	my $farm_name = shift;
 
 	my $output = -1;
+	my $farmStatus = &getFarmStatus( $farm_name );
 	return $output if !defined ( $farm_name );    # farm name cannot be empty
 
 	$output = "problem";
@@ -178,40 +179,42 @@ sub getFarmVipStatus    # ($farm_name)
 	{
 		return "needed restart";
 	}
-	elsif ( &getFarmStatus( $farm_name ) eq "down" )
+	elsif ( $farmStatus eq "down" )
 	{
 		return "down";
+	}
+	elsif ( $farmStatus ne "up" )
+	{
+		return -1;
 	}
 
 	# types: "http", "https", "datalink", "l4xnat", "gslb" or 1
 	my $type = &getFarmType( $farm_name );
 
-	require Zevenet::Farm::Config;
-
 	my $backends;
-	my $up_flag;			# almost one backend is not reachable
-	my $down_flag; 			# almost one backend is not reachable
+	my $up_flag;		# almost one backend is not reachable
+	my $down_flag; 	# almost one backend is not reachable
 	my $maintenance_flag; 	# almost one backend is not reachable
 
 	# Profile without services
 	if ( $type eq "datalink" || $type eq "l4xnat" )
 	{
+		require Zevenet::Farm::Config;
 		$backends = &getFarmBackends( $farm_name );
 	}
 	# Profiles with services
-	elsif ( $type eq "gslb" || $type =~ /http/ )
+	elsif ( $type eq "gslb" )
 	{
-		require Zevenet::Farm::Service;
-
-		foreach my $srv ( &getFarmServices($farm_name) )
-		{
-			# Fill an array with backends of all services
-			push @{ $backends }, @{ &getFarmBackends( $farm_name, $srv ) };
-		}
+		require Zevenet::Farm::GSLB::Stats;
+		my $stats = &getGSLBFarmBackendsStats($farm_name);
+		$backends = $stats->{ backends };
 	}
-	else
+	# Profiles with services
+	elsif ( $type =~ /http/ )
 	{
-		return -1;
+		require Zevenet::Farm::HTTP::Stats;
+		my $stats = &getHTTPFarmBackendsStats($farm_name);
+		$backends = $stats->{ backends };
 	}
 
 	# checking status
@@ -220,6 +223,23 @@ sub getFarmVipStatus    # ($farm_name)
 		$up_flag = 1 if $be->{ 'status' } eq "up";
 		$maintenance_flag = 1 if $be->{ 'status' } eq "maintenance";
 		$down_flag = 1 if $be->{ 'status' } eq "down";
+
+		# if there is a backend up and another down, the status is 'problem'
+		last if ( $down_flag and $up_flag );
+	}
+
+	# check if redirect exists when there are not backends
+	if ( $type =~ /http/ )
+	{
+		require Zevenet::Farm::HTTP::Service;
+		foreach my $srv ( &getHTTPFarmServices( $farm_name ) )
+		{
+			if ( &getHTTPFarmVS( $farm_name, $srv, 'redirect' ) )
+			{
+				$up_flag = 1;
+				last;
+			}
+		}
 	}
 
 	# Decision logic

@@ -44,34 +44,33 @@ Returns:
 See Also:
 	zapi/v3/system.cgi
 =cut
+
 sub getDns
 {
 	my $dns;
 	my $dnsFile = &getGlobalConfiguration( 'filedns' );
 
-	if ( !-e $dnsFile )
+	if ( !-f $dnsFile )
 	{
 		return undef;
 	}
 
-	require Tie::File;
-	tie my @dnsArr, 'Tie::File', $dnsFile;
+	open FI, '<', $dnsFile;
+	my @file = <FI>;
+	close FI;
 
-	#primary
-	my @aux = split ( ' ', $dnsArr[0] );
-	$dns->{ 'primary' } = $aux[1];
+	my $index = 1;
+	foreach my $line ( @file )
+	{
+		if ( $line =~ /nameserver\s+([^\s]+)/ )
+		{
+			$dns->{ 'primary' }   = $1 if ( $index == 1 );
+			$dns->{ 'secondary' } = $1 if ( $index == 2 );
 
-	# secondary
-	if ( defined $dnsArr[1] )
-	{
-		@aux = split ( ' ', $dnsArr[1] );
-		$dns->{ 'secondary' } = $aux[1];
+			$index++;
+			last if ( $index > 2 );
+		}
 	}
-	else
-	{
-		$dns->{ 'secondary' } = "";
-	}
-	untie @dnsArr;
 
 	return $dns;
 }
@@ -94,37 +93,40 @@ Bugs:
 See Also:
 	zapi/v3/system.cgi
 =cut
+
 sub setDns
 {
 	my ( $dns, $value ) = @_;
 
 	my $dnsFile = &getGlobalConfiguration( 'filedns' );
-	my $output;
-	my $line;
 
-	if ( !-e $dnsFile )
+	if ( !-f $dnsFile )
 	{
-		$output = system ( &getGlobalConfiguration( 'touch' ) . " $dnsFile" );
+		system ( &getGlobalConfiguration( 'touch' ) . " $dnsFile" );
 	}
 
 	require Tie::File;
 	tie my @dnsArr, 'Tie::File', $dnsFile;
 
-	if ( $dns eq 'primary' )
+	my $index = 1;
+	foreach my $line ( @dnsArr )
 	{
-		$line = 0;
+		if ( $line =~ /\s*nameserver/ )
+		{
+			$line = "nameserver $value" if ( $index == 1 and $dns eq 'primary' );
+			$line = "nameserver $value" if ( $index == 2 and $dns eq 'secondary' );
+
+			$index++;
+			last if ( $index > 2 );
+		}
 	}
 
-	# secondary:   $dns eq 'secondary'
-	else
-	{
-		$line = 1;
-	}
+	# if the secondary nameserver has not been found, add it
+	push @dnsArr, "nameserver $value" if ( $index == 2 and $dns eq 'secondary' );
 
-	$dnsArr[$line] = "nameserver $value";
 	untie @dnsArr;
 
-	return $output;
+	return 0;
 }
 
 1;

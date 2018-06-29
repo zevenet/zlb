@@ -30,14 +30,14 @@ my $configdir = &getGlobalConfiguration( 'configdir' );
 Function: _runFarmStart
 
 	Run a farm
-	
+
 Parameters:
 	farmname - Farm name
 	writeconf - write this change in configuration status "true" or omit it "false"
 
 Returns:
 	Integer - return 0 on success or different of 0 on failure
-	
+
 =cut
 
 sub _runFarmStart    # ($farm_name, $writeconf)
@@ -55,23 +55,24 @@ sub _runFarmStart    # ($farm_name, $writeconf)
 		return 0;
 	}
 
+	# check if the ip exists in any interface
+	my $ip = &getFarmVip( "vip", $farm_name );
+	require Zevenet::Net::Interface;
+	if ( !&getIpAddressExists( $ip ) )
+	{
+		&zenlog( "The virtual interface $ip is not defined any interface." );
+		return $status;
+	}
+
 	my $farm_type     = &getFarmType( $farm_name );
 	my $farm_filename = &getFarmFile( $farm_name );
-
 	&zenlog( "running 'Start write $writeconf' for $farm_name farm $farm_type" );
 
-	if ( $writeconf eq "true" && $farm_type =~ /^https?$/ )
-	{
-		require Tie::File;
-		tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
-		@configfile = grep !/^\#down/, @configfile;
-		untie @configfile;
-	}
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Action;
-		$status = &_runHTTPFarmStart( $farm_name );
+		$status = &_runHTTPFarmStart( $farm_name, $writeconf );
 	}
 	elsif ( $farm_type eq "datalink" )
 	{
@@ -98,7 +99,7 @@ sub _runFarmStart    # ($farm_name, $writeconf)
 Function: runFarmStart
 
 	Run a farm completely a farm. Run farm, its farmguardian and ipds rules
-	
+
 Parameters:
 	farmname - Farm name
 	writeconf - write this change in configuration status "true" or omit it "false"
@@ -108,7 +109,7 @@ Returns:
 
 NOTE:
 	Generic function
-	
+
 =cut
 
 sub runFarmStart    # ($farm_name,$writeconf)
@@ -117,11 +118,10 @@ sub runFarmStart    # ($farm_name,$writeconf)
 
 	my $status = &_runFarmStart( $farm_name, $writeconf );
 
-	if ( $status == 0 )
-	{
-		require Zevenet::FarmGuardian;
-		&runFarmGuardianStart( $farm_name, "" );
-	}
+	return -1 if ( $status != 0 );
+
+	require Zevenet::FarmGuardian;
+	&runFarmGuardianStart( $farm_name, "" );
 
 	# run ipds rules
 	if ( eval { require Zevenet::IPDS::Base; } )
@@ -141,7 +141,7 @@ sub runFarmStart    # ($farm_name,$writeconf)
 Function: runFarmStop
 
 	Stop a farm completely a farm. Stop the farm, its farmguardian and ipds rules
-	
+
 Parameters:
 	farmname - Farm name
 	writeconf - write this change in configuration status "true" or omit it "false"
@@ -151,7 +151,7 @@ Returns:
 
 NOTE:
 	Generic function
-		
+
 =cut
 
 sub runFarmStop    # ($farm_name,$writeconf)
@@ -181,14 +181,14 @@ sub runFarmStop    # ($farm_name,$writeconf)
 Function: _runFarmStop
 
 	Stop a farm
-	
+
 Parameters:
 	farmname - Farm name
 	writeconf - write this change in configuration status "true" or omit it "false"
 
 Returns:
 	Integer - return 0 on success or different of 0 on failure
-	
+
 =cut
 
 sub _runFarmStop    # ($farm_name,$writeconf)
@@ -238,9 +238,14 @@ sub _runFarmStop    # ($farm_name,$writeconf)
 
 	if ( $writeconf eq "true" && $farm_type =~ /^https?$/ )
 	{
+		require Zevenet::Farm::HTTP::Config;
+		my $lock_fh = &lockHTTPFile( $farm_name );
+
 		open FW, ">>$configdir/$farm_filename";
 		print FW "#down\n";
 		close FW;
+
+		&unlockfile( $lock_fh );
 	}
 
 	return $status;
@@ -250,16 +255,16 @@ sub _runFarmStop    # ($farm_name,$writeconf)
 Function: runFarmDelete
 
 	Delete a farm
-		
+
 Parameters:
 	farmname - Farm name
 
 Returns:
 	String - farm name
-	
+
 NOTE:
 	Generic function
-	
+
 =cut
 
 sub runFarmDelete    # ($farm_name)
@@ -336,16 +341,16 @@ sub runFarmDelete    # ($farm_name)
 Function: setFarmRestart
 
 	This function creates a file to tell that the farm needs to be restarted to apply changes
-		
+
 Parameters:
 	farmname - Farm name
 
 Returns:
 	undef
-	
+
 NOTE:
 	Generic function
-	
+
 =cut
 
 sub setFarmRestart    # ($farm_name)
@@ -364,16 +369,16 @@ sub setFarmRestart    # ($farm_name)
 Function: setFarmNoRestart
 
 	This function deletes the file marking the farm to be restarted to apply changes
-		
+
 Parameters:
 	farmname - Farm name
 
 Returns:
 	none - .
-	
+
 NOTE:
 	Generic function
-	
+
 =cut
 
 sub setFarmNoRestart    # ($farm_name)
@@ -387,14 +392,14 @@ sub setFarmNoRestart    # ($farm_name)
 Function: setNewFarmName
 
 	Function that renames a farm. Before call this function, stop the farm.
-	
+
 Parameters:
 	farmname - Farm name
 	newfarmname - New farm name
 
 Returns:
 	Integer - return 0 on success or -1 on failure
-		
+
 =cut
 
 sub setNewFarmName    # ($farm_name,$new_farm_name)

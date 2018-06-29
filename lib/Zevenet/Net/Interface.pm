@@ -1108,7 +1108,7 @@ sub getIpAddressExists
 
 	foreach my $if_ref ( @{ &getConfigInterfaceList() } )
 	{
-		if ( $if_ref->{ addr } = $ip )
+		if ( $if_ref->{ addr } eq $ip )
 		{
 			$output = 1;
 			last;

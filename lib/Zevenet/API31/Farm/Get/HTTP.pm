@@ -22,14 +22,11 @@
 
 use strict;
 use Zevenet::Farm::HTTP::Config;
-use Zevenet::Farm::HTTP::Service;
 
-# GET /farms/<farmname> Request info of a http|https Farm
-sub farms_name_http # ( $farmname )
+sub get_farm_struct
 {
 	my $farmname = shift;
-
-	my @out_s;
+	my $output_params;
 	my @out_cn;
 	my $connto          = 0 + &getFarmConnTO( $farmname );
 	my $timeout         = 0 + &getHTTPFarmTimeout( $farmname );
@@ -49,17 +46,17 @@ sub farms_name_http # ( $farmname )
 	elsif ( $httpverb == 3 ) { $httpverb = "MSextWebDAV"; }
 	elsif ( $httpverb == 4 ) { $httpverb = "MSRPCext"; }
 
-	my $type    = &getFarmType( $farmname );
+	my $type     = &getFarmType( $farmname );
 	my $certname;
-	my $cipher  = '';
-	my $ciphers = 'all';
+	my $cipher   = '';
+	my $ciphers  = 'all';
 	my @cnames;
 
 	if ( $type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::HTTPS;
 
-		if ( eval { require Zevenet::Farm::HTTP::HTTPS::Ext; } )
+		if ( eval{ require Zevenet::Farm::HTTP::HTTPS::Ext; } )
 		{
 			@cnames = &getFarmCertificatesSNI( $farmname );
 		}
@@ -102,29 +99,27 @@ sub farms_name_http # ( $farmname )
 
 	my $status = &getFarmVipStatus( $farmname );
 
-	my $output_params = {
-						  status              => $status,
-						  restimeout          => $timeout,
-						  contimeout          => $connto,
-						  resurrectime        => $alive,
-						  reqtimeout          => $client,
-						  rewritelocation     => $rewritelocation,
-						  httpverb            => $httpverb,
-						  listener            => $type,
-						  vip                 => $vip,
-						  vport               => $vport,
-						  error500            => $err500,
-						  error414            => $err414,
-						  error501            => $err501,
-						  error503            => $err503
-	};
+	$output_params = {
+		status          => $status,
+		restimeout      => $timeout,
+		contimeout      => $connto,
+		resurrectime    => $alive,
+		reqtimeout      => $client,
+		rewritelocation => $rewritelocation,
+		httpverb        => $httpverb,
+		listener        => $type,
+		vip             => $vip,
+		vport           => $vport,
+		error500        => $err500,
+		error414        => $err414,
+		error501        => $err501,
+		error503        => $err503
+	  };
 
-	my $EE = eval { require Zevenet::HTTP::Ext; } ? 1 : undef;
-
-	if ( $EE )
+	if ( eval{ require Zevenet::Farm::HTTP::Ext; } )
 	{
-		$output_params->{ ignore_100_continue } =
-		  ( &getHTTPFarm100Continue( $farmname ) ) ? "true" : "false";
+		my $flag = &getHTTPFarm100Continue( $farmname );
+		$output_params->{ ignore_100_continue } = ( $flag ) ? "true" : "false";
 	}
 
 	if ( $type eq "https" )
@@ -139,9 +134,23 @@ sub farms_name_http # ( $farmname )
 		$output_params->{ disable_tlsv1_2 } = ( &getHTTPFarmDisableSSL($farmname, "TLSv1_2") )? "true": "false";
 	}
 
+	return $output_params;
+}
+
+
+# GET /farms/<farmname> Request info of a http|https Farm
+sub farms_name_http # ( $farmname )
+{
+	my $farmname = shift;
+
+	require Zevenet::Farm::HTTP::Service;
+
+	my $farm_st = &get_farm_struct( $farmname );
+	my @out_s;
+
 	# Services
-	my $services = &getHTTPFarmVS( $farmname, '', '' );
-	my @serv = split ( ' ', $services );
+	my $services = &getHTTPFarmVS( $farmname, "", "" );
+	my @serv = split ( "\ ", $services );
 
 	foreach my $s ( @serv )
 	{
@@ -152,13 +161,12 @@ sub farms_name_http # ( $farmname )
 		{
 			$be->{ 'status' } = 'up'  if ($be->{ 'status' } eq 'undefined');
 		}
-
 		push @out_s, $serviceStruct;
 	}
 
 	my $body = {
 				 description => "List farm $farmname",
-				 params      => $output_params,
+				 params      => $farm_st,
 				 services    => \@out_s,
 	};
 
@@ -169,5 +177,39 @@ sub farms_name_http # ( $farmname )
 
 	&httpResponse({ code => 200, body => $body });
 }
+
+# GET /farms/<farmname>/summary
+sub farms_name_http_summary
+{
+	my $farmname = shift;
+
+	require Zevenet::Farm::HTTP::Service;
+
+	my $farm_st = &get_farm_struct( $farmname );
+	my @out_s;
+
+	# Services
+	my $services = &getHTTPFarmVS( $farmname, "", "" );
+	my @serv = split ( "\ ", $services );
+
+	foreach my $s ( @serv )
+	{
+		push @out_s, { 'id' => $s };
+	}
+
+	my $body = {
+				 description => "List farm $farmname",
+				 params      => $farm_st,
+				 services    => \@out_s,
+	};
+
+	if ( eval{ require Zevenet::IPDS::Core; } )
+	{
+		$body->{ ipds } = &getIPDSfarmsRules( $farmname );
+	}
+
+	&httpResponse({ code => 200, body => $body });
+}
+
 
 1;

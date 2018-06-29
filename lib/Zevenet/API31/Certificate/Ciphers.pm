@@ -25,24 +25,26 @@ use strict;
 # GET /ciphers
 sub ciphers_available # ( $json_obj, $farmname )
 {
+	my @out;
 	my $desc = "Get the ciphers available";
 
-	my @out = (
-				{ 'ciphers' => "all",            "description" => "All" },
-				{ 'ciphers' => "highsecurity",   "description" => "High security" },
-				{ 'ciphers' => "customsecurity", "description" => "Custom security" }
-	);
+	require Zevenet::Farm::HTTP::HTTPS;
 
-	if ( eval { require Zevenet::Farm::HTTP::HTTPS::Ext; } )
+	push @out, { 'ciphers' => "all", "description" => "All" };
+	push @out, { 'ciphers' => "highsecurity", "description" => "High security" };
+	push @out, { 'ciphers' => "customsecurity", "description" => "Custom security" };
+
+	if ( &getFarmCipherSSLOffLoadingSupport() )
 	{
-		push( @out, &getExtraCipherProfiles() );
+		push @out, { 'ciphers' => "ssloffloading", "description" => "SSL offloading" };
 	}
 
 	my $body = {
-				 description => $desc,
-				 params      => \@out,
+				description => $desc,
+				params      => \@out,
 	};
 
+	# Success
 	&httpResponse({ code => 200, body => $body });
 }
 

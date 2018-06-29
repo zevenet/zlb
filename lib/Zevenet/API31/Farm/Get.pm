@@ -26,7 +26,7 @@ use Zevenet::Farm::Core;
 use Zevenet::Farm::Base;
 
 #GET /farms
-sub farms # ()
+sub farms    # ()
 {
 	require Zevenet::Farm::Base;
 
@@ -52,15 +52,15 @@ sub farms # ()
 	}
 
 	my $body = {
-				description => "List farms",
-				params      => \@out,
+				 description => "List farms",
+				 params      => \@out,
 	};
 
-	&httpResponse({ code => 200, body => $body });
+	&httpResponse( { code => 200, body => $body } );
 }
 
 # GET /farms/LSLBFARM
-sub farms_lslb # ()
+sub farms_lslb    # ()
 {
 	require Zevenet::Farm::Base;
 	require Zevenet::Farm::HTTP;
@@ -71,8 +71,8 @@ sub farms_lslb # ()
 
 	foreach my $file ( @files )
 	{
-		my $name   = &getFarmName( $file );
-		my $type   = &getFarmType( $name );
+		my $name = &getFarmName( $file );
+		my $type = &getFarmType( $name );
 		next unless $type =~ /^(?:https?|l4xnat)$/;
 		my $status = &getFarmVipStatus( $name );
 		my $vip    = &getFarmVip( 'vip', $name );
@@ -89,15 +89,15 @@ sub farms_lslb # ()
 	}
 
 	my $body = {
-				description => "List LSLB farms",
-				params      => \@out,
+				 description => "List LSLB farms",
+				 params      => \@out,
 	};
 
-	&httpResponse({ code => 200, body => $body });
+	&httpResponse( { code => 200, body => $body } );
 }
 
 # GET /farms/DATALINKFARM
-sub farms_dslb # ()
+sub farms_dslb    # ()
 {
 	require Zevenet::Farm::Base;
 	require Zevenet::Farm::Datalink;
@@ -107,8 +107,8 @@ sub farms_dslb # ()
 
 	foreach my $file ( @files )
 	{
-		my $name   = &getFarmName( $file );
-		my $type   = &getFarmType( $name );
+		my $name = &getFarmName( $file );
+		my $type = &getFarmType( $name );
 		next unless $type eq 'datalink';
 		my $status = &getFarmVipStatus( $name );
 		my $vip    = &getFarmVip( 'vip', $name );
@@ -116,23 +116,48 @@ sub farms_dslb # ()
 
 		push @out,
 		  {
-			farmname => $name,
-			status   => $status,
-			vip      => $vip,
+			farmname  => $name,
+			status    => $status,
+			vip       => $vip,
 			interface => $iface
 		  };
 	}
 
 	my $body = {
-				description => "List DSLB farms",
-				params      => \@out,
+				 description => "List DSLB farms",
+				 params      => \@out,
 	};
 
-	&httpResponse({ code => 200, body => $body });
+	&httpResponse( { code => 200, body => $body } );
+}
+
+#GET /farms/<name>/summary
+sub farms_name_summary    # ( $farmname )
+{
+	my $farmname = shift;
+	my $desc     = "Show farm $farmname";
+
+	# Check if the farm exists
+	if ( &getFarmFile( $farmname ) == -1 )
+	{
+		my $msg = "Farm not found.";
+		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+	}
+
+	my $type = &getFarmType( $farmname );
+	if ( $type =~ /https?/ )
+	{
+		require Zevenet::API31::Farm::Get::HTTP;
+		&farms_name_http_summary( $farmname );
+	}
+	else
+	{
+		&farms_name( $farmname );
+	}
 }
 
 #GET /farms/<name>
-sub farms_name # ( $farmname )
+sub farms_name    # ( $farmname )
 {
 	my $farmname = shift;
 
@@ -164,7 +189,7 @@ sub farms_name # ( $farmname )
 	}
 	if ( $type eq 'gslb' )
 	{
-		if ( eval{ require Zevenet::API31::Farm::Get::GSLB; } )
+		if ( eval { require Zevenet::API31::Farm::Get::GSLB; } )
 		{
 			&farms_name_gslb( $farmname );
 		}

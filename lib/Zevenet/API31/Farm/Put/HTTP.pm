@@ -25,6 +25,7 @@ use Zevenet::Farm::Base;
 use Zevenet::Farm::Config;
 use Zevenet::Farm::Action;
 
+
 # PUT /farms/<farmname> Modify a http|https Farm
 sub modify_http_farm    # ( $json_obj, $farmname )
 {
@@ -232,9 +233,7 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 		$restart_flag = "true";
 	}
 
-	my $EE = eval { require Zevenet::HTTP::Ext; } ? 1 : undef;
-
-	if ( $EE )
+	if ( eval{ require Zevenet::Farm::HTTP::Ext; } )
 	{
 		# Enable or disable ignore 100 continue header
 		if ( exists ( $json_obj->{ ignore_100_continue } ) )
@@ -248,9 +247,12 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 			my $action = 0;
 			$action = 1 if ( $json_obj->{ ignore_100_continue } =~ /^true$/ );
 
-			if ( &getHTTPFarm100Continue( $farmname ) != $action )
+			my $newaction = &getHTTPFarm100Continue( $farmname );
+
+			if ( $newaction != $action )
 			{
 				my $status = &setHTTPFarm100Continue( $farmname, $action );
+
 				if ( $status == -1 )
 				{
 					my $msg = "Some errors happened trying to modify the certname.";
@@ -363,8 +365,6 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 
 	# Modify HTTPS Params
 	my $farmtype = &getFarmType( $farmname );
-	my $EE;
-
 	if ( $farmtype eq "https" )
 	{
 		require Zevenet::Farm::HTTP::HTTPS;
@@ -393,23 +393,13 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 			elsif ( $json_obj->{ ciphers } eq "highsecurity" ) { $ciphers = "cipherpci"; }
 			elsif ( $json_obj->{ ciphers } eq "ssloffloading" )
 			{
-				if ( eval { require Zevenet::Farm::HTTP::HTTPS::Ext; } )
+				unless ( &getFarmCipherSSLOffLoadingSupport() )
 				{
-					$EE = 1;
-
-					unless ( &getFarmCipherSSLOffLoadingSupport() )
-					{
-						my $msg = "The CPU does not support SSL offloading.";
-						&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-					}
-
-					$ciphers = "cipherssloffloading";
-				}
-				else
-				{
-					my $msg = "SSL offloading cipher profile not available.";
+					my $msg = "The CPU does not support SSL offloading.";
 					&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 				}
+
+				$ciphers = "cipherssloffloading";
 			}
 
 			my $status = &setFarmCipherList( $farmname, $ciphers );
@@ -451,16 +441,7 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 		# Add Certificate to SNI list
 		if ( exists ( $json_obj->{ certname } ) )
 		{
-			my $status;
-			if ( $EE )
-			{
-				$status = &setFarmCertificateSNI( $json_obj->{ certname }, $farmname );
-			}
-			else
-			{
-				$status = &setFarmCertificate( $json_obj->{ certname }, $farmname );
-			}
-
+			my $status = &setFarmCertificateSNI( $json_obj->{ certname }, $farmname );
 			if ( $status == -1 )
 			{
 				my $msg = "Some errors happened trying to modify the certname.";
@@ -599,7 +580,7 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 		my @certlist;
 		my @cnames;
 
-		if ( $EE )
+		if ( eval{ require Zevenet::Farm::HTTP::HTTPS::Ext; } )
 		{
 			@cnames = &getFarmCertificatesSNI( $farmname );
 		}
@@ -608,7 +589,7 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 			@cnames = ( &getFarmCertificate( $farmname ) );
 		}
 
-		my $elem = scalar @cnames;
+		my $elem   = scalar @cnames;
 
 		for ( my $i = 0 ; $i < $elem ; $i++ )
 		{

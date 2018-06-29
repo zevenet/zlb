@@ -39,6 +39,9 @@ if ( $q->path_info =~ qr{^/certificates} )
 	#  Download SSL certificate
 	GET qr{^/certificates/($cert_re)$} => \&download_certificate;
 
+	#  GET SSL certificate information
+	GET qr{^/certificates/($cert_re)/info$} => \&get_certificate_info;
+
 	#  Create CSR certificates
 	POST qr{^/certificates$} => \&create_csr;
 
@@ -141,6 +144,9 @@ if ( $q->path_info =~ qr{^/farms} )
 		GET qr{^/farms/modules/lslb$} => \&farms_lslb;
 		GET qr{^/farms/modules/dslb$} => \&farms_dslb;
 
+		##### /farms/FARM/summary
+		GET qr{^/farms/($farm_re)/summary$} => \&farms_name_summary;
+
 		##### /farms/FARM
 		GET qr{^/farms/($farm_re)$} => \&farms_name;
 	}
@@ -239,11 +245,19 @@ if ( $q->path_info =~ qr{^/stats} )
 
 	# System stats
 	GET qr{^/stats$}                           => \&stats;
+	GET qr{^/stats/system/memory$}             => \&stats_mem;
+	GET qr{^/stats/system/load$}               => \&stats_load;
 	GET qr{^/stats/system/network$}            => \&stats_network;
+	GET qr{^/stats/system/network/interfaces$} => \&stats_network_interfaces;
+	GET qr{^/stats/system/cpu$}                => \&stats_cpu;
+	GET qr{^/stats/system/connections$}        => \&stats_conns;
 
 	# Farm stats
 	my $modules_re = &getValidFormat( 'farm_modules' );
 	GET qr{^/stats/farms$}                       => \&all_farms_stats;
+	GET qr{^/stats/farms/total$}                 => \&farms_number;
+	GET qr{^/stats/farms/modules$}               => \&module_stats_status;
+	GET qr{^/stats/farms/modules/($modules_re)$} => \&module_stats;
 	GET qr{^/stats/farms/($farm_re)$}            => \&farm_stats;
 	GET qr{^/stats/farms/($farm_re)/backends$}   => \&farm_stats;
 
@@ -333,6 +347,14 @@ if ( $q->path_info =~ qr{^/system/ntp} )
 
 	GET qr{^/system/ntp$}  => \&get_ntp;
 	POST qr{^/system/ntp$} => \&set_ntp;
+}
+
+if ( $q->path_info =~ qr{^/system/http} )
+{
+	require Zevenet::API31::System::Service::HTTP;
+
+	GET qr{^/system/http$}  => \&get_http;
+	POST qr{^/system/http$} => \&set_http;
 }
 
 if ( $q->path_info =~ qr{^/system/users} )

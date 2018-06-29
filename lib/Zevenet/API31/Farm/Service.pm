@@ -98,6 +98,14 @@ sub new_farm_service    # ( $json_obj, $farmname )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
+	# Return 0 on success
+	if ( $result )
+	{
+		my $msg =
+		  "Error creating the service $json_obj->{ id }.";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+
 	# no error found, return successful response
 	&zenlog(
 		"ZAPI success, a new service has been created in farm $farmname with id $json_obj->{id}."
@@ -167,7 +175,7 @@ sub farm_services
 
 	my $body = {
 				 description => $desc,
-				 services    => $service,
+				 params    => $service,
 	};
 
 	&httpResponse( { code => 200, body => $body } );
@@ -335,17 +343,51 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 		}
 	}
 
-	# Cookie insertion
-	if ( scalar grep( /^cookie/, keys %$json_obj ) )
+	if ( exists ( $json_obj->{ cookieinsert } ) )
 	{
-		if ( eval { require Zevenet::API31::Farm::Service::Ext; } )
+		if ( $json_obj->{ cookieinsert } eq "true" )
 		{
-			&modify_service_cookie_intertion( $farmname, $service, $json_obj );
+			&setFarmVS( $farmname, $service, "cookieins", $json_obj->{ cookieinsert } );
+		}
+		elsif ( $json_obj->{ cookieinsert } eq "false" )
+		{
+			&setFarmVS( $farmname, $service, "cookieins", "" );
 		}
 		else
 		{
-			my $msg = "Cookie insertion feature not available.";
+			my $msg = "Invalid cookieinsert value.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+	}
+
+	my $cookieins_status = &getHTTPFarmVS( $farmname, $service, 'cookieins' );
+	if ( $cookieins_status eq "true" )
+	{
+		if ( exists $json_obj->{ cookiedomain } )
+		{
+			&setFarmVS( $farmname, $service, "cookieins-domain",
+						$json_obj->{ cookiedomain } );
+		}
+
+		if ( exists $json_obj->{ cookiename } )
+		{
+			&setFarmVS( $farmname, $service, "cookieins-name", $json_obj->{ cookiename } );
+		}
+
+		if ( exists $json_obj->{ cookiepath } )
+		{
+			&setFarmVS( $farmname, $service, "cookieins-path", $json_obj->{ cookiepath } );
+		}
+
+		if ( exists $json_obj->{ cookiettl } )
+		{
+			if ( $json_obj->{ cookiettl } eq '' )
+			{
+				my $msg = "Invalid cookiettl, can't be blank.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+
+			&setFarmVS( $farmname, $service, "cookieins-ttlc", $json_obj->{ cookiettl } );
 		}
 	}
 

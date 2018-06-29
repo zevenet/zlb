@@ -23,6 +23,41 @@
 
 use strict;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
+=begin nd
+Function: getHTTPBackendEstConns
+
+	Get all ESTABLISHED connections for a backend
+
+Parameters:
+	farmname - Farm name
+	ip_backend - IP backend
+	port_backend - backend port
+	netstat - Conntrack -L output
+
+Returns:
+	array - Return all ESTABLISHED conntrack lines for the backend
+
+BUG:
+	it is possible filter using farm Vip and port too. If a backend if defined in more than a farm, here it appers all them
+
+=cut
+sub getHTTPBackendEstConns     # ($farm_name,$ip_backend,$port_backend,@netstat)
+{
+	my ( $farm_name, $ip_backend, $port_backend, @netstat ) = @_;
+
+	return
+	  &getNetstatFilter(
+		"tcp",
+		"",
+		"\.*ESTABLISHED src=\.* dst=.* sport=\.* dport=$port_backend \.*src=$ip_backend \.*",
+		"",
+		@netstat
+	  );
+}
+
 =begin nd
 Function: getHTTPFarmEstConns
 
@@ -30,31 +65,53 @@ Function: getHTTPFarmEstConns
 
 Parameters:
 	farmname - Farm name
+	netstat - Conntrack -L output
 
 Returns:
 	array - Return all ESTABLISHED conntrack lines for a farm
 
 =cut
-sub getHTTPFarmEstConns    # ($farm_name)
+sub getHTTPFarmEstConns    # ($farm_name,@netstat)
 {
-	my ( $farm_name, $netstat ) = @_;
+	my ( $farm_name, @netstat ) = @_;
 
 	my $vip      = &getFarmVip( "vip",  $farm_name );
 	my $vip_port = &getFarmVip( "vipp", $farm_name );
 
-	my $filter = {
-				   proto         => 'tcp',
-				   orig_dst      => $vip,
-				   orig_port_dst => $vip_port,
-				   state         => 'ESTABLISHED',
-	};
+	return &getNetstatFilter(
+		"tcp", "",
 
-	my $ct_params = &getConntrackParams( $filter );
-	my $count     = &getConntrackCount( $ct_params );
+		".* ESTABLISHED src=.* dst=$vip sport=.* dport=$vip_port src=.*",
+		"", @netstat
+	);
+}
 
-	#~ &zenlog( "getHTTPFarmEstConns: $farm_name farm -> $count connections." );
+=begin nd
+Function: getHTTPBackendSYNConns
 
-	return $count + 0;
+	Get all SYN connections for a backend
+
+Parameters:
+	farmname - Farm name
+	ip_backend - IP backend
+	port_backend - backend port
+	netstat - Conntrack -L output
+
+Returns:
+	array - Return all SYN conntrack lines for a backend of a farm
+
+BUG:
+	it is possible filter using farm Vip and port too. If a backend if defined in more than a farm, here it appers all them
+
+=cut
+sub getHTTPBackendSYNConns  # ($farm_name, $ip_backend, $port_backend, @netstat)
+{
+	my ( $farm_name, $ip_backend, $port_backend, @netstat ) = @_;
+
+	return
+	  &getNetstatFilter( "tcp", "",
+				"\.*SYN\.* src=\.* dst=$ip_backend sport=\.* dport=$port_backend\.*",
+				"", @netstat );
 }
 
 =begin nd
@@ -64,112 +121,27 @@ Function: getHTTPFarmSYNConns
 
 Parameters:
 	farmname - Farm name
+	netstat - Conntrack -L output
 
 Returns:
 	array - Return all SYN conntrack lines for a farm
 
 =cut
-sub getHTTPFarmSYNConns     # ($farm_name)
+sub getHTTPFarmSYNConns     # ($farm_name, @netstat)
 {
-	my ( $farm_name, $netstat ) = @_;
+	my ( $farm_name, @netstat ) = @_;
 
 	my $vip      = &getFarmVip( "vip",  $farm_name );
 	my $vip_port = &getFarmVip( "vipp", $farm_name );
 
-	my $filter = {
-				   proto         => 'tcp',
-				   orig_dst      => $vip,
-				   orig_port_dst => $vip_port,
-				   state         => 'SYN_SENT',
-	};
-
-	my $ct_params = &getConntrackParams( $filter );
-	my $count     = &getConntrackCount( $ct_params );
-
-	$filter->{ state } = 'SYN_RECV';
-
-	$ct_params = &getConntrackParams( $filter );
-	$count    += &getConntrackCount( $ct_params );
-
-	#~ &zenlog( "getHTTPFarmSYNConns: $farm_name farm -> $count connections." );
-
-	return $count + 0;
+	return
+	  &getNetstatFilter( "tcp", "",
+					   "\.* SYN\.* src=\.* dst=$vip \.* dport=$vip_port \.* src=\.*",
+					   "", @netstat );
 }
 
-=begin nd
-Function: getHTTPBackendEstConns
 
-	Get all ESTABLISHED connections for a backend
 
-Parameters:
-	farmname     - Farm name
-	backend_ip   - IP backend
-	backend_port - backend port
-
-Returns:
-	array - Return all ESTABLISHED conntrack lines for the backend
-
-BUG:
-	If a backend is used on more than one farm, here it appears all them
-=cut
-sub getHTTPBackendEstConns    # ($farm_name,$backend_ip,$backend_port, $netstat)
-{
-	my ( $farm_name, $backend_ip, $backend_port, $netstat ) = @_;
-
-	my $filter = {
-				   proto         => 'tcp',
-				   orig_dst      => $backend_ip,
-				   orig_port_dst => $backend_port,
-				   state         => 'ESTABLISHED',
-	};
-
-	my $ct_params = &getConntrackParams( $filter );
-	my $count     = &getConntrackCount( $ct_params );
-
-	# &zenlog( "getHTTPBackendEstConns: $farm_name backends -> $count connections." );
-
-	return $count + 0;
-}
-
-=begin nd
-Function: getHTTPBackendSYNConns
-
-	Get all SYN connections for a backend
-
-Parameters:
-	farmname     - Farm name
-	backend_ip   - IP backend
-	backend_port - backend port
-
-Returns:
-	unsigned integer - connections count
-
-BUG:
-	If a backend is used on more than one farm, here it appears all them.
-=cut
-sub getHTTPBackendSYNConns  # ($farm_name, $backend_ip, $backend_port)
-{
-	my ( $farm_name, $backend_ip, $backend_port, $netstat ) = @_;
-
-	my $filter = {
-				   proto         => 'tcp',
-				   orig_dst      => $backend_ip,
-				   orig_port_dst => $backend_port,
-				   state         => 'SYN_SENT',
-	};
-
-	my $ct_params = &getConntrackParams( $filter );
-	my $count     = &getConntrackCount( $ct_params );
-
-	$filter->{ state } = 'SYN_RECV';
-
-	$ct_params = &getConntrackParams( $filter );
-	$count    += &getConntrackCount( $ct_params );
-
-	# &zenlog( "getHTTPBackendSYNConns: $farm_name backends -> $count connections." );
-
-	return $count + 0;
-}
 
 =begin nd
 Function: getHTTPFarmBackendsStats
@@ -207,27 +179,27 @@ FIXME:
 		Put output format same format than "GET /stats/farms/BasekitHTTP"
 
 =cut
-sub getHTTPFarmBackendsStats    # ($farm_name)
+sub getHTTPFarmBackendsStats    # ($farm_name,@content)
 {
 	my ( $farm_name ) = @_;
 
-	require Zevenet::Farm::Base;
-
-	my $stats = {
-				  sessions => [],
-				  backends => [],
-	};
-
+	my $stats;
+	$stats->{ 'sessions' } = [];
+	$stats->{ 'backends' } = [];
+	my @sessions;
 	my $serviceName;
-	my $fvip         = &getFarmVip( "vip", $farm_name );
-	my $service_re   = &getValidFormat( 'service' );
+	my $hashService;
+	my $firstService = 1;
 
-	unless ( eval { require Zevenet::Net::Floating; } )
-	{
-		require Zevenet::Net::ConnStats;
-	}
+	require Zevenet::Farm::Base;
+	require Zevenet::Farm::HTTP::Config;
+	require Zevenet::Net::ConnStats;
+	require Zevenet::Farm::Stats;
 
-	# Get pound info
+	my $fvip = &getFarmVip( "vip", $farm_name );
+
+	my $service_re = &getValidFormat( 'service' );
+
 	#i.e. of poundctl:
 
 	#Requests in queue: 0
@@ -239,9 +211,15 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 		#3. Backend 172.16.110.12:80 active (1 0.826 sec) alive (75)
 	my @poundctl = &getHTTPFarmGlobalStatus ($farm_name);
 
-	# Parse pound info
 	foreach my $line ( @poundctl )
 	{
+		#i.e.
+		#Requests in queue: 0
+		#~ if ( $line =~ /Requests in queue: (\d+)/ )
+		#~ {
+			#~ $stats->{ "queue" } = $1;
+		#~ }
+
 		# i.e.
 		#     0. Service "HTTP" active (10)
 		if ( $line =~ /(\d+)\. Service "($service_re)"/ )
@@ -249,10 +227,9 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 			$serviceName = $2;
 		}
 
-		# Parse backend connections
 		# i.e.
 		#      0. Backend 192.168.100.254:80 active (5 0.000 sec) alive (0)
-		if ( $line =~ /(\d+)\. Backend (\d+\.\d+\.\d+\.\d+):(\d+) (\w+) .+ (\w+)(?: \((\d+)\))?/ )
+		if ( $line =~ /(\d+)\. Backend (\d+\.\d+\.\d+\.\d+):(\d+) (\w+) .+ (\w+)(:? \((\d+)\))?/ )
 		{
 			my $backendHash = {
 								id          => $1 + 0,
@@ -260,19 +237,16 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 								port        => $3 + 0,
 								status      => $5,
 								pending     => 0,
+								established => $6 + 0,
 								service     => $serviceName,
 			};
 
-			if ( defined $6 )
+			unless( $eload )
 			{
-				$backendHash->{ established } = $6 + 0;
-			}
-			else
-			{
-				$backendHash->{ established } =
-				  &getHTTPBackendEstConns( $farm_name,
-										   $backendHash->{ ip },
-										   $backendHash->{ port } );
+				my @netstat = &getConntrack( "", $backendHash->{ ip }, "", "", "tcp" );
+				my @established =
+					&getBackendEstConns( $farm_name, $backendHash->{ ip }, $backendHash->{ port }, @netstat );
+				$backendHash->{ established } = scalar @established;
 			}
 
 			# Getting real status
@@ -280,7 +254,6 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 			if ( $backend_disabled eq "DISABLED" )
 			{
 				require Zevenet::Farm::HTTP::Backend;
-
 				#Checkstatusfile
 				$backendHash->{ "status" } =
 				  &getHTTPBackendStatusFromFile( $farm_name, $backendHash->{id}, $serviceName );
@@ -298,16 +271,15 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 			}
 
 			# Getting pending connections
-			require Zevenet::Net::ConnStats;
-			require Zevenet::Farm::Stats;
+			my @netstat = &getConntrack( $fvip, $backendHash->{ ip }, "", "", "tcp" );
+			my @synnetstatback =
+				&getBackendSYNConns( $farm_name, $backendHash->{ ip }, $backendHash->{ port }, @netstat );
+			my $npend = @synnetstatback;
+			$backendHash->{ pending } = $npend;
 
-			$backendHash->{ pending } =
-				&getBackendSYNConns( $farm_name, $backendHash->{ ip }, $backendHash->{ port } );
-
-			push( @{ $stats->{backends} }, $backendHash );
+			push @{ $stats->{backends} }, $backendHash;
 		}
 
-		# Parse sessions
 		# i.e.
 		#      1. Session 107.178.194.117 -> 1
 		if ( $line =~ /(\d+)\. Session (.+) \-\> (\d+)/ )
@@ -320,9 +292,11 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 				service => $serviceName,
 			  };
 		}
+
 	}
 
 	return $stats;
 }
+
 
 1;

@@ -29,13 +29,13 @@ my $configdir = &getGlobalConfiguration( 'configdir' );
 Function: getL4FarmsPorts
 
 	Get all port used of L4xNAT farms in up status and using a protocol
-	
+
 Parameters:
 	protocol - protocol used by l4xnat farm
 
 Returns:
 	String - return a list with the used ports by all L4xNAT farms. Format: "portList1,portList2,..."
-	
+
 =cut
 
 sub getL4FarmsPorts    # ($protocol)
@@ -76,7 +76,7 @@ sub getL4FarmsPorts    # ($protocol)
 Function: loadL4Modules
 
 	Load sip, ftp or tftp conntrack module for l4 farms
-	
+
 Parameters:
 	protocol - protocol module to load
 
@@ -86,7 +86,7 @@ Returns:
 FIXME:
 	1. The maximum number of ports, when the module is loaded, is 8
 	2. Always return 0
-	
+
 =cut
 
 sub loadL4Modules    # ($protocol)
@@ -136,7 +136,7 @@ sub loadL4Modules    # ($protocol)
 Function: validL4ExtPort
 
 	check if the port is valid for a sip, ftp or tftp farm
-	
+
 Parameters:
 	protocol - protocol module to load
 	ports - port string
@@ -168,7 +168,7 @@ sub validL4ExtPort    # ($farm_protocol,$ports)
 Function: sendL4ConfChange
 
 	Run a l4xnat farm
-	
+
 Parameters:
 	farmname - Farm name
 
@@ -215,7 +215,7 @@ sub sendL4ConfChange    # ($farm_name)
 Function: setL4FarmSessionType
 
 	Configure type of persistence session
-	
+
 Parameters:
 	session - Session type. The options are: "none" not use persistence or "ip" for ip persistencia
 	farmname - Farm name
@@ -266,7 +266,6 @@ sub setL4FarmSessionType    # ($session,$farm_name)
 			$line =
 			  "$args[0]\;$args[1]\;$args[2]\;$args[3]\;$args[4]\;$args[5]\;$session\;$args[7]\;$args[8]";
 			splice @configfile, $i, $line;
-			$output = $?;    # FIXME
 		}
 		$i++;
 	}
@@ -313,16 +312,16 @@ sub setL4FarmSessionType    # ($session,$farm_name)
 Function: getL4FarmSessionType
 
 	Get type of persistence session
-	
+
 Parameters:
 	farmname - Farm name
 
 Returns:
 	Scalar - "none" not use persistence, "ip" for ip persistencia or -1 on failure
-	
+
 BUG:
 	DUPLICATE with getL4FarmPersistence
-	Not used 
+	Not used
 	Use get and set with same name
 
 =cut
@@ -355,14 +354,14 @@ sub getL4FarmSessionType    # ($farm_name)
 Function: setL4FarmAlgorithm
 
 	Set the load balancing algorithm to a farm
-	
+
 Parameters:
 	algorithm - Load balancing algorithm. The options are: "leastconn" , "weight" or "prio"
 	farmname - Farm name
 
 Returns:
 	Integer - always return 0
-	
+
 FIXME:
 	do error control
 
@@ -548,13 +547,13 @@ sub setL4FarmAlgorithm    # ($algorithm,$farm_name)
 Function: getL4FarmAlgorithm
 
 	Get the load balancing algorithm for a farm
-	
+
 Parameters:
 	farmname - Farm name
 
 Returns:
 	Scalar - "leastconn" , "weight", "prio" or -1 on failure
-	
+
 =cut
 
 sub getL4FarmAlgorithm    # ($farm_name)
@@ -585,14 +584,14 @@ sub getL4FarmAlgorithm    # ($farm_name)
 Function: setFarmProto
 
 	Set the protocol to a L4 farm
-	
+
 Parameters:
 	protocol - which protocol the farm will use to work. The available options are: "all", "tcp", "udp", "sip", "ftp" and "tftp"
 	farmname - Farm name
 
 Returns:
 	Integer - Error code: 0 on success or other value in failure
-	
+
 FIXME:
 	It is necessary more error control
 
@@ -683,13 +682,13 @@ sub setFarmProto    # ($proto,$farm_name)
 Function: getFarmNatType
 
 	Get the NAT type for a L4 farm
-	
+
 Parameters:
 	farmname - Farm name
 
 Returns:
 	Scalar - "nat", "dnat" or -1 on failure
-	
+
 =cut
 
 sub getFarmNatType    # ($farm_name)
@@ -723,14 +722,14 @@ sub getFarmNatType    # ($farm_name)
 Function: setFarmNatType
 
 	Set the NAT type for a farm
-	
+
 Parameters:
 	nat - Type of nat. The options are: "nat" or "dnat"
 	farmname - Farm name
 
 Returns:
 	Scalar - 0 on success or other value on failure
-	
+
 =cut
 
 sub setFarmNatType    # ($nat,$farm_name)
@@ -827,13 +826,13 @@ sub setFarmNatType    # ($nat,$farm_name)
 Function: getL4FarmPersistence
 
 	Get type of persistence session for a l4 farm
-	
+
 Parameters:
 	farmname - Farm name
 
 Returns:
 	Scalar - "none" not use persistence, "ip" for ip persistencia or -1 on failure
-	
+
 =cut
 
 sub getL4FarmPersistence    # ($farm_name)
@@ -864,14 +863,14 @@ sub getL4FarmPersistence    # ($farm_name)
 Function: setL4FarmMaxClientTime
 
 	 Set the max client time of a farm
-	
+
 Parameters:
 	ttl - Persistence Session Time to Live
 	farmname - Farm name
 
 Returns:
 	Integer - 0 on success or other value on failure
-	
+
 =cut
 
 sub setL4FarmMaxClientTime    # ($track,$farm_name)
@@ -952,16 +951,16 @@ sub setL4FarmMaxClientTime    # ($track,$farm_name)
 Function: getL4FarmMaxClientTime
 
 	 Get the max client time of a farm
-	
+
 Parameters:
 	farmname - Farm name
 
 Returns:
 	Integer - Time to Live (TTL) or -1 on failure
-	
+
 FIXME:
 	The returned value must to be a integer. Fit output like in the description
-	
+
 =cut
 
 sub getL4FarmMaxClientTime    # ($farm_name)
@@ -992,7 +991,7 @@ sub getL4FarmMaxClientTime    # ($farm_name)
 Function: getL4FarmBootStatus
 
 	Return the farm status at boot zevenet
-	 
+
 Parameters:
 	farmname - Farm name
 
@@ -1032,17 +1031,17 @@ sub getL4FarmBootStatus    # ($farm_name)
 Function: getL4FarmVip
 
 	Returns farm vip or farm port
-		
+
 Parameters:
 	tag - requested parameter. The options are "vip"for virtual ip or "vipp" for virtual port
 	farmname - Farm name
 
 Returns:
 	Scalar - return vip, port of farm or -1 on failure
-	
+
 FIXME
 	vipps parameter is only used in tcp farms. Soon this parameter will be obsolet
-			
+
 =cut
 
 sub getL4FarmVip    # ($info,$farm_name)
@@ -1076,7 +1075,7 @@ sub getL4FarmVip    # ($info,$farm_name)
 Function: setL4FarmVirtualConf
 
 	Set farm virtual IP and virtual PORT
-		
+
 Parameters:
 	vip - Farm virtual IP
 	port - Farm virtual port
@@ -1084,14 +1083,13 @@ Parameters:
 
 Returns:
 	Scalar - 0 on success or other value on failure
-	
+
 =cut
 
 sub setL4FarmVirtualConf    # ($vip,$vip_port,$farm_name)
 {
 	my ( $vip, $vip_port, $farm_name ) = @_;
 
-	require Tie::File;
 	require Zevenet::FarmGuardian;
 
 	my $farm_filename = &getFarmFile( $farm_name );
@@ -1109,6 +1107,7 @@ sub setL4FarmVirtualConf    # ($vip,$vip_port,$farm_name)
 		}
 	}
 
+	require Tie::File;
 	tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
 
 	for my $line ( @configfile )
@@ -1129,7 +1128,6 @@ sub setL4FarmVirtualConf    # ($vip,$vip_port,$farm_name)
 	if ( $$farm{ status } eq 'up' )
 	{
 		require Zevenet::Netfilter;
-
 		my @rules;
 
 		foreach my $server ( @{ $$farm{ servers } } )
@@ -1173,13 +1171,13 @@ sub setL4FarmVirtualConf    # ($vip,$vip_port,$farm_name)
 Function: getFarmPortList
 
 	If port is multiport, it removes range port and it passes it to a port list
-		
+
 Parameters:
 	port - Port string
 
 Returns:
 	array - return a list of ports
-		
+
 =cut
 
 sub getFarmPortList    # ($fvipp)
@@ -1220,13 +1218,13 @@ sub getFarmPortList    # ($fvipp)
 Function: getL4ProtocolTransportLayer
 
 	Return basic transport protocol used by l4 farm protocol
-		
+
 Parameters:
 	protocol - L4xnat farm protocol
 
 Returns:
 	String - "udp" or "tcp"
-	
+
 =cut
 
 sub getL4ProtocolTransportLayer
@@ -1243,15 +1241,15 @@ sub getL4ProtocolTransportLayer
 Function: getL4FarmStruct
 
 	Return a hash with all data about a l4 farm
-		
+
 Parameters:
 	farmname - Farm name
 
 Returns:
-	hash ref - 
+	hash ref -
 		\%farm = { $name, $filename, $nattype, $lbalg, $vip, $vport, $vproto, $persist, $ttl, $proto, $status, \@servers }
 		\@servers = [ \%backend1, \%backend2, ... ]
-	
+
 =cut
 
 sub getL4FarmStruct
@@ -1298,15 +1296,15 @@ sub getL4FarmStruct
 Function: getL4ServerStruct
 
 	Return a hash with all data about a backend in a l4 farm
-		
+
 Parameters:
 	farmname - Farm name
 	backend - Backend id
 
 Returns:
-	hash ref - 
+	hash ref -
 		\%backend = { $id, $vip, $vport, $tag, $weight, $priority, $status, $rip = $vip }
-	
+
 =cut
 
 sub getL4ServerStruct
@@ -1351,13 +1349,13 @@ sub getL4ServerStruct
 Function: doL4FarmProbability
 
 	Create in the passed hash a new key called "prob". In this key is saved total weight of all backends
-		
+
 Parameters:
 	farm - farm hash ref. It is a hash with all information about the farm
 
 Returns:
 	none - .
-	
+
 =cut
 
 sub doL4FarmProbability
@@ -1381,16 +1379,16 @@ sub doL4FarmProbability
 Function: refreshL4FarmRules
 
 	Refresh all iptables rule for a l4 farm
-		
+
 Parameters:
 	farm - Farm hash ref. It is a hash with all information about the farm
 
 Returns:
 	Integer - Error code: 0 on success or -1 on failure
 
-FIXME: 
+FIXME:
 	Send signal to l4sd to reload configuration
-	
+
 =cut
 
 sub refreshL4FarmRules    # AlgorithmRules
@@ -1500,16 +1498,16 @@ sub refreshL4FarmRules    # AlgorithmRules
 Function: reloadL4FarmsSNAT
 
 	Reload iptables rules of all SNAT L4 farms
-		
+
 Parameters:
 	farm - Farm hash ref. It is a hash with all information about the farm
 
 Returns:
 	none - .
 
-FIXME: 
+FIXME:
 	Send signal to l4sd to reload configuration
-	
+
 =cut
 
 sub reloadL4FarmsSNAT

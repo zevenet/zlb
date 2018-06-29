@@ -29,7 +29,7 @@ my $configdir = &getGlobalConfiguration('configdir');
 Function: getFarmType
 
 	Get the farm type for a farm
-	 
+
 Parameters:
 	farmname - Farm name
 
@@ -77,13 +77,13 @@ sub getFarmType    # ($farm_name)
 Function: getFarmFile
 
 	Returns farm file name
-	 
+
 Parameters:
 	farmname - Farm name
 
 Returns:
 	String - file name or -1 on failure
-	
+
 NOTE:
 	Generic function
 
@@ -95,7 +95,7 @@ sub getFarmFile    # ($farm_name)
 	opendir ( my $dir, "$configdir" ) || return -1;
 	my @farm_files =
 	  grep {
-		     /^$farm_name\_.*\.cfg/
+		     /^$farm_name\_(?:gslb|pound|datalink|l4xnat)\.cfg/
 		  && !/^$farm_name\_.*guardian\.conf/
 		  && !/^$farm_name\_status.cfg/
 	  } readdir ( $dir );
@@ -115,16 +115,16 @@ sub getFarmFile    # ($farm_name)
 Function: getFarmName
 
 	Returns farms configuration filename list
-		
+
 Parameters:
 	file - Farm file
 
 Returns:
 	String - farm name
-	
+
 NOTE:
 	Generic function
-	
+
 =cut
 sub getFarmName    # ($farm_filename)
 {
@@ -139,16 +139,16 @@ sub getFarmName    # ($farm_filename)
 Function: getFarmList
 
 	Returns farms configuration filename list
-		
+
 Parameters:
 	none - .
 
 Returns:
 	Array - List of configuration files
-	
+
 NOTE:
 	Generic function
-	
+
 =cut
 sub getFarmList    # ()
 {
@@ -176,8 +176,8 @@ sub getFarmList    # ()
 =begin nd
 Function: getFarmsByType
 
-	Get all farms of a type 
-	 
+	Get all farms of a type
+
 Parameters:
 	type - Farm type. The available options are "http", "https", "datalink", "l4xnat" or "gslb"
 

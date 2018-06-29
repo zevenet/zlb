@@ -27,156 +27,156 @@ use strict;
 Function: getBackendEstConns
 
 	Get all ESTABLISHED connections for a backend
-
+	 
 Parameters:
-	farmname     - Farm name
-	ip_backend   - IP backend
+	farmname - Farm name
+	ip_backend - IP backend
 	port_backend - backend port
-	netstat      - reference to array with Conntrack -L output
+	netstat - Conntrack -L output
 
 Returns:
-	unsigned integer - Return number of ESTABLISHED conntrack lines for the backend
-
+	array - Return all ESTABLISHED conntrack lines for the backend
+	
 =cut
-sub getBackendEstConns    # ($farm_name,$ip_backend,$port_backend,$netstat)
+sub getBackendEstConns    # ($farm_name,$ip_backend,$port_backend,@netstat)
 {
-	my ( $farm_name, $ip_backend, $port_backend, $netstat ) = @_;
+	my ( $farm_name, $ip_backend, $port_backend, @netstat ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
-	my $connections = 0;
+	my @nets      = ();
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Stats;
-		$connections =
-		  &getHTTPBackendEstConns( $farm_name, $ip_backend, $port_backend, $netstat );
+		@nets =
+		  &getHTTPBackendEstConns( $farm_name, $ip_backend, $port_backend, @netstat );
 	}
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Stats;
-		$connections = &getL4BackendEstConns( $farm_name, $ip_backend, $port_backend, $netstat );
+		@nets = &getL4BackendEstConns( $farm_name, $ip_backend, @netstat );
 	}
 
-	return $connections;
+	return @nets;
 }
 
 =begin nd
 Function: getFarmEstConns
 
 	Get all ESTABLISHED connections for a farm
-
+	 
 Parameters:
 	farmname - Farm name
-	netstat  - reference to array with Conntrack -L output
+	netstat - Conntrack -L output
 
 Returns:
-	unsigned integer - Return number of ESTABLISHED conntrack lines for a farm
+	array - Return all ESTABLISHED conntrack lines for a farm
 
 =cut
-sub getFarmEstConns    # ($farm_name,$netstat)
+sub getFarmEstConns    # ($farm_name,@netstat)
 {
-	my ( $farm_name, $netstat ) = @_;
+	my ( $farm_name, @netstat ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $pid       = &getFarmPid( $farm_name );
-	my $connections = 0;
+	my @nets      = ();
 
 	if ( $pid eq "-" )
 	{
-		return $connections;
+		return @nets;
 	}
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Stats;
-		$connections = &getHTTPFarmEstConns( $farm_name );
+		@nets = &getHTTPFarmEstConns( $farm_name, @netstat );
 	}
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Stats;
-		$connections = &getL4FarmEstConns( $farm_name, $netstat );
+		@nets = &getL4FarmEstConns( $farm_name, @netstat );
 	}
 	elsif ( $farm_type eq "gslb" )
 	{
 		if ( eval { require Zevenet::Farm::GSLB::Stats; } )
 		{
-			$connections = &getGSLBFarmEstConns( $farm_name, $netstat );
+			@nets = &getGSLBFarmEstConns( $farm_name, @netstat );
 		}
 	}
 
-	return $connections;
+	return @nets;
 }
 
 =begin nd
 Function: getBackendSYNConns
 
 	Get all SYN connections for a backend
-
+	 
 Parameters:
-	farmname     - Farm name
-	ip_backend   - IP backend
+	farmname - Farm name
+	ip_backend - IP backend
 	port_backend - backend port
-	netstat      - reference to array with Conntrack -L output
+	netstat - Conntrack -L output
 
 Returns:
-	unsigned integer - Return number of SYN conntrack lines for a backend of a farm
+	array - Return all SYN conntrack lines for a backend of a farm
 
 =cut
-sub getBackendSYNConns    # ($farm_name,$ip_backend,$port_backend,$netstat)
+sub getBackendSYNConns    # ($farm_name,$ip_backend,$port_backend,@netstat)
 {
-	my ( $farm_name, $ip_backend, $port_backend, $netstat ) = @_;
+	my ( $farm_name, $ip_backend, $port_backend, @netstat ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
-	my $connections = 0;
+	my @nets      = ();
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Stats;
-		$connections =
-		  &getHTTPBackendSYNConns( $farm_name, $ip_backend, $port_backend, $netstat );
+		@nets =
+		  &getHTTPBackendSYNConns( $farm_name, $ip_backend, $port_backend, @netstat );
 	}
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Stats;
-		$connections =
-		  &getL4BackendSYNConns( $farm_name, $ip_backend, $port_backend, $netstat );
+		@nets =
+		  &getL4BackendSYNConns( $farm_name, $ip_backend, $port_backend, @netstat );
 	}
 
-	return $connections;
+	return @nets;
 }
 
 =begin nd
 Function: getFarmSYNConns
 
 	Get all SYN connections for a farm
-
+	 
 Parameters:
 	farmname - Farm name
-	netstat  - reference to array with Conntrack -L output
+	netstat - Conntrack -L output
 
 Returns:
-	unsigned integer - Return number of SYN conntrack lines for a farm
+	array - Return all SYN conntrack lines for a farm
 
 =cut
-sub getFarmSYNConns    # ($farm_name, $netstat)
+sub getFarmSYNConns    # ($farm_name, @netstat)
 {
-	my ( $farm_name, $netstat ) = @_;
+	my ( $farm_name, @netstat ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
-	my $connections = 0;
+	my @nets      = ();
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Stats;
-		$connections = &getHTTPFarmSYNConns( $farm_name, $netstat );
+		@nets = &getHTTPFarmSYNConns( $farm_name, @netstat );
 	}
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Stats;
-		$connections = &getL4FarmSYNConns( $farm_name, $netstat );
+		@nets = &getL4FarmSYNConns( $farm_name, @netstat );
 	}
 
-	return $connections;
+	return @nets;
 }
 
 1;

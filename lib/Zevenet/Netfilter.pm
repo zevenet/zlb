@@ -213,7 +213,7 @@ sub renameMarks        # ($farm_name,$newfname)
 
 #
 sub genIptMarkPersist    # ($farm_name,$vip,$vport,$protocol,$ttl,$index,$mark)
-{
+	{
 	# remove the first line when all calls to this function are passing
 	# structure references
 	my ( $farm_name, $vip, $vport, $protocol, $ttl, $index, $mark ) = @_;
@@ -345,6 +345,7 @@ sub genIptRedirect    # ($farm_name,$index,$rip,$protocol,$mark,$persist)
 
 	my $farm   = shift;    # input: first argument can be a farm reference
 	my $server = shift;    # input: second argument can be a server reference
+	my $rule;              # output: iptables rule template string
 
 	if ( defined $farm )
 	{
@@ -358,6 +359,7 @@ sub genIptRedirect    # ($farm_name,$index,$rip,$protocol,$mark,$persist)
 	}
 
 	my $layer = '';
+
 	if ( $$farm{ proto } ne "all" )
 	{
 		$layer = "--protocol $$farm{ proto }";
@@ -379,8 +381,7 @@ sub genIptRedirect    # ($farm_name,$index,$rip,$protocol,$mark,$persist)
 	# Get the binary of iptables (iptables or ip6tables)
 	my $iptables_bin = &getBinVersion( $farm_name );
 
-	# output: iptables rule template string
-	my $rule =
+	$rule =
 	    "$iptables_bin --table nat --::ACTION_TAG:: PREROUTING "
 	  . "--match mark --mark $$server{ tag } "
 	  . "$persist_match "
@@ -388,6 +389,7 @@ sub genIptRedirect    # ($farm_name,$index,$rip,$protocol,$mark,$persist)
 	  . "--match comment --comment ' FARM\_$$farm{ name }\_$$server{ id }\_ ' "
 	  . "--jump DNAT $layer --to-destination $$server{ rip } ";
 
+	#~ &zenlog( $rule );
 	return $rule;
 }
 
@@ -400,6 +402,9 @@ sub genIptSourceNat    # ($farm_name,$vip,$index,$protocol,$mark)
 
 	my $farm   = shift;    # input: first argument can be a farm reference
 	my $server = shift;    # input: second argument can be a server reference
+	my $rule;              # output: iptables rule template string
+
+	require Zevenet::Net::Floating;
 
 	if ( defined $farm )
 	{
@@ -412,29 +417,25 @@ sub genIptSourceNat    # ($farm_name,$vip,$index,$protocol,$mark)
 		$server = $$farm{ servers }[$index];
 	}
 
+	# Get the binary of iptables (iptables or ip6tables)
+	my $iptables_bin = &getBinVersion( $farm_name );
+
+	my $float_if = &getFloatInterfaceForAddress( $$server{ vip } );
+
 	my $layer = '';
 	if ( $$farm{ proto } ne "all" )
 	{
 		$layer = "--protocol $$farm{ proto }";
 	}
 
-	# Get the binary of iptables (iptables or ip6tables)
-	my $iptables_bin = &getBinVersion( $farm_name );
-	my $nat_params   = "--jump SNAT --to-source $$server{ vip }";
-
-	if ( eval { require Zevenet::Net::Floating; } )
-	{
-		$nat_params = &getFloatingSnatParams( $server );
-	}
-
-	# output: iptables rule template string
-	my $rule =
+	$rule =
 	    "$iptables_bin --table nat --::ACTION_TAG:: POSTROUTING "
 	  . "$layer "
 	  . "--match mark --mark $$server{ tag } "
 	  . "--match comment --comment ' FARM\_$$farm{ name }\_$$server{ id }\_ ' "
-	  . "$nat_params ";
+	  . "--jump SNAT --to-source $float_if->{ addr } ";
 
+	#~ &zenlog( $rule );
 	return $rule;
 }
 
@@ -447,6 +448,7 @@ sub genIptMasquerade    # ($farm_name,$index,$protocol,$mark)
 
 	my $farm   = shift;    # input: first argument can be a farm reference
 	my $server = shift;    # input: second argument can be a server reference
+	my $rule;              # output: iptables rule template string
 
 	if ( defined $farm )
 	{
@@ -469,13 +471,13 @@ sub genIptMasquerade    # ($farm_name,$index,$protocol,$mark)
 	my $iptables_bin = &getBinVersion( $farm_name );
 	my $nat_params   = "--jump MASQUERADE";
 
-	if ( eval { require Zevenet::Net::Floating; } )
+	if ( eval{ require Zevenet::Net::Floating; } )
 	{
 		$nat_params = &getFloatingMasqParams( $farm, $server );
 	}
 
 	# output: iptables rule template string
-	my $rule =
+	$rule =
 	    "$iptables_bin --table nat --::ACTION_TAG:: POSTROUTING "
 	  . "$layer "
 	  . "--match mark --mark $$server{ tag } "
@@ -648,8 +650,8 @@ sub getIptRuleNumber
 	  or &zenlog( ( caller ( 0 ) )[3] . ' $rule invalid' );
 	( defined ( $farm_name ) && !ref $farm_name )
 	  or &zenlog( ( caller ( 0 ) )[3] . ' $farm_name invalid' );
-	( defined ( $index ) && !ref $index )
-	  or &zenlog( ( caller ( 0 ) )[3] . ' $index invalid' );
+	#~ ( defined ( $index ) && !ref $index )
+	  #~ or &zenlog( ( caller ( 0 ) )[3] . ' $index invalid' );
 
 	my $rule_num;      # output: rule number for requested rule
 

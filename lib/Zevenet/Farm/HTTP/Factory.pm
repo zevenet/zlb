@@ -51,13 +51,12 @@ sub runHTTPFarmCreate    # ( $vip, $vip_port, $farm_name, $farm_type )
 	my $output = -1;
 
 	#copy template modyfing values
+	&zenlog( "copying pound tpl file on $farm_name\_pound.cfg" );
 	my $poundtpl = &getGlobalConfiguration('poundtpl');
-	my $pound_conf_file = "$configdir/${farm_name}_pound.cfg";
-	&zenlog( "copying pound template ($poundtpl) to $pound_conf_file" );
-	copy( $poundtpl, $pound_conf_file );
+	copy( "$poundtpl", "$configdir/$farm_name\_pound.cfg" );
 
 	#modify strings with variables
-	tie my @file, 'Tie::File', $pound_conf_file;
+	tie my @file, 'Tie::File', "$configdir/$farm_name\_pound.cfg";
 
 	foreach my $line ( @file )
 	{
@@ -74,19 +73,18 @@ sub runHTTPFarmCreate    # ( $vip, $vip_port, $farm_name, $farm_type )
 	untie @file;
 
 	#create files with personalized errors
-	my $f_err;
-	open $f_err, ">$configdir\/$farm_name\_Err414.html";
-	print $f_err "Request URI is too long.\n";
-	close $f_err;
-	open $f_err, ">$configdir\/$farm_name\_Err500.html";
-	print $f_err "An internal server error occurred. Please try again later.\n";
-	close $f_err;
-	open $f_err, ">$configdir\/$farm_name\_Err501.html";
-	print $f_err "This method may not be used.\n";
-	close $f_err;
-	open $f_err, ">$configdir\/$farm_name\_Err503.html";
-	print $f_err "The service is not available. Please try again later.\n";
-	close $f_err;
+	open FERR, ">$configdir\/$farm_name\_Err414.html";
+	print FERR "Request URI is too long.\n";
+	close FERR;
+	open FERR, ">$configdir\/$farm_name\_Err500.html";
+	print FERR "An internal server error occurred. Please try again later.\n";
+	close FERR;
+	open FERR, ">$configdir\/$farm_name\_Err501.html";
+	print FERR "This method may not be used.\n";
+	close FERR;
+	open FERR, ">$configdir\/$farm_name\_Err503.html";
+	print FERR "The service is not available. Please try again later.\n";
+	close FERR;
 
 	my $pound = &getGlobalConfiguration('pound');
 	my $piddir = &getGlobalConfiguration('piddir');

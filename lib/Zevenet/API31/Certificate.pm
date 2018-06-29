@@ -79,6 +79,36 @@ sub download_certificate # ()
 	}
 }
 
+# GET /certificates/CERTIFICATE/info
+sub get_certificate_info # ()
+{
+	my $cert_filename = shift;
+
+	require Zevenet::Certificate;
+
+	my $desc = "Show certificate details";
+	my $cert_dir = &getGlobalConfiguration('configdir');
+	$cert_dir = &getGlobalConfiguration('basedir') if $cert_filename eq 'zlbcertfile.pem';
+
+	if ( &getValidFormat( 'certificate', $cert_filename ) && -f "$cert_dir\/$cert_filename" )
+	{
+		my @cert_info = &getCertData( $cert_filename );
+		my $body;
+
+		foreach my $line ( @cert_info )
+		{
+			$body .= $line;
+		}
+
+		&httpResponse({ code => 200, body => $body, type => 'text/plain' });
+	}
+	else
+	{
+		my $msg = "Could not get such certificate information";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+}
+
 # DELETE /certificates/CERTIFICATE
 sub delete_certificate # ( $cert_filename )
 {
