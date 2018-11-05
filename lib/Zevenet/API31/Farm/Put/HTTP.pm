@@ -390,7 +390,10 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 			{
 				$ciphers = "ciphercustom";
 			}
-			elsif ( $json_obj->{ ciphers } eq "highsecurity" ) { $ciphers = "cipherpci"; }
+			elsif ( $json_obj->{ ciphers } eq "highsecurity" )
+			{
+				$ciphers = "cipherpci";
+			}
 			elsif ( $json_obj->{ ciphers } eq "ssloffloading" )
 			{
 				unless ( &getFarmCipherSSLOffLoadingSupport() )
@@ -410,31 +413,28 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 		my $cipher = &getFarmCipherSet( $farmname );
 		chomp ( $cipher );
 
-		if ( $flag eq "false" )
+		if ( $cipher eq "ciphercustom" )
 		{
-			if ( $cipher eq "ciphercustom" )
+			# Modify Customized Ciphers
+			if ( exists ( $json_obj->{ cipherc } ) )
 			{
-				# Modify Customized Ciphers
-				if ( exists ( $json_obj->{ cipherc } ) )
+				my $cipherc = $json_obj->{ cipherc };
+				$cipherc =~ s/\ //g;
+
+				if ( $cipherc eq '' )
 				{
-					my $cipherc = $json_obj->{ cipherc };
-					$cipherc =~ s/\ //g;
-
-					if ( $cipherc eq '' )
-					{
-						my $msg = "Invalid cipherc, can't be blank.";
-						&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-					}
-
-					my $status = &setFarmCipherList( $farmname, $cipher, $cipherc );
-					if ( $status == -1 )
-					{
-						my $msg = "Some errors happened trying to modify the cipherc.";
-						&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-					}
-
-					$restart_flag = "true";
+					my $msg = "Invalid cipherc, can't be blank.";
+					&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 				}
+
+				my $status = &setFarmCipherList( $farmname, $cipher, $cipherc );
+				if ( $status == -1 )
+				{
+					my $msg = "Some errors happened trying to modify the cipherc.";
+					&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+				}
+
+				$restart_flag = "true";
 			}
 		}
 

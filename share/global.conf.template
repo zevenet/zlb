@@ -3,7 +3,7 @@
 ## Variables
 
 # Version ZEVENET
-$version = "5.0";
+$version = "5.0.2"; #update
 
 # NTP server
 $ntp = "pool.ntp.org";
@@ -170,7 +170,7 @@ $poundctl = "/usr/sbin/poundctl";
 # pound file configuration template?
 $poundtpl = "/usr/local/zevenet/share/pound.cfg.template";
 # Cipher PCI
-$cipher_pci = "DEFAULT";
+$cipher_pci = "kEECDH+ECDSA+AES128:kEECDH+ECDSA+AES256:kEECDH+AES128:kEECDH+AES256:kEDH+AES128:kEDH+AES256:DES-CBC3-SHA:+SHA:!aNULL:!eNULL:!LOW:!kECDH:!DSS:!MD5:!EXP:!PSK:!SRP:!CAMELLIA:!SEED"; #update
 # Cipher ssloffloading
 $cipher_ssloffloading = "AES";
 

@@ -22,6 +22,7 @@
 
 use strict;
 
+use Zevenet::Config;
 use Zevenet::Farm::Core;
 use Zevenet::Farm::Base;
 
@@ -60,6 +61,7 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 	}
 	else
 	{
+		require Zevenet::Farm::HTTP::HTTPS;
 		$cert_in_use = &getFarmCertificate( $farmname ) eq $json_obj->{ file };
 	}
 

@@ -79,13 +79,13 @@ sub get_farm_struct
 		{
 			$ciphers = "all";
 		}
-		elsif ( $ciphers eq "ciphercustom" )
-		{
-			$ciphers = "customsecurity";
-		}
 		elsif ( $ciphers eq "cipherpci" )
 		{
 			$ciphers = "highsecurity";
+		}
+		else
+		{
+			$ciphers = "customsecurity";
 		}
 	}
 
