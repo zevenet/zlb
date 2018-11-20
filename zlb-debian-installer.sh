@@ -1,10 +1,10 @@
 #!/bin/bash
 
 IFS='.' read -a DEBVERSION < /etc/debian_version
-if [ $DEBVERSION != 9 ]; then
-	echo "Zevenet Load Balancer installation only available for Debian 9 Stretch"
-	exit 1
-fi
+#~ if [ $DEBVERSION != 9 ]; then
+	#~ echo "Zevenet Load Balancer installation only available for Debian 9 Stretch"
+	#~ exit 1
+#~ fi
 
 if [ "`grep dhcp /etc/network/interfaces`" != "" ]; then
 	echo "Zevenet Load Balancer doesn't support DHCP network configurations yet. Please configure a static IP address in the file /etc/network/interfaces."
@@ -20,7 +20,7 @@ fi
 
 # Configure packages repository
 cat > /etc/apt/sources.list.d/zevenet.list <<EOF
-deb http://repo.zevenet.com/ce/v5 stretch main
+deb http://repo.zevenet.com/ce/v6/ buster main
 EOF
 
 echo -n "* Fetching Zevenet gpg key: "
@@ -38,24 +38,34 @@ fi
 DEPENDENCIES=`perl -a -E 'if (s/^Depends: //){ s/\,//g; print }' ${REPO_DIR}/DEBIAN/control`
 apt-get install ${DEPENDENCIES} zevenet-gui-ce || exit 1
 
+# Create package and install it
+echo "* Creating package"
+bash ${REPO_DIR}/build-pkg/gen_pkg.sh
+${REPO_DIR}/build-pkg/gen_pkg.sh
+NEW_PKG=$(ls -t ${REPO_DIR}/build-pkg/packages/* | head -1)
 
-# Install zevenet
-echo "* Deploying Zevenet"
-cp -f ${INSTALL_DIR}/etc/init.d/zevenet /etc/init.d/zevenet
-
-if [ ! -e /etc/cron.d/zevenet ]; then
-	cp -f  ${INSTALL_DIR}/etc/cron.d/zevenet /etc/cron.d/zevenet
-fi
-
-if [ ! -e /usr/share/perl5/Zevenet ]; then
-	ln -sf ${INSTALL_DIR}/lib/Zevenet/ /usr/share/perl5/Zevenet
-fi
-
-if [ ! -e /usr/share/perl5/Zevenet.pm ]; then
-	ln -sf ${INSTALL_DIR}/lib/Zevenet.pm /usr/share/perl5/Zevenet.pm
-fi
+echo "* Installing zevenet package"
+dpkg -i $NEW_PKG
 
 
-# Do prerequisites and start zevenet service
-echo "* Setting up Zevenet"
-${REPO_DIR}/DEBIAN/postinst configure
+
+#~ # Install zevenet
+#~ echo "* Deploying Zevenet"
+#~ cp -f ${INSTALL_DIR}/etc/init.d/zevenet /etc/init.d/zevenet
+
+#~ if [ ! -e /etc/cron.d/zevenet ]; then
+	#~ cp -f  ${INSTALL_DIR}/etc/cron.d/zevenet /etc/cron.d/zevenet
+#~ fi
+
+#~ if [ ! -e /usr/share/perl5/Zevenet ]; then
+	#~ ln -sf ${INSTALL_DIR}/lib/Zevenet/ /usr/share/perl5/Zevenet
+#~ fi
+
+#~ if [ ! -e /usr/share/perl5/Zevenet.pm ]; then
+	#~ ln -sf ${INSTALL_DIR}/lib/Zevenet.pm /usr/share/perl5/Zevenet.pm
+#~ fi
+
+
+#~ # Do prerequisites and start zevenet service
+#~ echo "* Setting up Zevenet"
+#~ ${REPO_DIR}/DEBIAN/postinst configure
