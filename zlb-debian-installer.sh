@@ -33,16 +33,16 @@ apt-get update || exit 1
 # Install dependencies
 echo "* Installing dependencies"
 if [ "${REPO_DIR}" != "${INSTALL_DIR}" ]; then
-	ln -sf ${REPO_DIR} ${INSTALL_DIR}
+	#~ ln -sf ${REPO_DIR} ${INSTALL_DIR}
 fi
 DEPENDENCIES=`perl -a -E 'if (s/^Depends: //){ s/\,//g; print }' ${REPO_DIR}/DEBIAN/control`
 apt-get install ${DEPENDENCIES} zevenet-gui-ce || exit 1
 
 # Create package and install it
 echo "* Creating package"
-bash ${REPO_DIR}/build-pkg/gen_pkg.sh
-${REPO_DIR}/build-pkg/gen_pkg.sh
-NEW_PKG=$(ls -t ${REPO_DIR}/build-pkg/packages/* | head -1)
+cd ${REPO_DIR}/build-pkg
+./gen_pkg.sh
+NEW_PKG=$(ls -t packages/* | head -1)
 
 echo "* Installing zevenet package"
 dpkg -i $NEW_PKG
