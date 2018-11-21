@@ -25,8 +25,12 @@ use Zevenet::Net::Util;
 use Zevenet::Farm::Core;
 use Zevenet::Farm::Factory;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
 sub new_farm    # ( $json_obj )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $json_obj = shift;
 
    # 3 Mandatory Parameters ( 1 mandatory for HTTP or GSBL and optional for L4xNAT )
@@ -109,7 +113,7 @@ sub new_farm    # ( $json_obj )
 	if ( $status == -1 )
 	{
 		&zenlog(
-			"ZAPI error, trying to create a new farm $json_obj->{ farmname }, can't be created."
+			"Error trying to create a new farm $json_obj->{ farmname }, can't be created.", "error", "FARMS"
 		);
 
 		my $msg = "The $json_obj->{ farmname } farm can't be created";
@@ -117,7 +121,7 @@ sub new_farm    # ( $json_obj )
 	}
 
 	&zenlog(
-		 "ZAPI success, the farm $json_obj->{ farmname } has been created successfully."
+		 "Success, the farm $json_obj->{ farmname } has been created successfully.", "info", "FARMS"
 	);
 
 	my $out_p;
@@ -147,10 +151,19 @@ sub new_farm    # ( $json_obj )
 				 params      => $out_p,
 	};
 
-	if ( eval { require Zevenet::Cluster; } )
+	if ( $eload )
 	{
-		&zClusterFarmUp( $json_obj->{ farmname } ) if $json_obj->{ profile } =~ /^l4xnat$/i;
-		&runZClusterRemoteManager( 'farm', 'start', $json_obj->{ farmname } );
+		&eload(
+			module => 'Zevenet::Cluster',
+			func   => 'zClusterFarmUp',
+			args   => [$json_obj->{ farmname }],
+		) if $json_obj->{ profile } =~ /^l4xnat$/i;
+
+		&eload(
+			module => 'Zevenet::Cluster',
+			func   => 'runZClusterRemoteManager',
+			args   => ['farm', 'start', $json_obj->{ farmname }],
+		);
 	}
 
 	&httpResponse( { code => 201, body => $body } );

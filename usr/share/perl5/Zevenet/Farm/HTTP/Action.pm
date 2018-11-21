@@ -41,7 +41,8 @@ FIXME:
 =cut
 sub _runHTTPFarmStart    # ($farm_name)
 {
-	my ( $farm_name, $writeconf ) = @_;
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my ( $farm_name ) = @_;
 
 	require Zevenet::System;
 	require Zevenet::Farm::HTTP::Backend;
@@ -53,7 +54,7 @@ sub _runHTTPFarmStart    # ($farm_name)
 	my $ssyncd_enabled = &getGlobalConfiguration( 'ssyncd_enabled' );
 	my $args = ( $ssyncd_enabled eq 'true' ) ? '-s': '';
 
-	&zenlog( "Checking $farm_name farm configuration" );
+	&zenlog( "Checking $farm_name farm configuration", "info", "LSLB" );
 	return -1 if( &getHTTPFarmConfigIsOK( $farm_name ) );
 
 	my $cmd = "$pound $args -f $configdir\/$farm_filename -p $piddir\/$farm_name\_pound.pid";
@@ -64,23 +65,20 @@ sub _runHTTPFarmStart    # ($farm_name)
 		# set backend at status before that the farm stopped
 		&setHTTPFarmBackendStatus( $farm_name );
 
-		# write status in configuration file
-		if ( $writeconf eq "true" )
-		{
-			require Zevenet::Farm::HTTP::Config;
-			my $lock_fh = &lockHTTPFile( $farm_name );
+		require Zevenet::Lock;
+		my $lock_file = &getLockFile( $farm_name );
+		my $lock_fh = &openlock( $lock_file, 'w' );
 
-			require Tie::File;
-			tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
-			@configfile = grep !/^\#down/, @configfile;
-			untie @configfile;
+		require Tie::File;
+		tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
+		@configfile = grep !/^\#down/, @configfile;
 
-			&unlockfile ( $lock_fh );
-		}
+		untie @configfile;
+		close $lock_fh;
 	}
 	else
 	{
-		&zenlog( "failed: $cmd" );
+		&zenlog( "failed: $cmd", "error", "LSLB" );
 	}
 
 	return $status;
@@ -99,6 +97,7 @@ Returns:
 =cut
 sub _runHTTPFarmStop    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	require Zevenet::FarmGuardian;
@@ -114,11 +113,11 @@ sub _runHTTPFarmStop    # ($farm_name)
 
 		if ( $pid eq '-' || $pid == -1 )
 		{
-			&zenlog( "Not found pid" );
+			&zenlog( "Not found pid", "warning", "LSLB" );
 		}
 		else
 		{
-			&zenlog( "Stopping HTTP farm $farm_name with PID $pid" );
+			&zenlog( "Stopping HTTP farm $farm_name with PID $pid", "info", "LSLB" );
 
 			# Returns the number of arguments that were successfully used to signal.
 			kill 15, $pid;
@@ -126,12 +125,15 @@ sub _runHTTPFarmStop    # ($farm_name)
 
 		unlink ( "$piddir\/$farm_name\_pound.pid" ) if -e "$piddir\/$farm_name\_pound.pid";
 		unlink ( "\/tmp\/$farm_name\_pound.socket" ) if -e "\/tmp\/$farm_name\_pound.socket";
-		&setFarmLock( $farm_name, "off" );
+
+		require Zevenet::Lock;
+		my $lf = &getLockFile( $farm_name );
+		unlink ( $lf ) if -e $lf;
 	}
 	else
 	{
 		&zenlog(
-			 "Farm $farm_name can't be stopped, check the logs and modify the configuration"
+			 "Farm $farm_name can't be stopped, check the logs and modify the configuration", "info", "LSLB"
 		);
 		return 1;
 	}
@@ -153,6 +155,7 @@ Returns:
 =cut
 sub setHTTPNewFarmName    # ($farm_name,$new_farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name, $new_farm_name ) = @_;
 
 	my $output = 0;
@@ -207,7 +210,7 @@ sub setHTTPNewFarmName    # ($farm_name,$new_farm_name)
 
 			rename ( "$farm_filename", "$new_farm_configfiles[0]" ) or $output = -1;
 
-			&zenlog( "configuration saved in $new_farm_configfiles[0] file" );
+			&zenlog( "Configuration saved in $new_farm_configfiles[0] file", "info", "LSLB" );
 		}
 		shift ( @new_farm_configfiles );
 	}

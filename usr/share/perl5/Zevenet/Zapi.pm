@@ -23,13 +23,16 @@
 
 use strict;
 
+my $eload;
+$eload = 1 if ( eval { require Zevenet::ELoad; } );
+
 =begin nd
 Function: getZAPI
 
 	Get zapi status
 
 Parameters:
-	name - 'status' to get if the user 'zapi' is enabled, or 'keyzapi' to get the 'zapikey'.
+	name - 'status' to get if the user 'zapi' is enabled, or 'zapikey' to get the 'zapikey'.
 
 Returns:
 	For 'status': Boolean. 'true' if the zapi user is enabled, or 'false' if it is disabled.
@@ -39,8 +42,10 @@ Returns:
 See Also:
 	zapi/v3/system.cgi
 =cut
+
 sub getZAPI    #($name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $name ) = @_;
 
 	use File::Grep 'fgrep';
@@ -50,14 +55,14 @@ sub getZAPI    #($name)
 	#return if zapi user is enabled or not true = enable, false = disabled
 	if ( $name eq "status" )
 	{
-		if ( fgrep { /^zapi/ } &getGlobalConfiguration('htpass') )
+		if ( fgrep { /^zapi/ } &getGlobalConfiguration( 'htpass' ) )
 		{
 			$result = "true";
 		}
 	}
-	elsif ( $name eq "keyzapi" )
+	elsif ( $name eq "zapikey" )
 	{
-		$result = &getGlobalConfiguration ( 'zapikey' );
+		$result = &getGlobalConfiguration( 'zapikey' );
 	}
 
 	return $result;
@@ -88,12 +93,14 @@ Bugs:
 See Also:
 	zapi/v3/system.cgi
 =cut
+
 sub setZAPI    #($name,$value)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $name, $value ) = @_;
 
-	my $result = "false";
-	my $globalcfg = &getGlobalConfiguration('globalcfg');
+	my $result    = "false";
+	my $globalcfg = &getGlobalConfiguration( 'globalcfg' );
 
 	#Enable ZAPI
 	if ( $name eq "enable" )
@@ -129,6 +136,15 @@ sub setZAPI    #($name,$value)
 	#Set ZAPI KEY
 	if ( $name eq "key" )
 	{
+		if ( $eload )
+		{
+			$value = &eload(
+							 module => 'Zevenet::Code',
+							 func   => 'setCryptString',
+							 args   => [$value],
+			);
+		}
+
 		require Tie::File;
 		tie my @contents, 'Tie::File', "$globalcfg";
 
@@ -157,8 +173,10 @@ Returns:
 See Also:
 	<setZAPI>
 =cut
+
 sub setZAPIKey    #()
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $passwordsize = shift;
 
 	my @alphanumeric = ( 'a' .. 'z', 'A' .. 'Z', 0 .. 9 );
@@ -166,6 +184,44 @@ sub setZAPIKey    #()
 	  0 .. $passwordsize;
 
 	return $randpassword;
+}
+
+sub validZapiKey    # ()
+{
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	require Zevenet::Zapi;
+
+	my $validKey = 0;                 # output
+	my $key      = "HTTP_ZAPI_KEY";
+
+	require Zevenet::User;
+	if ( exists $ENV{ $key } )        # zapi key was provided
+	{
+		if (
+			 &getZAPI( "status" ) eq "true"              # zapi user is enabled
+			 && &getZAPI( "zapikey" ) eq $ENV{ $key }    # matches key
+		  )
+		{
+			&setUser( 'root' );
+			$validKey = 1;
+		}
+		elsif ( $eload )
+		{
+			# get a RBAC user
+			my $user = &eload(
+							   module => 'Zevenet::RBAC::User::Core',
+							   func   => 'validateRBACUserZapi',
+							   args   => [$ENV{ $key }],
+			);
+			if ( $user )
+			{
+				&setUser( $user );
+				$validKey = 1;
+			}
+		}
+	}
+
+	return $validKey;
 }
 
 1;

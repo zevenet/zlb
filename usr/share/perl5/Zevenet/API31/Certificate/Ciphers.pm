@@ -22,29 +22,31 @@
 
 use strict;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
 # GET /ciphers
 sub ciphers_available # ( $json_obj, $farmname )
 {
-	my @out;
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $desc = "Get the ciphers available";
 
-	require Zevenet::Farm::HTTP::HTTPS;
+	my @out = (
+				{ 'ciphers' => "all",            "description" => "All" },
+				{ 'ciphers' => "highsecurity",   "description" => "High security" },
+				{ 'ciphers' => "customsecurity", "description" => "Custom security" }
+	);
 
-	push @out, { 'ciphers' => "all", "description" => "All" };
-	push @out, { 'ciphers' => "highsecurity", "description" => "High security" };
-	push @out, { 'ciphers' => "customsecurity", "description" => "Custom security" };
-
-	if ( &getFarmCipherSSLOffLoadingSupport() )
-	{
-		push @out, { 'ciphers' => "ssloffloading", "description" => "SSL offloading" };
-	}
+	push( @out, &eload(
+		module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
+		func   => 'getExtraCipherProfiles',
+	) ) if ( $eload );
 
 	my $body = {
-				description => $desc,
-				params      => \@out,
+				 description => $desc,
+				 params      => \@out,
 	};
 
-	# Success
 	&httpResponse({ code => 200, body => $body });
 }
 

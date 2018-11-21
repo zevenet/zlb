@@ -28,6 +28,7 @@ use Zevenet::SNMP;
 # GET /system/snmp
 sub get_snmp
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $desc = "Get snmp";
 
 	my %snmp        = %{ &getSnmpdConfig() };
@@ -39,6 +40,7 @@ sub get_snmp
 #  POST /system/snmp
 sub set_snmp
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $json_obj = shift;
 
 	my $desc = "Post snmp";

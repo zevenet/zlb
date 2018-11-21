@@ -41,13 +41,14 @@ Returns:
 # create table route identification, complemented in delIf()
 sub writeRoutes    # ($if_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $if_name = shift;
 
 	my $rttables = &getGlobalConfiguration( 'rttables' );
 
-	open ROUTINGFILE, '<', $rttables;
-	my @contents = <ROUTINGFILE>;
-	close ROUTINGFILE;
+	open my $rt_fd, '<', $rttables;
+	my @contents = <$rt_fd>;
+	close $rt_fd;
 
 	if ( grep /^...\ttable_$if_name$/, @contents )
 	{
@@ -69,9 +70,9 @@ sub writeRoutes    # ($if_name)
 
 	if ( $found eq "true" )
 	{
-		open ( ROUTINGFILE, ">>", "$rttables" );
-		print ROUTINGFILE "$rtnumber\ttable_$if_name\n";
-		close ROUTINGFILE;
+		open ( my $rt_fd, ">>", "$rttables" );
+		print $rt_fd "$rtnumber\ttable_$if_name\n";
+		close $rt_fd;
 	}
 
 	return;
@@ -94,9 +95,10 @@ See Also:
 # add local network into routing table
 sub addlocalnet    # ($if_ref)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $if_ref = shift;
 
-	&zenlog("addlocalnet( name: $$if_ref{ name }, addr: $$if_ref{ addr }, mask: $$if_ref{ mask } )") if &debug();
+	&zenlog("addlocalnet( name: $$if_ref{ name }, addr: $$if_ref{ addr }, mask: $$if_ref{ mask } )", "debug", "NETWORK") if &debug();
 
 	# Get network
 	use NetAddr::IP;
@@ -123,9 +125,10 @@ sub addlocalnet    # ($if_ref)
 
 			# ignores interfaces down or not configured
 			next if $if_ref->{ status } ne 'up';
+			next if ! defined $if_ref->{ addr };
 		}
 
-		&zenlog("addlocalnet: setting route in table $table") if &debug();
+		&zenlog("addlocalnet: setting route in table $table", "debug", "NETWORK") if &debug();
 
 		my $ip_cmd =
 		  "$ip_bin -$$if_ref{ip_v} route replace $net dev $$if_ref{name} src $$if_ref{addr} table $table $routeparams";
@@ -140,7 +143,7 @@ sub addlocalnet    # ($if_ref)
 	{
 		next if $iface->{ type } eq 'virtual';
 		next if $iface->{ name } eq $if_ref->{ name };
-		&zenlog("addlocalnet: into current interface: name $$iface{name} type $$iface{type}") if &debug();
+		&zenlog("addlocalnet: into current interface: name $$iface{name} type $$iface{type}", "debug", "NETWORK") if &debug();
 
 		my $ip = new NetAddr::IP( $$iface{ addr }, $$iface{ mask } );
 		my $net = $ip->network();
@@ -176,20 +179,21 @@ See Also:
 # ask for rules
 sub isRule    # ($if_ref, $toif)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $if_ref, $toif ) = @_;
 
 	$toif = $$if_ref{ name } if !$toif;
 
-	my $existRule  = 0;
+	require NetAddr::IP;
+	my $ipblock = NetAddr::IP->new( $$if_ref{net}, $$if_ref{mask} );
 
-	my ( $net, $mask ) = ipv4_network( "$$if_ref{addr} / $$if_ref{mask}" );
+	my @eject       = `$ip_bin -$$if_ref{ip_v} rule list`;
+	my $expression1 = "from $$if_ref{net}/$$if_ref{mask} lookup table_$toif";
+	my $existRule1   = grep /$expression1/, @eject;
+	my $expression2 = "from $ipblock lookup table_$toif";
+	my $existRule2   = grep /$expression2/, @eject;
 
-	my @eject      = `$ip_bin -$$if_ref{ip_v} rule list`;
-	my $expression = "from $net/$mask lookup table_$toif";
-
-	$existRule = grep /$expression/, @eject;
-
-	return $existRule;
+	return $existRule1 || $existRule2;
 }
 
 =begin nd
@@ -215,6 +219,7 @@ See Also:
 # apply routes
 sub applyRoutes    # ($table,$if_ref,$gateway)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $table, $if_ref, $gateway ) = @_;
 
 	# $gateway: The 3rd argument, '$gateway', is only used for 'global' table,
@@ -222,13 +227,20 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 
 	my $status = 0;
 
+	unless ( $$if_ref{net} )
+	{
+		require Zevenet::Net::Interface;
+		$$if_ref{ net } =
+			&getAddressNetwork( $$if_ref{ addr }, $$if_ref{ mask }, $$if_ref{ ip_v } );
+	}
+
 	# not virtual interface
 	if ( !defined $$if_ref{ vini } || $$if_ref{ vini } eq '' )
 	{
 		if ( $table eq "local" )
 		{
 			&zenlog(
-				"Applying $table routes in stack IPv$$if_ref{ip_v} to $$if_ref{name} with gateway \"$$if_ref{gateway}\""
+				"Applying $table routes in stack IPv$$if_ref{ip_v} to $$if_ref{name} with gateway \"$$if_ref{gateway}\"", "info", "NETWORK"
 			);
 
 			# &delRoutes( "local", $if );
@@ -244,9 +256,8 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 
 			if ( &isRule( $if_ref ) == 0 )
 			{
-				my ( $net, $mask ) = ipv4_network( "$$if_ref{addr} / $$if_ref{mask}" );
 				my $ip_cmd =
-				  "$ip_bin -$$if_ref{ip_v} rule add from $net/$mask table table_$$if_ref{name}";
+				  "$ip_bin -$$if_ref{ip_v} rule add from $$if_ref{net}/$$if_ref{mask} table table_$$if_ref{name}";
 				$status = &logAndRun( "$ip_cmd" );
 			}
 		}
@@ -257,14 +268,14 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 			if ( $gateway )
 			{
 				my $routeparams = &getGlobalConfiguration('routeparams');
-				
+
 				my $action = "replace";
 				my $system_default_gw = &getDefaultGW();
 				if ( $system_default_gw eq "" ){
 					$action = "add";
 				}
 				&zenlog(
-					"Applying $table routes in stack IPv$$if_ref{ip_v} with gateway \"".&getGlobalConfiguration( 'defaultgw' )."\""
+					"Applying $table routes in stack IPv$$if_ref{ip_v} with gateway \"".&getGlobalConfiguration( 'defaultgw' )."\"", "info", "NETWORK"
 				);
 				my $ip_cmd =
 				  "$ip_bin -$$if_ref{ip_v} route $action default via $gateway dev $$if_ref{name} $routeparams";
@@ -272,6 +283,7 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 
 				require Tie::File;
 				tie my @contents, 'Tie::File', &getGlobalConfiguration( 'globalcfg' );
+
 				for my $line ( @contents )
 				{
 					if ( grep /^\$defaultgw/, $line )
@@ -288,6 +300,7 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 						}
 					}
 				}
+
 				untie @contents;
 
 				require Zevenet::Farm::L4xNAT::Config;
@@ -310,9 +323,8 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 
 		if ( &isRule( $if_ref, $toif ) == 0 )
 		{
-			my ( $net, $mask ) = ipv4_network( "$$if_ref{addr} / $$if_ref{mask}" );
 			my $ip_cmd =
-			  "$ip_bin -$$if_ref{ip_v} rule add from $net/$mask table table_$toif";
+			  "$ip_bin -$$if_ref{ip_v} rule add from $$if_ref{net}/$$if_ref{mask} table table_$toif";
 			$status = &logAndRun( "$ip_cmd" );
 		}
 	}
@@ -342,12 +354,13 @@ See Also:
 # delete routes
 sub delRoutes    # ($table,$if_ref)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $table, $if_ref ) = @_;
 
 	my $status = 0;
 
 	&zenlog(
-		   "Deleting $table routes for IPv$$if_ref{ip_v} in interface $$if_ref{name}" );
+		   "Deleting $table routes for IPv$$if_ref{ip_v} in interface $$if_ref{name}", "info", "NETWORK" );
 
 	if ( !defined $$if_ref{ vini } || $$if_ref{ vini } eq '' )
 	{
@@ -428,13 +441,14 @@ See Also:
 # get default gw for interface
 sub getDefaultGW    # ($if)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $if = shift;    # optional argument
 
 	my @line;
 	my @defgw;
 	my $gw;
 	my @routes = "";
-	
+
 	if ( $if )
 	{
 		my $cif = $if;
@@ -444,14 +458,14 @@ sub getDefaultGW    # ($if)
 			$cif = $iface[0];
 		}
 
-		open ( ROUTINGFILE, &getGlobalConfiguration( 'rttables' ) );
+		open ( my $rt_fd, '<', &getGlobalConfiguration( 'rttables' ) );
 
-		if ( grep { /^...\ttable_$cif$/ } <ROUTINGFILE> )
+		if ( grep { /^...\ttable_$cif$/ } <$rt_fd> )
 		{
 			@routes = `$ip_bin route list table table_$cif`;
 		}
 
-		close ROUTINGFILE;
+		close $rt_fd;
 		@defgw = grep ( /^default/, @routes );
 		@line = split ( / /, $defgw[0] );
 		$gw = $line[2];
@@ -483,6 +497,7 @@ See Also:
 =cut
 sub getIPv6DefaultGW    # ()
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my @routes = `$ip_bin -6 route list`;
 	my ( $default_line ) = grep { /^default/ } @routes;
 
@@ -511,6 +526,7 @@ See Also:
 =cut
 sub getIPv6IfDefaultGW    # ()
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my @routes = `$ip_bin -6 route list`;
 	my ( $default_line ) = grep { /^default/ } @routes;
 
@@ -540,6 +556,7 @@ See Also:
 # get interface for default gw
 sub getIfDefaultGW    # ()
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my @routes = `$ip_bin route list`;
 	my @defgw  = grep ( /^default/, @routes );
 	my @line   = split ( / /, $defgw[0] );
@@ -561,9 +578,10 @@ Returns:
 See Also:
 	zevenet
 =cut
-# from zbin/zevenet, almost exactly
+# from bin/zevenet, almost exactly
 sub configureDefaultGW    #()
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $defaultgw = &getGlobalConfiguration('defaultgw');
 	my $defaultgwif = &getGlobalConfiguration('defaultgwif');
 	my $defaultgw6 = &getGlobalConfiguration('defaultgw6');
@@ -590,27 +608,6 @@ sub configureDefaultGW    #()
 			&applyRoutes( "global", $if_ref, $defaultgw6 );
 		}
 	}
-}
-
-=begin nd
-Function: flushCacheRoutes
-
-	[NOT USED] Flush cache routes
-
-Parameters:
-	none - .
-
-Returns:
-	none - .
-
-Bugs:
-	NOT USED
-=cut
-# Flush cache routes
-sub flushCacheRoutes    # ()
-{
-	&zenlog( "flushing routes cache" );
-	system ( "$ip_bin route flush cache >/dev/null 2>$1" );
 }
 
 1;

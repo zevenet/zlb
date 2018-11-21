@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 ###############################################################################
 #
 #    Zevenet Software License
@@ -22,23 +21,51 @@
 ###############################################################################
 
 use strict;
+use Zevenet::Farm::Datalink::Backend;
 
-BEGIN {
-	eval { require Zevenet::Farm::Ext; }
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
 }
 
-# Dependencies
-use Zevenet::Farm::HTTP;
-use Zevenet::Farm::L4xNAT;
-use Zevenet::Farm::Datalink;
+sub farms_name_datalink    # ( $farmname )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $farmname = shift;
 
-# Modules
-use Zevenet::Farm::Core;
-use Zevenet::Farm::Base;
-use Zevenet::Farm::Stats;
-use Zevenet::Farm::Factory;
-use Zevenet::Farm::Action;
-use Zevenet::Farm::Config;
-use Zevenet::Farm::Backend;
+	require Zevenet::Farm::Config;
+	my $vip = &getFarmVip( "vip", $farmname );
+	my $status = &getFarmVipStatus( $farmname );
+
+	my $out_p = {
+				  vip       => $vip,
+				  algorithm => &getFarmAlgorithm( $farmname ),
+				  status    => $status,
+	};
+
+	### backends
+	my $out_b = &getDatalinkFarmBackends( $farmname );
+
+	my $body = {
+				 description => "List farm $farmname",
+				 params      => $out_p,
+				 backends    => $out_b,
+	};
+
+	if ( $eload )
+	{
+		$body->{ ipds } = &eload(
+								  module => 'Zevenet::IPDS::Core',
+								  func   => 'getIPDSfarmsRules',
+								  args   => [$farmname],
+		);
+		delete $body->{ ipds }->{ rbl };
+		delete $body->{ ipds }->{ dos };
+	}
+
+	&httpResponse( { code => 200, body => $body } );
+}
 
 1;

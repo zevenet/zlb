@@ -24,13 +24,8 @@
 use strict;
 use warnings;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
-
 require CGI::Session;
+
 
 # POST CGISESSID to login
 POST qr{^/session$} => \&session_login;
@@ -38,9 +33,11 @@ POST qr{^/session$} => \&session_login;
 #  DELETE session to logout
 DELETE qr{^/session$} => \&session_logout;
 
+
 sub session_login
 {
-	my $desc    = "Login to new session";
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my $desc = "Login to new session";
 	my $session = CGI::Session->new( &getCGI() );
 
 	require Zevenet::SystemInfo;
@@ -71,30 +68,31 @@ sub session_login
 	my ( undef, $session_cookie ) = split ( ': ', $header );
 
 	my $body = {};
-	$body->{ host } = &getHostname();
-	$body->{ user } = $username;
-		
+
 	if ( $eload )
 	{
 		my $key  = &keycert();
 		my $host = &getHostname();
 		$body = { key => $key, host => $host };
 	}
+	$body->{ host } = &getHostname();
+	$body->{ user } = $username;
 
-	my $response = {
-					 code    => 200,
-					 body	 => $body,
+	&zenlog( "Login successful for user: $username", "info", "SYSTEM" );
+	&httpResponse(
+				   {
+					 code => 200,
+					 body => $body,
 					 headers => { 'Set-cookie' => $session_cookie },
-	};
-
-	&zenlog( "Login successful for user: $username" );
-	&httpResponse( $response );
+				   }
+	);
 }
 
 sub session_logout
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $desc = "Logout of session";
-	my $cgi  = &getCGI();
+	my $cgi = &getCGI();
 
 	unless ( $cgi->http( 'Cookie' ) )
 	{
@@ -113,7 +111,7 @@ sub session_logout
 	my $username = $session->param( 'username' );
 	my $ip_addr  = $session->param( '_SESSION_REMOTE_ADDR' );
 
-	&zenlog( "Logged out user $username from $ip_addr" );
+	&zenlog( "Logged out user $username from $ip_addr", "info", "SYSTEM" );
 
 	$session->delete();
 	$session->flush();

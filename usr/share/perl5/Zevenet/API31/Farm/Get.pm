@@ -25,9 +25,13 @@ use Zevenet::Config;
 use Zevenet::Farm::Core;
 use Zevenet::Farm::Base;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
 #GET /farms
 sub farms    # ()
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	require Zevenet::Farm::Base;
 
 	my @out;
@@ -62,9 +66,8 @@ sub farms    # ()
 # GET /farms/LSLBFARM
 sub farms_lslb    # ()
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	require Zevenet::Farm::Base;
-	require Zevenet::Farm::HTTP;
-	require Zevenet::Farm::L4xNAT;
 
 	my @out;
 	my @files = &getFarmList();
@@ -99,8 +102,8 @@ sub farms_lslb    # ()
 # GET /farms/DATALINKFARM
 sub farms_dslb    # ()
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	require Zevenet::Farm::Base;
-	require Zevenet::Farm::Datalink;
 
 	my @out;
 	my @files = &getFarmList();
@@ -134,11 +137,12 @@ sub farms_dslb    # ()
 #GET /farms/<name>/summary
 sub farms_name_summary    # ( $farmname )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $farmname = shift;
 	my $desc     = "Show farm $farmname";
 
 	# Check if the farm exists
-	if ( &getFarmFile( $farmname ) == -1 )
+	if ( !&getFarmExists( $farmname ) )
 	{
 		my $msg = "Farm not found.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -159,12 +163,13 @@ sub farms_name_summary    # ( $farmname )
 #GET /farms/<name>
 sub farms_name    # ( $farmname )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $farmname = shift;
 
 	my $desc = "Show farm $farmname";
 
 	# Check if the farm exists
-	if ( &getFarmFile( $farmname ) == -1 )
+	if ( !&getFarmExists( $farmname ) )
 	{
 		my $msg = "Farm not found.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -187,12 +192,13 @@ sub farms_name    # ( $farmname )
 		require Zevenet::API31::Farm::Get::Datalink;
 		&farms_name_datalink( $farmname );
 	}
-	if ( $type eq 'gslb' )
+	if ( $type eq 'gslb' && $eload )
 	{
-		if ( eval { require Zevenet::API31::Farm::Get::GSLB; } )
-		{
-			&farms_name_gslb( $farmname );
-		}
+		&eload(
+			module => 'Zevenet::API31::Farm::Get::GSLB',
+			func   => 'farms_name_gslb',
+			args   => [$farmname],
+		) if ( $eload );
 	}
 }
 

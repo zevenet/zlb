@@ -29,7 +29,7 @@ my $configdir = &getGlobalConfiguration('configdir');
 Function: runHTTPFarmCreate
 
 	Create a HTTP farm
-	
+
 Parameters:
 	vip - Virtual IP where the virtual service is listening
 	port - Virtual port where the virtual service is listening
@@ -38,10 +38,11 @@ Parameters:
 
 Returns:
 	Integer - return 0 on success or different of 0 on failure
-		
+
 =cut
 sub runHTTPFarmCreate    # ( $vip, $vip_port, $farm_name, $farm_type )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $vip, $vip_port, $farm_name, $farm_type ) = @_;
 
 	require Tie::File;
@@ -51,12 +52,13 @@ sub runHTTPFarmCreate    # ( $vip, $vip_port, $farm_name, $farm_type )
 	my $output = -1;
 
 	#copy template modyfing values
-	&zenlog( "copying pound tpl file on $farm_name\_pound.cfg" );
 	my $poundtpl = &getGlobalConfiguration('poundtpl');
-	copy( "$poundtpl", "$configdir/$farm_name\_pound.cfg" );
+	my $pound_conf_file = "$configdir/${farm_name}_pound.cfg";
+	&zenlog( "Copying pound template ($poundtpl) to $pound_conf_file", "info", "LSLB" );
+	copy( $poundtpl, $pound_conf_file );
 
 	#modify strings with variables
-	tie my @file, 'Tie::File', "$configdir/$farm_name\_pound.cfg";
+	tie my @file, 'Tie::File', $pound_conf_file;
 
 	foreach my $line ( @file )
 	{
@@ -73,25 +75,26 @@ sub runHTTPFarmCreate    # ( $vip, $vip_port, $farm_name, $farm_type )
 	untie @file;
 
 	#create files with personalized errors
-	open FERR, ">$configdir\/$farm_name\_Err414.html";
-	print FERR "Request URI is too long.\n";
-	close FERR;
-	open FERR, ">$configdir\/$farm_name\_Err500.html";
-	print FERR "An internal server error occurred. Please try again later.\n";
-	close FERR;
-	open FERR, ">$configdir\/$farm_name\_Err501.html";
-	print FERR "This method may not be used.\n";
-	close FERR;
-	open FERR, ">$configdir\/$farm_name\_Err503.html";
-	print FERR "The service is not available. Please try again later.\n";
-	close FERR;
+	my $f_err;
+	open $f_err, '>', "$configdir\/$farm_name\_Err414.html";
+	print $f_err "Request URI is too long.\n";
+	close $f_err;
+	open $f_err, '>', "$configdir\/$farm_name\_Err500.html";
+	print $f_err "An internal server error occurred. Please try again later.\n";
+	close $f_err;
+	open $f_err, '>', "$configdir\/$farm_name\_Err501.html";
+	print $f_err "This method may not be used.\n";
+	close $f_err;
+	open $f_err, '>', "$configdir\/$farm_name\_Err503.html";
+	print $f_err "The service is not available. Please try again later.\n";
+	close $f_err;
 
 	my $pound = &getGlobalConfiguration('pound');
 	my $piddir = &getGlobalConfiguration('piddir');
 
 	#run farm
 	&zenlog(
-		"running $pound -f $configdir\/$farm_name\_pound.cfg -p $piddir\/$farm_name\_pound.pid"
+		"Running $pound -f $configdir\/$farm_name\_pound.cfg -p $piddir\/$farm_name\_pound.pid", "info", "LSLB"
 	);
 
 	require Zevenet::System;

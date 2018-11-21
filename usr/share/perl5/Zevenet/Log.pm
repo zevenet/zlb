@@ -24,13 +24,15 @@
 use strict;
 
 use Unix::Syslog qw(:macros :subs);  # Syslog macros
-#~ use Sys::Syslog;                          #use of syslog
-#~ use Sys::Syslog qw(:standard :macros);    #standard functions for Syslog
 
 # Get the program name for zenlog
-my $run_cmd_name = ( split '/', $0 )[-1];
-$run_cmd_name = ( split '/', "$ENV{'SCRIPT_NAME'}" )[-1] if $run_cmd_name eq '-e';
-$run_cmd_name = ( split '/', $^X )[-1] if ! $run_cmd_name;
+my $TAG = "[Log.pm]";
+my $program_name =
+    ( $0 ne '-e' ) ? $0
+  : ( exists $ENV{ _ } && $ENV{ _ } !~ /enterprise.bin$/ ) ? $ENV{ _ }
+  :                                                          $^X;
+
+my $basename = ( split ( '/', $program_name ) )[-1];
 
 =begin nd
 Function: zenlog
@@ -39,28 +41,44 @@ Function: zenlog
 
 	Usage:
 
-		&zenlog($text, $priority);
+		&zenlog($text, $priority, $tag);
 
 	Examples:
 
-		&zenlog("This is test.", "info");
-		&zenlog("Some errors happended.", "err");
-		&zenlog("testing debug mode", "debug");
+		&zenlog("This is a message.", "info", "LSLB");
+		&zenlog("Some errors happened.", "err", "FG");
+		&zenlog("testing debug mode", "debug", "SYSTEM");
 
-Parameters:
+Parametes:
 	string - String to be written in log.
-	type   - Log level.
+	type   - Log level. info, error, debug, debug2, warn
+	tag    - RBAC, LSLB, GSLB, DSLB, IPDS, FG, NOTIF, NETWORK, MONITOR, SYSTEM, CLUSTER
 
 Returns:
 	none - .
 =cut
+
 sub zenlog    # ($string, $type)
 {
-	my $string = shift;            # string = message
-	my $type = shift // 'info';    # type   = log level (Default: info))
+	my $string = shift;              # string = message
+	my $type   = shift // 'info';    # type   = log level (Default: info))
+	my $tag    = shift // "";
+
+	require Zevenet::Debug;
+
+	if ( $type =~ /^(debug)(\d*)$/ )
+	{
+		# debug lvl
+		my $debug_lvl = $2;
+		$debug_lvl = 1 if not $debug_lvl;
+		$type = $1;
+		return 0 if ( &debug() lt $debug_lvl );
+	}
+
+	$tag = "$tag :: " if $tag;
 
 	# Get the program name
-	my $program = $run_cmd_name;
+	my $program = $basename;
 
 	#~ openlog( $program, 'pid', 'local0' );    #open syslog
 	openlog( $program, LOG_PID, LOG_LOCAL0 );
@@ -70,10 +88,10 @@ sub zenlog    # ($string, $type)
 	foreach my $line ( @lines )
 	{
 		#~ syslog( $type, "(" . uc ( $type ) . ") " . $line );
-		syslog( LOG_INFO, "(" . uc ( $type ) . ") " . $line );
+		syslog( LOG_INFO, "(" . uc ( $type ) . ") " . "${tag}$line" );
 	}
 
-	closelog();                              #close syslog
+	closelog();    #close syslog
 }
 
 =begin nd
@@ -89,12 +107,13 @@ Parameters:
 Returns:
 	none - .
 =cut
-sub zlog                                          # (@message)
+
+sub zlog    # (@message)
 {
 	my @message = shift;
 
-	#my ($package,		# 0
-	#$filename,		# 1
+	#my ($package,   # 0
+	#$filename,      # 1
 	#$line,          # 2
 	#$subroutine,    # 3
 	#$hasargs,       # 4
@@ -130,40 +149,64 @@ Returns:
 See Also:
 	Widely used.
 =cut
+
 sub logAndRun    # ($command)
 {
 	my $command = shift;    # command string to log and run
-	my $return_code;
-	my @cmd_output;
 
-	my $program = ( split '/', $0 )[-1];
-	$program = "$ENV{'SCRIPT_NAME'}" if $program eq '-e';
-	$program .= ' ';
-	# &zenlog( (caller (2))[3] . ' >>> ' . (caller (1))[3]);
+	my $program     = $basename;
+	my @cmd_output  = `$command 2>&1`;
+	my $return_code = $?;
 
-	require Zevenet::Debug;
-	if ( &debug )
+	if ( $return_code )
 	{
-		&zenlog( $program . "running: $command" );
-
-		@cmd_output = `$command 2>&1`;
-		$return_code = $?;
-
-		if ( $return_code )
-		{
-			&zenlog( "@cmd_output" );
-			&zenlog( "last command failed!" );
-		}
+		&zenlog( $program . " running: $command", "error", "SYSTEM" );
+		&zenlog( "@cmd_output", "error", "error", "SYSTEM" );
+		&zenlog( "last command failed!", "error", "SYSTEM" );
 	}
 	else
 	{
-		system ( "$command >/dev/null 2>&1" );
-		$return_code = $?;
-		&zenlog( $program . "failed: $command" ) if $return_code;
+		&zenlog( $program . " running: $command", "debug", "SYSTEM" );
 	}
 
 	# returning error code from execution
 	return $return_code;
+}
+
+=begin nd
+Function: logAndRunBG
+
+	Non-blocking version of logging and running a command, returning execution error code.
+
+Parameters:
+	command - String with the command to be run.
+
+Returns:
+	boolean - true on error, false on success launching the command.
+=cut
+
+sub logAndRunBG    # ($command)
+{
+	my $command = shift;    # command string to log and run
+
+	my $program = $basename;
+
+	my $return_code = system("$command >/dev/null 2>&1 &");
+
+	if ( $return_code )
+	{
+		&zenlog( $program . " running: $command", "error", "SYSTEM" );
+		&zenlog( "last command failed!", "error", "SYSTEM" );
+	}
+	else
+	{
+		&zenlog( $program . " running: $command", "debug", "SYSTEM" );
+	}
+
+	# return_code is -1 on error.
+
+	# returns true on error launching the program, false on error launching the program
+	return $return_code == -1;
 }
 
 sub zdie

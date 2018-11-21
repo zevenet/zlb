@@ -24,7 +24,14 @@
 use strict;
 use warnings;
 
-use Zevenet;
+use Zevenet::Farm::Core;
+use Zevenet::Farm::Base;
+use Zevenet::Farm::Action;
+use Zevenet::FarmGuardian;
+use Zevenet::Net::Core;
+use Zevenet::Net::Interface;
+use Zevenet::Net::Route;
+use Zevenet::Net::Util;
 use Zevenet::Log;
 
 my $eload;
@@ -128,7 +135,7 @@ if ( $action eq "start" )
 	#testing interface configured on the installation and gw
 	if ( -e '/etc/network/interfaces' )
 	{
-		open my $fr, '/etc/network/interfaces';
+		open my $fr, '<', '/etc/network/interfaces';
 		my @file = <$fr>;
 		close $fr;
 
@@ -188,49 +195,46 @@ if ( $action eq "start" )
 								  status  => "up",
 				);
 
-				# Write iface file
+				# Write interface file
 				if ( $interface{ name } )
 				{
-					&zenlog( "Writing iface: $interface{ name }" );
+					&zenlog( "Writing interface: $interface{ name }" );
 					&setInterfaceConfig( \%interface ) ;
 
-					#configure gateway
+					# gateway
 					if ( $interface{ gateway } )
 					{
 						&zenlog( "Writing gateway: $interface{ gateway }" );
 						setGlobalConfiguration( 'defaultgw', $gateway );
 						setGlobalConfiguration( 'defaultgwif', $ifname );
 					}
+
+					# route table
+					&zenlog( "Writing route table: $interface{ name }" );
+					&writeRoutes( $interface{ name } );
 				}
 			}
 
-			#deleting interfaces file
-			open FW, ">/etc/network/interfaces";
-			print FW "#zenmodified\n";
-			print FW "auto lo\n";
-			print FW "iface lo inet loopback\n";
-			close FW;
-
-			# Routes
-			# FIXME: there is a function for this, it should be used.
-			open FW, ">>/etc/iproute2/rt_tables";
-			print FW "200\ttable_$interface{ name }\n";
-			close FW;
+			# overwriting interfaces file
+			open my $if_file, '>', '/etc/network/interfaces';
+			print $if_file "#zenmodified\n";
+			print $if_file "auto lo\n";
+			print $if_file "iface lo inet loopback\n";
+			close $if_file;
 		}
 	}
 
 	print ( "* Starting Interfaces:\n" );
 
-	my $mgmt_ip    = &getHttpServerIp();
 	my $ip_bin     = &getGlobalConfiguration( 'ip_bin' );
 	my @interfaces = @{ &getConfigInterfaceList() };
 
 	&zenlog("zevenet: Setting up NIC interfaces...");
 
 	# first real interfaces
-	foreach my $iface ( &getInterfaceTypeList('nic'), &getInterfaceTypeList('bond') )
+	foreach my $iface ( @interfaces )
 	{
-		#interfaces as eth0 for example
+		# interfaces as eth0 for example
 		if ( $$iface{ name } eq $$iface{ dev } )
 		{
 			use IO::Interface ':flags';
@@ -284,6 +288,7 @@ if ( $action eq "start" )
 	&eload( module => $mod, func => 'start_service' ) if $eload;
 
 	&zenlog("zevenet: Setting up VLAN interfaces...");
+	@interfaces = @{ &getConfigInterfaceList() };
 
 	# vlans interfaces (ie. eth0.20)
 	foreach my $iface ( @interfaces )
@@ -334,10 +339,15 @@ if ( $action eq "start" )
 		}
 	}
 
-	&zenlog("zevenet: Setting up Cluster...");
+	# Hook to enable cluster
+	if ( $eload )
+	{
+		&zenlog("zevenet: Setting up Cluster...");
+		&eload( module => $mod, func => 'enable_cluster' );
 
-	# enable cluster hook
-	&eload( module => $mod, func => 'enable_cluster' ) if $eload;
+		# enable modules
+		&eload( module => $mod, func => 'start_modules' );
+	}
 
 	&zenlog("zevenet: Setting up virtual interfaces...");
 
@@ -410,12 +420,9 @@ if ( $action eq "start" )
 			}
 
 			#farmguardian configured and up?
-			my $fgstatus = &getFarmGuardianStatus( $farmname );
-
-			if ( ( $status == 0 ) && ( $fgstatus == 1 ) && $enable_fg )
+			if ( $status == 0 )
 			{
-				print ( "  * Starting Farm Guardian for $farmname:" );
-				my $stat = &runFarmGuardianStart( $farmname, "" );
+				my $stat = &runFGFarmStart( $farmname );
 
 				if ( $stat == 0 )
 				{

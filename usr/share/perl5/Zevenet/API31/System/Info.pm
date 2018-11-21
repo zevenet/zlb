@@ -26,11 +26,13 @@ use strict;
 # show license
 sub get_license
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $format = shift;
+
+	require Zevenet::System;
 
 	my $desc = "Get license";
 	my $licenseFile;
-	my $file;
 
 	if ( $format eq 'txt' )
 	{
@@ -46,27 +48,19 @@ sub get_license
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	open ( my $license_fh, '<', $licenseFile );
-	{
-		local $/ = undef;
-		$file = <$license_fh>;
-	}
-	close $license_fh;
+	my $file = &slurpFile( $licenseFile );
 
 	&httpResponse({ code => 200, body => $file, type => 'text/plain' });
 }
 
 sub get_supportsave
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $desc = "Get supportsave file";
-	my @ss_output = `/usr/local/zevenet/app/zbin/supportsave 2>&1`;
 
-	# get the last "word" from the first line
-	my $first_line = shift @ss_output;
-	my $last_word = ( split ( ' ', $first_line ) )[-1];
+	require Zevenet::System;
 
-	my $ss_path = $last_word;
-	my ( undef, $ss_filename ) = split ( '/tmp/', $ss_path );
+	my $ss_filename = &getSupportSave();
 
 	&httpDownloadResponse( desc => $desc, dir => '/tmp', file => $ss_filename );
 }
@@ -74,19 +68,17 @@ sub get_supportsave
 # GET /system/version
 sub get_version
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	require Zevenet::SystemInfo;
 	require Zevenet::Certificate;
 
 	my $desc    = "Get version";
-	my $uname   = &getGlobalConfiguration( 'uname' );
 	my $zevenet = &getGlobalConfiguration( 'version' );
 
-	my $kernel     = `$uname -r`;
+	my $kernel     = &getKernelVersion();
 	my $hostname   = &getHostname();
 	my $date       = &getDate();
 	my $applicance = &getApplianceVersion();
-
-	chomp $kernel;
 
 	my $params = {
 				   'kernel_version'    => $kernel,

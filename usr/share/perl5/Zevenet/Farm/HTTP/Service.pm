@@ -23,6 +23,9 @@
 
 use strict;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
 =begin nd
@@ -44,10 +47,12 @@ FIXME:
 
 sub setFarmHTTPNewService    # ($farm_name,$service)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name, $service ) = @_;
 
 	use File::Grep 'fgrep';
 	require Tie::File;
+	require Zevenet::Lock;
 	require Zevenet::Farm::Config;
 
 	my $output = -1;
@@ -106,9 +111,8 @@ sub setFarmHTTPNewService    # ($farm_name,$service)
 		$newservice[0] =~ s/#//g;
 		$newservice[$#newservice] =~ s/#//g;
 
-		# lock file
-		require Zevenet::Farm::HTTP::Config;
-		my $lock_fh = &lockHTTPFile( $farm_name );
+		my $lock_file = &getLockFile( $farm_name );
+		my $lock_fh = &openlock( $lock_file, 'w' );
 
 		my @fileconf;
 		tie @fileconf, 'Tie::File', "$configdir/$farm_name\_pound.cfg";
@@ -139,9 +143,9 @@ sub setFarmHTTPNewService    # ($farm_name,$service)
 			}
 			$i++;
 		}
-		untie @fileconf;
 
-		&unlockfile( $lock_fh );
+		untie @fileconf;
+		close $lock_fh;
 	}
 	else
 	{
@@ -152,36 +156,7 @@ sub setFarmHTTPNewService    # ($farm_name,$service)
 }
 
 =begin nd
-Function: setFarmNewService
-
-	[Not used] Create a new Service in a HTTP farm
-
-Parameters:
-	farmname - Farm name
-	service - Service name
-
-Returns:
-	Integer - Error code: 0 on success, other value on failure
-
-=cut
-
-sub setFarmNewService    # ($farm_name,$service)
-{
-	my ( $farm_name, $service ) = @_;
-
-	my $farm_type = &getFarmType( $farm_name );
-	my $output    = -1;
-
-	if ( $farm_type eq "http" || $farm_type eq "https" )
-	{
-		$output = &setFarmHTTPNewService( $farm_name, $service );
-	}
-
-	return $output;
-}
-
-=begin nd
-Function: deleteFarmService
+Function: delHTTPFarmService
 
 	Delete a service in a Farm
 
@@ -192,16 +167,15 @@ Parameters:
 Returns:
 	Integer - Error code: 0 on success, -1 on failure
 
-FIXME:
-	Rename function to delHTTPFarmService
-
 =cut
 
-sub deleteFarmService    # ($farm_name,$service)
+sub delHTTPFarmService    # ($farm_name,$service)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name, $service ) = @_;
 
 	require Tie::File;
+	require Zevenet::Lock;
 	require Zevenet::FarmGuardian;
 	require Zevenet::Farm::HTTP::Service;
 
@@ -222,13 +196,10 @@ sub deleteFarmService    # ($farm_name,$service)
 	}
 
 	# Stop FG service
-	&runFarmGuardianStop( $farm_name, $service );
-	&runFarmGuardianRemove( $farm_name, $service );
-	unlink "$configdir/$farm_name\_$service\_guardian.conf";
+	&delFGFarm( $farm_name, $service );
 
-	# lock file
-	require Zevenet::Farm::HTTP::Config;
-	my $lock_fh = &lockHTTPFile( $farm_name );
+	my $lock_file = &getLockFile( $farm_name );
+	my $lock_fh = &openlock( $lock_file, 'w' );
 
 	tie my @fileconf, 'Tie::File', "$configdir/$farm_filename";
 
@@ -255,9 +226,9 @@ sub deleteFarmService    # ($farm_name,$service)
 			$i--;
 		}
 	}
-	untie @fileconf;
 
-	&unlockfile( $lock_fh );
+	untie @fileconf;
+	close $lock_fh;
 
 	# delete service's backends  in status file
 	if ( $counter > -1 )
@@ -306,15 +277,16 @@ FIXME:
 
 sub getHTTPFarmServices
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	require Zevenet::Farm::Core;
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $pos           = 0;
-	my @output;
+	my @output = ();
 
-	open my $fh, "<$configdir\/$farm_filename";
+	open my $fh, '<', "$configdir\/$farm_filename";
 	my @file = <$fh>;
 	close $fh;
 
@@ -406,6 +378,7 @@ Returns:
 
 sub getHTTPServiceBlocks
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $farm = shift;
 	my $srv  = shift;
 	my $out = {
@@ -460,154 +433,13 @@ sub getHTTPServiceBlocks
 }
 
 =begin nd
-Function: moveService
-
-	Move a HTTP service to change its preference. This function changes the possition of a service in farm config file
-
-Parameters:
-	farmname - Farm name
-	move - Direction where it moves the service. The possbile value are: "down", decrease the priority or "up", increase the priority
-	service - Service to move
-
-Returns:
-	integer - Always return 0
-
-FIXME:
-	Rename function to setHTTPFarmMoveService
-	Always return 0, create error control
-
-=cut
-
-
-sub moveService
-{
-	my $farm      = shift;
-	my $srv       = shift;
-	my $req_index = shift;
-	my $out;
-
-	# lock file
-	my $farm_filename = &getFarmFile( $farm );
-	require Zevenet::Lock;
-	my $lock_file = "/tmp/$farm.lock";
-	my $lock_fh   = &lockfile( $lock_file );
-
-	# reduce a index if service was in a previuos position.
-	my $srv_index = &getFarmVSI( $farm, $srv );
-
-	# get service code
-	my $srv_block = &getHTTPServiceBlocks( $farm, $srv );
-
-	my @sort_list = @{ $srv_block->{ farm } };
-
-	my $size = scalar keys %{ $srv_block->{ services } };
-	my $srv_flag = 0;
-	my $id = 0;
-
-	for ( my $i=0; $i < $size+1; $i++ )
-	{
-		if ( $i == $req_index )
-		{
-			push @sort_list, @{ $srv_block->{ request } };
-		}
-
-		else
-		{
-			push @sort_list, @{ $srv_block->{ services }->{ $id } };
-			$id++;
-		}
-	}
-
-	# finish tags of config file
-	push @sort_list, "\t#ZWACL-END";
-	push @sort_list, "End";
-
-	# write in config file
-	use Tie::File;
-	tie my @file, "Tie::File", "$configdir/$farm_filename";
-	@file = @sort_list;
-	untie @file;
-
-	# unlock file
-	&unlockfile( $lock_fh );
-
-	# move fg
-	&moveServiceFarmStatus( $farm, $srv, $req_index );
-
-	return $out;
-}
-
-
-=begin nd
-Function: moveServiceFarmStatus
-
-	Modify the service index in status file ( farmname_status.cfg ). For updating farmguardian backend status.
-
-Parameters:
-	farmname - Farm name
-	move - Direction where it moves the service. The possbile value are: "down", decrease the priority or "up", increase the priority
-	service - Service to move
-
-Returns:
-	integer - Always return 0
-
-FIXME:
-	Rename function to setHTTPFarmMoveServiceStatusFile
-	Always return 0, create error control
-
-=cut
-
-sub moveServiceFarmStatus
-{
-	my ( $farmname, $service, $req_index ) = @_;
-
-	use Tie::File;
-	my $fileName = "$configdir\/${farmname}_status.cfg";
-	tie my @file, 'Tie::File', $fileName;
-
-	my $srv_id = &getFarmVSI( $farmname, $service );
-	return if ( $srv_id == -1 );
-	return if ( $srv_id == $req_index );
-	#
-	my $dir = ( $srv_id < $req_index )? "up" : "down";
-
-	foreach my $line ( @file )
-	{
-		if ( $line =~ /(^-[bB] 0) (\d+) (.+)$/ )
-		{
-			my $cad1 = $1;
-			my $index = $2;
-			my $cad2 = $3;
-
-			# replace with the new service position
-			if ( $index == $srv_id ) 				{ $index = $req_index; }
-
-			# replace with the new service position
-			elsif ( $dir eq "down" and $index < $srv_id and $index >= $req_index )	{ $index++ ; }
-			# replace with the new service position
-			elsif ( $dir eq "up" and $index > $srv_id and $index <= $req_index )	{ $index-- ; }
-
-			$line = "$cad1 $index $cad2";
-		}
-	}
-
-	untie @file;
-
-	&zenlog(
-		"The service \"$service\" from farm \"$farmname\" has been moved to $req_index the position", "debug2"
-	);
-
-	return 0;
-}
-
-=begin nd
 Function: getHTTPServiceStruct
 
 	Get a struct with all parameters of a HTTP service
 
 Parameters:
 	farmname - Farm name
-	service - Farm name
+	service  - Farm name
 
 Returns:
 	hash ref - hash with service configuration
@@ -625,11 +457,6 @@ Returns:
             "weight" : null
          }
       ],
-      "cookiedomain" : "",
-      "cookieinsert" : "false",
-      "cookiename" : "",
-      "cookiepath" : "",
-      "cookiettl" : 0,
       "fgenabled" : "false",
       "fglog" : "false",
       "fgscript" : "",
@@ -647,103 +474,107 @@ Returns:
       }
     };
 
+	Enterprise Edition also includes:
+
+      ...
+      "cookiedomain" : "",
+      "cookieinsert" : "false",
+      "cookiename" : "",
+      "cookiepath" : "",
+      "cookiettl" : 0,
+      ...
+
+Notes:
+	Similar to the function get_http_service_struct
 =cut
 
 sub getHTTPServiceStruct
 {
-	my ( $farmname, $servicename ) = @_;
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my ( $farmname, $service_name ) = @_;
 
 	require Zevenet::FarmGuardian;
 	require Zevenet::Farm::HTTP::Backend;
 
-	my $service = -1;
-
-	#http services
+	# http services
 	my $services = &getHTTPFarmVS( $farmname, "", "" );
-	my @serv = split ( "\ ", $services );
+	my @serv = split ( ' ', $services );
 
-	foreach my $s ( @serv )
+	# return error if service is not found
+	return unless grep( { $service_name eq $_ } @serv );
+
+	my $vser         = &getHTTPFarmVS( $farmname, $service_name, "vs" );
+	my $urlp         = &getHTTPFarmVS( $farmname, $service_name, "urlp" );
+	my $redirect     = &getHTTPFarmVS( $farmname, $service_name, "redirect" );
+	my $redirecttype = &getHTTPFarmVS( $farmname, $service_name, "redirecttype" );
+	my $session      = &getHTTPFarmVS( $farmname, $service_name, "sesstype" );
+	my $ttl          = &getHTTPFarmVS( $farmname, $service_name, "ttl" );
+	my $sesid        = &getHTTPFarmVS( $farmname, $service_name, "sessionid" );
+	my $dyns         = &getHTTPFarmVS( $farmname, $service_name, "dynscale" );
+	my $httpsbe      = &getHTTPFarmVS( $farmname, $service_name, "httpsbackend" );
+
+	$dyns    = "false" if $dyns eq '';
+	$httpsbe = "false" if $httpsbe eq '';
+
+	my @fgconfig  = &getFarmGuardianConf( $farmname, $service_name );
+	my $fgttcheck = $fgconfig[1];
+	my $fgscript  = $fgconfig[2];
+	my $fguse     = $fgconfig[3];
+	my $fglog     = $fgconfig[4];
+
+	# Default values for farm guardian parameters
+	if ( !$fgttcheck ) { $fgttcheck = 5; }
+	if ( !$fguse )     { $fguse     = "false"; }
+	if ( !$fglog )     { $fglog     = "false"; }
+	if ( !$fgscript )  { $fgscript  = ""; }
+
+	$fgscript =~ s/\n//g;
+	$fguse =~ s/\n//g;
+
+	my $backends = &getHTTPFarmBackends( $farmname, $service_name );
+
+	# Backends
+	my $backends = &getHTTPFarmBackends( $farmname, $service_name );
+
+	# Remove backend status 'undefined', it is for news api versions
+	foreach my $be ( @{ $backends } )
 	{
-		if ( $s eq $servicename )
-		{
-			my $vser         = &getHTTPFarmVS( $farmname, $s, "vs" );
-			my $urlp         = &getHTTPFarmVS( $farmname, $s, "urlp" );
-			my $redirect     = &getHTTPFarmVS( $farmname, $s, "redirect" );
-			my $redirecttype = &getHTTPFarmVS( $farmname, $s, "redirecttype" );
-			my $session      = &getHTTPFarmVS( $farmname, $s, "sesstype" );
-			my $ttl          = &getHTTPFarmVS( $farmname, $s, "ttl" );
-			my $sesid        = &getHTTPFarmVS( $farmname, $s, "sessionid" );
-			my $dyns         = &getHTTPFarmVS( $farmname, $s, "dynscale" );
-			my $httpsbe      = &getHTTPFarmVS( $farmname, $s, "httpsbackend" );
-			my $cookiei      = &getHTTPFarmVS( $farmname, $s, "cookieins" );
-
-			if ( $cookiei eq "" )
-			{
-				$cookiei = "false";
-			}
-
-			my $cookieinsname = &getHTTPFarmVS( $farmname, $s, "cookieins-name" );
-			my $domainname    = &getHTTPFarmVS( $farmname, $s, "cookieins-domain" );
-			my $path          = &getHTTPFarmVS( $farmname, $s, "cookieins-path" );
-			my $ttlc          = &getHTTPFarmVS( $farmname, $s, "cookieins-ttlc" );
-
-			if ( $dyns =~ /^$/ )
-			{
-				$dyns = "false";
-			}
-			if ( $httpsbe =~ /^$/ )
-			{
-				$httpsbe = "false";
-			}
-
-			my @fgconfig  = &getFarmGuardianConf( $farmname, $s );
-			my $fgttcheck = $fgconfig[1];
-			my $fgscript  = $fgconfig[2];
-			my $fguse     = $fgconfig[3];
-			my $fglog     = $fgconfig[4];
-
-			# Default values for farm guardian parameters
-			if ( !$fgttcheck ) { $fgttcheck = 5; }
-			if ( !$fguse )     { $fguse     = "false"; }
-			if ( !$fglog )     { $fglog     = "false"; }
-			if ( !$fgscript )  { $fgscript  = ""; }
-
-			$fgscript =~ s/\n//g;
-			$fguse =~ s/\n//g;
-
-			my $backends = &getHTTPFarmBackends( $farmname, $s );
-
-			$ttlc      = 0 unless $ttlc;
-			$ttl       = 0 unless $ttl;
-			$fgttcheck = 0 unless $fgttcheck;
-
-			$service = {
-						 id           => $s,
-						 vhost        => $vser,
-						 urlp         => $urlp,
-						 redirect     => $redirect,
-						 redirecttype => $redirecttype,
-						 cookieinsert => $cookiei,
-						 cookiename   => $cookieinsname,
-						 cookiedomain => $domainname,
-						 cookiepath   => $path,
-						 cookiettl    => $ttlc + 0,
-						 persistence  => $session,
-						 ttl          => $ttl + 0,
-						 sessionid    => $sesid,
-						 leastresp    => $dyns,
-						 httpsb       => $httpsbe,
-						 fgtimecheck  => $fgttcheck + 0,
-						 fgscript     => $fgscript,
-						 fgenabled    => $fguse,
-						 fglog        => $fglog,
-						 backends     => $backends,
-			};
-			last;
-		}
+		$be->{ 'status' } = 'up' if $be->{ 'status' } eq 'undefined';
 	}
 
-	return $service;
+	$ttl       = 0 unless $ttl;
+	$fgttcheck = 0 unless $fgttcheck;
+
+	my $service_ref = {
+						id           => $service_name,
+						vhost        => $vser,
+						urlp         => $urlp,
+						redirect     => $redirect,
+						redirecttype => $redirecttype,
+						persistence  => $session,
+						ttl          => $ttl + 0,
+						sessionid    => $sesid,
+						leastresp    => $dyns,
+						httpsb       => $httpsbe,
+						backends     => $backends,
+	};
+
+	if ( $eload )
+	{
+		$service_ref = &eload(
+							   module => 'Zevenet::Farm::HTTP::Service::Ext',
+							   func   => 'add_service_cookie_insertion',
+							   args   => [$farmname, $service_ref],
+		);
+
+		$service_ref->{ redirect_code } = &eload(
+											  module => 'Zevenet::Farm::HTTP::Service::Ext',
+											  func   => 'getHTTPServiceRedirectCode',
+											  args   => [$farmname, $service_name],
+		);
+	}
+
+	return $service_ref;
 }
 
 =begin nd
@@ -754,8 +585,7 @@ Function: getHTTPFarmVS
 Parameters:
 	farmname - Farm name
 	service - Service name
-	tag - Indicate which field will be returned. The options are: vs, urlp, redirect, redirecttype, cookieins, cookieins-name, cookieins-domain,
-	cookieins-path, cookieins-ttlc, dynscale, sesstype, ttl, sessionid, httpsbackend or backends
+	tag - Indicate which field will be returned. The options are: vs, urlp, redirect, redirecttype, dynscale, sesstype, ttl, sessionid, httpsbackend or backends
 
 Returns:
 	scalar - if service and tag is blank, return all services in a string: "service0 service1 ..." else return the parameter value
@@ -766,6 +596,7 @@ FIXME:
 
 sub getHTTPFarmVS    # ($farm_name,$service,$tag)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name, $service, $tag ) = @_;
 
 	$service = "" unless $service;
@@ -791,7 +622,7 @@ sub getHTTPFarmVS    # ($farm_name,$service,$tag)
 	foreach my $line ( <$fileconf> )
 	{
 		if ( $line =~ /^\tService \"$service\"/ ) { $sw = 1; }
-		if ( $line =~ /^\tEnd$/ ) { $sw = 0; }
+		if ( $line =~ /^\tEnd\s*$/ ) { $sw = 0; }
 
 		# returns all services for this farm
 		if ( $tag eq "" && $service eq "" )
@@ -862,76 +693,6 @@ sub getHTTPFarmVS    # ($farm_name,$service,$tag)
 			{
 				if    ( $line =~ /Redirect / )       { $output = "default"; }
 				elsif ( $line =~ /RedirectAppend / ) { $output = "append"; }
-				last;
-			}
-		}
-
-		#cookie insertion
-		if ( $tag eq "cookieins" )
-		{
-			if ( $line =~ "BackendCookie \"" && $sw == 1 && $line !~ "#" )
-			{
-				$output = "true";
-				last;
-			}
-		}
-
-		#cookie insertion name
-		if ( $tag eq "cookieins-name" )
-		{
-			if ( $line =~ "BackendCookie \"" && $sw == 1 && $line !~ "#" )
-			{
-				$l = $line;
-				$l =~ s/\t\t//g;
-				$l =~ s/\"//g;
-				my @values = split ( "\ ", $l );
-				$output = $values[1];
-				chomp ( $output );
-				last;
-			}
-		}
-
-		#cookie insertion Domain
-		if ( $tag eq "cookieins-domain" )
-		{
-			if ( $line =~ "BackendCookie \"" && $sw == 1 && $line !~ "#" )
-			{
-				$l = $line;
-				$l =~ s/\t\t//g;
-				$l =~ s/\"//g;
-				my @values = split ( "\ ", $l );
-				$output = $values[2];
-				chomp ( $output );
-				last;
-			}
-		}
-
-		#cookie insertion Path
-		if ( $tag eq "cookieins-path" )
-		{
-			if ( $line =~ "BackendCookie \"" && $sw == 1 && $line !~ "#" )
-			{
-				$l = $line;
-				$l =~ s/\t\t//g;
-				$l =~ s/\"//g;
-				my @values = split ( "\ ", $l );
-				$output = $values[3];
-				chomp ( $output );
-				last;
-			}
-		}
-
-		#cookie insertion TTL
-		if ( $tag eq "cookieins-ttlc" )
-		{
-			if ( $line =~ "BackendCookie \"" && $sw == 1 && $line !~ "#" )
-			{
-				$l = $line;
-				$l =~ s/\t\t//g;
-				$l =~ s/\"//g;
-				my @values = split ( "\ ", $l );
-				$output = $values[4];
-				chomp ( $output );
 				last;
 			}
 		}
@@ -1072,8 +833,7 @@ sub getHTTPFarmVS    # ($farm_name,$service,$tag)
 =begin nd
 Function: setHTTPFarmVS
 
-	Set values for service parameters. The parameters are: vs, urlp, redirect, redirectappend, cookieins, cookieins-name, cookieins-domain,
-	cookieins-path, cookieins-ttlc, dynscale, sesstype, ttl, sessionid, httpsbackend or backends
+	Set values for service parameters. The parameters are: vs, urlp, redirect, redirectappend, dynscale, sesstype, ttl, sessionid, httpsbackend or backends
 
 	A blank string comment the tag field in config file
 
@@ -1090,11 +850,11 @@ Returns:
 
 sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name, $service, $tag, $string ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = 0;
-	my $line;
 	my $sw = 0;
 	my $j  = -1;
 	my $l;
@@ -1102,14 +862,14 @@ sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 	$string =~ s/^\s+//;
 	$string =~ s/\s+$//;
 
-	# lock file
-	require Zevenet::Farm::HTTP::Config;
-	my $lock_fh = &lockHTTPFile( $farm_name );
+	require Zevenet::Lock;
+	my $lock_file = &getLockFile( $farm_name );
+	my $lock_fh = &openlock( $lock_file, 'w' );
 
 	require Tie::File;
 	tie my @fileconf, 'Tie::File', "$configdir/$farm_filename";
 
-	foreach $line ( @fileconf )
+	foreach my $line ( @fileconf )
 	{
 		$j++;
 		if ( $line =~ /\tService \"$service\"/ ) { $sw = 1; }
@@ -1154,7 +914,7 @@ sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 				$line = "\t\tDynScale 1";
 				last;
 			}
-			if ( $line =~ /^\t\t#DynScale/ && $sw == 1 && $string eq "" )
+			if ( $line =~ /^\t\t#?DynScale/ && $sw == 1 && $string eq "" )
 			{
 				$line = "\t\t#DynScale 1";
 				last;
@@ -1175,78 +935,6 @@ sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 				my $redirect_code = $1 // "";
 
 				$line = "\t\t${comment}${policy} $redirect_code\"$string\"";
-				last;
-			}
-		}
-
-		#cookie insertion name
-		if ( $tag eq "cookieins-name" )
-		{
-			if ( $line =~ /^\t\t#?BackendCookie/ && $sw == 1 && $string ne "" )
-			{
-				$l = $line;
-				$l =~ s/\t\t//g;
-				my @values = split ( "\ ", $l );
-				$values[1] =~ s/\"//g;
-				$line = "\t\tBackendCookie \"$string\" $values[2] $values[3] $values[4]";
-				last;
-			}
-		}
-
-		#cookie insertion domain
-		if ( $tag eq "cookieins-domain" )
-		{
-			if ( $line =~ /^\t\t#?BackendCookie/ && $sw == 1 && $string ne "" )
-			{
-				$l = $line;
-				$l =~ s/\t\t//g;
-				my @values = split ( "\ ", $l );
-				$values[2] =~ s/\"//g;
-				$line = "\t\tBackendCookie $values[1] \"$string\" $values[3] $values[4]";
-				last;
-			}
-		}
-
-		#cookie insertion path
-		if ( $tag eq "cookieins-path" )
-		{
-			if ( $line =~ /^\t\t#?BackendCookie/ && $sw == 1 && $string ne "" )
-			{
-				$l = $line;
-				$l =~ s/\t\t//g;
-				my @values = split ( "\ ", $l );
-				$values[3] =~ s/\"//g;
-				$line = "\t\tBackendCookie $values[1] $values[2] \"$string\" $values[4]";
-				last;
-			}
-		}
-
-		#cookie insertion TTL
-		if ( $tag eq "cookieins-ttlc" )
-		{
-			if ( $line =~ /^\t\t#?BackendCookie/ && $sw == 1 && $string ne "" )
-			{
-				$l = $line;
-				$l =~ s/\t\t//g;
-				my @values = split ( "\ ", $l );
-				$values[4] =~ s/\"//g;
-				$line = "\t\tBackendCookie $values[1] $values[2] $values[3] $string";
-				last;
-			}
-		}
-
-		#cookie ins
-		if ( $tag eq "cookieins" )
-		{
-			if ( $line =~ /^\t\t#BackendCookie/ && $sw == 1 && $string ne "" )
-			{
-				$line =~ s/#//g;
-				last;
-			}
-			if ( $line =~ /^\t\tBackendCookie/ && $sw == 1 && $string eq "" )
-			{
-				$line =~ s/\t\t//g;
-				$line = "\t\t#$line";
 				last;
 			}
 		}
@@ -1385,9 +1073,9 @@ sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 			}
 		}
 	}
-	untie @fileconf;
 
-	&unlockfile( $lock_fh );
+	untie @fileconf;
+	close $lock_fh;
 
 	return $output;
 }
@@ -1410,6 +1098,7 @@ FIXME:
 
 sub getFarmVSI    # ($farm_name,$service)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farmname, $service ) = @_;
 
 	# get service position
@@ -1431,6 +1120,82 @@ sub getFarmVSI    # ($farm_name,$service)
 	}
 
 	return $srv_position;
+}
+
+# Similar to getHTTPServiceStruct??
+sub get_http_service_struct
+{
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my ( $farmname, $service_name ) = @_;
+
+	require Zevenet::FarmGuardian;
+	require Zevenet::Farm::HTTP::Backend;
+
+	my $service_ref = &getHTTPServiceStruct( $farmname, $service_name );
+
+		# Backends
+		my $backends = &getHTTPFarmBackends( $farmname, $service_name );
+
+		# Remove backend status 'undefined', it is for news api versions
+		foreach my $be ( @{ $backends } )
+		{
+			$be->{ 'status' } = 'up' if $be->{ 'status' } eq 'undefined';
+		}
+
+	# Add FarmGuardian
+	$service_ref->{ farmguardian } = &getFGFarm( $farmname, $service_name );
+
+	# Add STS
+	if ( $eload )
+	{
+		$service_ref->{ sts_status } = &eload(
+			module => 'Zevenet::Farm::HTTP::Service::Ext',
+			func   => 'getHTTPServiceSTSStatus',
+			args   => [$farmname, $service_name],
+		);
+
+		$service_ref->{ sts_timeout } = int( &eload(
+			module => 'Zevenet::Farm::HTTP::Service::Ext',
+			func   => 'getHTTPServiceSTSTimeout',
+			args   => [$farmname, $service_name],
+		) );
+	}
+
+	return $service_ref;
+}
+
+sub get_http_all_services_struct
+{
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my ( $farmname ) = @_;
+
+	# Output
+	my @services_list = ();
+
+	foreach my $service ( &getHTTPFarmServices( $farmname ) )
+	{
+		my $service_ref = &get_http_service_struct ( $farmname, $service );
+
+		push @services_list, $service_ref;
+	}
+
+	return \@services_list;
+}
+
+sub get_http_all_services_summary_struct
+{
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my ( $farmname ) = @_;
+
+	# Output
+	my @services_list = ();
+
+	foreach my $service ( &getHTTPFarmServices( $farmname ) )
+	{
+		push @services_list, { 'id' => $service };
+	}
+
+	return \@services_list;
 }
 
 1;

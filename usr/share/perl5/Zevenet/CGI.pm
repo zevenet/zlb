@@ -21,10 +21,12 @@
 #
 ###############################################################################
 
+use strict;
 use feature 'state';
 use CGI::Simple;
-$CGI::Simple::DISABLE_UPLOADS = 0;      # enable uploads
-$CGI::Simple::POST_MAX = 1_048_576_000;     # allow 1000MB uploads
+
+$CGI::Simple::DISABLE_UPLOADS = 0;                # enable uploads
+$CGI::Simple::POST_MAX        = 1_048_576_000;    # allow 1000MB uploads
 
 =begin nd
 Function: getCGI
@@ -40,12 +42,13 @@ Returns:
 Bugs:
 
 See Also:
-	zapi/v3/zapi.cgi, zapi/v3/certificates.cgi, zapi/v3/system.cgi, <downloadBackup>, <downloadLog>
+	zapi/v3/zapi.cgi, zapi/v3/certificates.cgi, zapi/v3/system.cgi, <downloadBackup>
 =cut
 sub getCGI
 {
-	#~ state $cgi = CGI->new();
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	state $cgi = CGI::Simple->new();
+
 	return $cgi;
 }
 
@@ -79,6 +82,7 @@ See Also:
 =cut
 sub getCgiParam
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $variable = shift;
 
 	my $cgi = getCGI();

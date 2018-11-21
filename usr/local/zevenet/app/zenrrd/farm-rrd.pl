@@ -28,6 +28,9 @@ use Zevenet::Farm::Base;
 use Zevenet::Farm::Stats;
 use Zevenet::Net::ConnStats;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
 my $rrdap_dir = &getGlobalConfiguration('rrdap_dir');
 my $rrd_dir = &getGlobalConfiguration('rrd_dir');
 
@@ -42,22 +45,32 @@ foreach my $farmfile ( &getFarmList() )
 		next;
 	}
 
-	my $synconns = 0;
-	my $globalconns = 0;
 	my $ERROR;
-
 	my $db_farm = "$farm-farm.rrd";
-	my $vip = &getFarmVip("vip", $farm);
 
-	my @netstat = &getConntrack("", $vip, "", "", "");
+	my $synconns;
+	my $globalconns;
 
-	# SYN_RECV connections
-	my @synconnslist = &getFarmSYNConns($farm,@netstat);
-	$synconns = @synconnslist;
+	if ( $ftype eq 'gslb' )
+	{
+		my $stats;
+		$stats = &eload(
+							module => 'Zevenet::Farm::GSLB::Stats',
+							func   => 'getGSLBFarmStats',
+							args   => [$farm],
+		) if $eload;
 
-	# ESTABLISHED connections
-	my @gconns = &getFarmEstConns($farm,@netstat);
-	$globalconns = @gconns;
+		$synconns    = $stats->{ syn };
+		$globalconns = $stats->{ est };
+	}
+	else
+	{
+		my $vip = &getFarmVip( "vip", $farm );
+		my $netstat = &getConntrack( "", $vip, "", "", "" );
+
+		$synconns    = &getFarmSYNConns( $farm, $netstat ); # SYN_RECV connections
+		$globalconns = &getFarmEstConns( $farm, $netstat ); # ESTABLISHED connections
+	}
 
 	if ( $globalconns eq '' || $synconns eq '' )
 	{
@@ -88,7 +101,7 @@ foreach my $farmfile ( &getFarmList() )
 			"RRA:MIN:0.5:288:372",		# yearly - every 1 day - 372 reg
 			"RRA:AVERAGE:0.5:288:372",	# yearly - every 1 day - 372 reg
 			"RRA:MAX:0.5:288:372";		# yearly - every 1 day - 372 reg
-	
+
 		if ( $ERROR = RRDs::error )
 		{
 			print "$0: Error: Unable to generate the swap rrd database: $ERROR\n";
@@ -98,8 +111,8 @@ foreach my $farmfile ( &getFarmList() )
 	print "$0: Info: $farm Farm Connections Stats ...\n";
 	print "$0: Info:	Pending: $synconns\n";
 	print "$0: Info:	Established: $globalconns\n";
-
 	print "$0: Info: Updating data in $rrdap_dir/$rrd_dir/$db_farm ...\n";
+
 	RRDs::update "$rrdap_dir/$rrd_dir/$db_farm",
 		"-t", "pending:established",
 		"N:$synconns:$globalconns";

@@ -41,7 +41,11 @@ Bugs:
 See Also:
 	Widely used.
 =cut
-sub debug { return 0 }
+sub debug {
+	require Zevenet::Config;
+	state $debug = &getGlobalConfiguration( 'debug' ) + 0;
+	return $debug;
+}
 
 =begin nd
 Function: getMemoryUsage
@@ -59,46 +63,13 @@ See Also:
 =cut
 sub getMemoryUsage
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $mem_string = `grep RSS /proc/$$/status`;
 
 	chomp ( $mem_string );
 	$mem_string =~ s/:.\s+/: /;
 
 	return $mem_string;
-}
-
-sub getLoadedModules
-{
-	return sort keys %INC;
-}
-
-sub getNewModules
-{
-	state @modules;
-
-	my @new_modules = ();
-
-	for my $mod ( getLoadedModules() )
-	{
-		unless ( grep { $mod eq $_ } @modules  )
-		{
-			push @new_modules, $mod;
-		}
-	}
-
-	push @modules, @new_modules;
-
-	return @new_modules;
-}
-
-sub logNewModules
-{
-	return; ################### disable debugging info
-	my $msg = shift;
-
-	zenlog("## ## ## $msg ## ## ## BEGIN");
-	zenlog($_) for getNewModules();
-	zenlog("## ## ## $msg ## ## ## END " . getMemoryUsage() );
 }
 
 1;

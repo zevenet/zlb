@@ -25,8 +25,12 @@ use Zevenet::Net::Util;
 use Zevenet::Farm::Base;
 use Zevenet::Farm::Datalink::Config;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
 sub modify_datalink_farm    # ( $json_obj, $farmname )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $farmname = shift;
 
@@ -170,14 +174,16 @@ sub modify_datalink_farm    # ( $json_obj, $farmname )
 		&runFarmStop( $farmname, "true" );
 		&runFarmStart( $farmname, "true" );
 
-		if ( eval { require Zevenet::Cluster; } )
-		{
-			&runZClusterRemoteManager( 'farm', 'restart', $farmname );
-		}
+		&eload(
+			module => 'Zevenet::Cluster',
+			func   => 'runZClusterRemoteManager',
+			args   => ['farm', 'restart', $farmname],
+		) if ( $eload );
 	}
 
 	# no error found, return successful response
-	&zenlog( "ZAPI success, some parameters have been changed in farm $farmname." );
+	&zenlog( "Success, some parameters have been changed in farm $farmname.", "info", "DSLB" );
+
 
 	my $body = {
 				 description => $desc,

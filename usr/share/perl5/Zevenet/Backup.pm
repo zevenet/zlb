@@ -42,6 +42,7 @@ See Also:
 =cut
 sub getBackup
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my @backups;
 	my $backupdir = &getGlobalConfiguration( 'backupdir' );
 	my $backup_re = &getValidFormat( 'backup' );
@@ -85,6 +86,7 @@ See Also:
 =cut
 sub getExistsBackup
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $name = shift;
 	my $find;
 
@@ -115,9 +117,15 @@ See Also:
 =cut
 sub createBackup
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $name      = shift;
 	my $zenbackup = &getGlobalConfiguration( 'zenbackup' );
 	my $error     = system ( "$zenbackup $name -c 2> /dev/null" );
+
+	if ( $error )
+	{
+		&zenlog( "$zenbackup $name -c 2> /dev/null" );
+	}
 
 	return $error;
 }
@@ -140,6 +148,7 @@ See Also:
 =cut
 sub downloadBackup
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $backup = shift;
 	my $error;
 
@@ -151,9 +160,11 @@ sub downloadBackup
 	{
 		my $cgi = &getCGI();
 		print $cgi->header(
-							-type            => 'application/x-download',
-							-attachment      => $backup,
-							'Content-length' => -s "$backupdir/$backup",
+							-type            					=> 'application/x-download',
+							-attachment      					=> $backup,
+							'Content-length' 				   	=> -s "$backupdir/$backup",
+							'Access-Control-Allow-Origin'      	=> "https://$ENV{ HTTP_HOST }/",
+						  	'Access-Control-Allow-Credentials' 	=> 'true',
 		);
 
 		binmode $download_fh;
@@ -186,6 +197,8 @@ See Also:
 =cut
 sub uploadBackup
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( )", "debug", "PROFILING" );
+
 	my $filename          = shift;
 	my $upload_filehandle = shift;
 
@@ -229,6 +242,7 @@ See Also:
 =cut
 sub deleteBackup
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $file      = shift;
 	$file      = "backup-$file.tar.gz";
 	my $backupdir = &getGlobalConfiguration( "backupdir" );
@@ -238,11 +252,11 @@ sub deleteBackup
 	if ( -e $filepath )
 	{
 		unlink ( $filepath );
-		&zenlog( "Deleted backup file $file" );
+		&zenlog( "Deleted backup file $file", "info", "SYSTEM" );
 	}
 	else
 	{
-		&zenlog( "File $file not found" );
+		&zenlog( "File $file not found", "warning", "SYSTEM" );
 		$error = 1;
 	}
 
@@ -265,6 +279,7 @@ See Also:
 =cut
 sub applyBackup
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $backup = shift;
 	my $error;
 	my $tar  = &getGlobalConfiguration( 'tar' );
@@ -273,17 +288,17 @@ sub applyBackup
 	my @eject = `$tar -xvzf $file -C /`;
 	unlink '/zevenet_version';
 
-	&zenlog( "Restoring backup $file" );
-	&zenlog( "unpacking files: @eject" );
+	&zenlog( "Restoring backup $file", "info", "SYSTEM" );
+	&zenlog( "unpacking files: @eject", "info", "SYSTEM" );
 	$error = system ( "/etc/init.d/zevenet restart 2> /dev/null" );
 
 	if ( !$error )
 	{
-		&zenlog( "Backup applied and Zen Load Balancer restarted..." );
+		&zenlog( "Backup applied and Zen Load Balancer restarted...", "info", "SYSTEM" );
 	}
 	else
 	{
-		&zenlog( "Problem restarting Zen Load Balancer service" );
+		&zenlog( "Problem restarting Zen Load Balancer service", "info", "SYSTEM" );
 	}
 
 	return $error;

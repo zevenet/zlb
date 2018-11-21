@@ -26,12 +26,12 @@ use RRDs;
 use MIME::Base64;
 use Zevenet::Config;
 
-my $basedir = &getGlobalConfiguration('basedir');
-my $rrdap_dir = &getGlobalConfiguration('rrdap_dir');
-my $rrd_dir = &getGlobalConfiguration('rrd_dir');
+my $basedir   = &getGlobalConfiguration( 'basedir' );
+my $rrdap_dir = &getGlobalConfiguration( 'rrdap_dir' );
+my $rrd_dir   = &getGlobalConfiguration( 'rrd_dir' );
 
-my $width  = "600";
-my $height = "150";
+my $width     = "600";
+my $height    = "150";
 my $imagetype = "PNG";
 
 =begin nd
@@ -50,15 +50,18 @@ See Also:
 =cut
 sub printImgFile    #($file)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $file ) = @_;
 
-	if ( open PNG, "<$file" )
+	if ( open my $png, '<', $file )
 	{
-		my $raw_string = do { local $/ = undef; <PNG>; };
+		my $raw_string = do { local $/ = undef; <$png>; };
 		my $encoded = encode_base64( $raw_string );
-		close PNG;
+
+		close $png;
+
 		unlink ( $file );
-		return "$encoded";
+		return $encoded;
 	}
 	else
 	{
@@ -83,6 +86,7 @@ See Also:
 =cut
 sub delGraph	#($name, type)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $name = shift;
 	my $type = shift;
 
@@ -91,13 +95,13 @@ sub delGraph	#($name, type)
 
 	if ( $type =~ /iface/ )
 	{
-		&zenlog( "Delete graph file: $rrdap_dir/$rrd_dir/${name}iface.rrd" );
+		&zenlog( "Delete graph file: $rrdap_dir/$rrd_dir/${name}iface.rrd", "info", "MONITOR" );
 		unlink ( "$rrdap_dir/$rrd_dir/${name}iface.rrd" );
 	}
 
 	if ( $type =~ /farm/ )
 	{
-		&zenlog( "Delete graph file: $rrdap_dir/$rrd_dir/$name-farm.rrd" );
+		&zenlog( "Delete graph file: $rrdap_dir/$rrd_dir/$name-farm.rrd", "info", "MONITOR" );
 		unlink glob ( "$rrdap_dir/$rrd_dir/$name-farm.rrd" );
 	}
 }
@@ -119,6 +123,7 @@ See Also:
 =cut
 sub printGraph    #($type,$time)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $type, $time ) = @_;
 
 	my $img_dir = &getGlobalConfiguration('img_dir');
@@ -187,6 +192,7 @@ See Also:
 =cut
 sub genCpuGraph    #($type,$graph,$time)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $type, $graph, $time ) = @_;
 
 	my $db_cpu = "$type.rrd";
@@ -278,6 +284,7 @@ See Also:
 =cut
 sub genDiskGraph    #($type,$graph,$time)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $type, $graph, $time ) = @_;
 
 	my $db_hd     = "$type.rrd";
@@ -351,6 +358,7 @@ See Also:
 =cut
 sub genLoadGraph    #($type,$graph,$time)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $type, $graph, $time ) = @_;
 
 	my $db_load = "$type.rrd";
@@ -413,6 +421,7 @@ See Also:
 =cut
 sub genMemGraph    #($type,$graph,$time)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $type, $graph, $time ) = @_;
 
 	my $db_mem = "$type.rrd";
@@ -480,6 +489,7 @@ See Also:
 =cut
 sub genMemSwGraph    #($type,$graph,$time)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $type, $graph, $time ) = @_;
 
 	my $db_memsw = "$type.rrd";
@@ -548,6 +558,7 @@ See Also:
 =cut
 sub genNetGraph    #($type,$graph,$time)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $type, $graph, $time ) = @_;
 
 	my $db_if   = "$type.rrd";
@@ -610,6 +621,7 @@ See Also:
 =cut
 sub genFarmGraph    #($type,$graph,$time)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $type, $graph, $time ) = @_;
 
 	my $db_farm = "$type.rrd";
@@ -723,6 +735,7 @@ See Also:
 #function that returns the graph list to show
 sub getGraphs2Show    #($graphtype)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $graphtype ) = @_;
 
 	my @list = -1;

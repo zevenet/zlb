@@ -22,20 +22,25 @@
 
 use strict;
 
-use Zevenet::Config;
 use Zevenet::Farm::Core;
 use Zevenet::Farm::Base;
+
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
+unless ( $eload ) { require Zevenet::Farm::HTTP::HTTPS; }
 
 # POST /farms/FARM/certificates (Add certificate to farm)
 sub add_farm_certificate    # ( $json_obj, $farmname )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $farmname = shift;
 
 	my $desc = "Add certificate to farm '$farmname'";
 
 	# Check if the farm exists
-	if ( &getFarmFile( $farmname ) == -1 )
+	if ( !&getFarmExists( $farmname ) )
 	{
 		my $msg = "Farm not found";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -53,15 +58,15 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 	}
 
 	my $cert_in_use;
-	my $sni;
-	if ( eval { require Zevenet::Farm::HTTP::HTTPS::Ext; } )
+	if ( $eload )
 	{
-		$sni = 1;
-		$cert_in_use = grep ( /^$json_obj->{ file }$/, &getFarmCertificatesSNI( [$farmname] ) );
+		$cert_in_use = grep ( /^$json_obj->{ file }$/, &eload(
+					module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
+					func   => 'getFarmCertificatesSNI',
+					args   => [$farmname] ) );
 	}
 	else
 	{
-		require Zevenet::Farm::HTTP::HTTPS;
 		$cert_in_use = &getFarmCertificate( $farmname ) eq $json_obj->{ file };
 	}
 
@@ -73,9 +78,13 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 
 	# FIXME: Show error if the certificate is already in the list
 	my $status;
-	if ( $sni )
+	if ( $eload )
 	{
-		$status = &setFarmCertificateSNI( $json_obj->{ file }, $farmname );
+		$status = &eload(
+			module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
+			func   => 'setFarmCertificateSNI',
+			args   => [$json_obj->{ file }, $farmname],
+		);
 	}
 	else
 	{
@@ -87,12 +96,12 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 		my $msg =
 		  "It's not possible to add the certificate with name $json_obj->{file} for the $farmname farm";
 
-		&zenlog( "It's not possible to add the certificate." );
+		&zenlog( "It's not possible to add the certificate.", "warning", "LSLB" );
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
 	# no errors found, return succesful response
-	&zenlog( "Success, trying to add a certificate to the farm." );
+	&zenlog( "Success, trying to add a certificate to the farm.", "info", "LSLB" );
 
 	my $message =
 	  "The certificate $json_obj->{file} has been added to the farm $farmname, you need restart the farm to apply";
@@ -117,19 +126,20 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 # DELETE /farms/FARM/certificates/CERTIFICATE
 sub delete_farm_certificate    # ( $farmname, $certfilename )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $farmname     = shift;
 	my $certfilename = shift;
 
 	my $desc = "Delete farm certificate";
 
-	unless ( eval { require Zevenet::Farm::HTTP::HTTPS::Ext; } )
+	unless ( $eload )
 	{
 		my $msg = "HTTPS farm without certificate is not allowed.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
 	# Check if the farm exists
-	if ( &getFarmFile( $farmname ) == -1 )
+	if ( !&getFarmExists( $farmname ) )
 	{
 		my $msg = "The farmname $farmname does not exists";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -139,11 +149,15 @@ sub delete_farm_certificate    # ( $farmname, $certfilename )
 	unless ( $certfilename && &getValidFormat( 'cert_pem', $certfilename ) )
 	{
 		my $msg = "Invalid certificate id, please insert a valid value.";
-		&zenlog( "Invalid certificate id." );
+		&zenlog( "Invalid certificate id.", "warning", "LSLB" );
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-    my @certSNI = &getFarmCertificatesSNI( $farmname );
+    my @certSNI = &eload(
+            module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
+            func   => 'getFarmCertificatesSNI',
+            args   => [$farmname],
+    );
 
 	my $number = scalar grep ( { $_ eq $certfilename } @certSNI );
 	if ( !$number )
@@ -157,14 +171,18 @@ sub delete_farm_certificate    # ( $farmname, $certfilename )
 	# This is a BUGFIX: delete the certificate all times that it appears in config file
 	for ( my $it = 0 ; $it < $number ; $it++ )
 	{
-		$status = &setFarmDeleteCertNameSNI( $certfilename, $farmname );
+		$status = &eload(
+			module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
+			func   => 'setFarmDeleteCertNameSNI',
+			args   => [$certfilename, $farmname],
+		);
 		last if ( $status == -1 );
 	}
 
 	# check if the certificate could not be removed
 	if ( $status == -1 )
 	{
-		&zenlog( "It's not possible to delete the certificate." );
+		&zenlog( "It's not possible to delete the certificate.", "warning", "LSLB" );
 
 		my $msg =
 		  "It isn't possible to delete the selected certificate $certfilename from the SNI list";
@@ -175,7 +193,8 @@ sub delete_farm_certificate    # ( $farmname, $certfilename )
 	if ( $status == 1 )
 	{
 		&zenlog(
-			"It's not possible to delete all certificates, at least one is required for HTTPS."	);
+			"It's not possible to delete all certificates, at least one is required for HTTPS.", "warning", "LSLB"
+		);
 
 		my $msg =
 		  "It isn't possible to delete all certificates, at least one is required for HTTPS profiles";
@@ -198,7 +217,7 @@ sub delete_farm_certificate    # ( $farmname, $certfilename )
 		$body->{ status } = 'needed restart';
 	}
 
-	&zenlog( "Success, trying to delete a certificate to the SNI list." );
+	&zenlog( "Success, trying to delete a certificate to the SNI list.", "info", "LSLB" );
 	&httpResponse( { code => 200, body => $body } );
 }
 

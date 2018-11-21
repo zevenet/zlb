@@ -26,6 +26,8 @@ use Zevenet::Config;
 use Zevenet::Farm::Core;
 
 my $configdir = &getGlobalConfiguration('configdir');
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
 
 =begin nd
 Function: getFarmVip
@@ -39,15 +41,14 @@ Parameters:
 Returns:
 	Scalar - return vip or port of farm or -1 on failure
 
-Bugs:
-	WARNING: vipps parameter is only used in tcp farms. Soon this parameter will be obsolete.
-
 See Also:
 	setFarmVirtualConf
 =cut
 sub getFarmVip    # ($info,$farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $info, $farm_name ) = @_;
+
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $output    = -1;
@@ -60,19 +61,20 @@ sub getFarmVip    # ($info,$farm_name)
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Config;
-		$output = &getL4FarmVip( $info, $farm_name );
+		$output = &getL4FarmParam( $info, $farm_name );
 	}
 	elsif ( $farm_type eq "datalink" )
 	{
 		require Zevenet::Farm::Datalink::Config;
 		$output = &getDatalinkFarmVip( $info, $farm_name );
 	}
-	elsif ( $farm_type eq "gslb" )
+	elsif ( $farm_type eq "gslb" && $eload )
 	{
-		if ( eval { require Zevenet::Farm::GSLB::Config; } )
-		{
-			$output = &getGSLBFarmVip( $info, $farm_name );
-		}
+		$output = &eload(
+						  module => 'Zevenet::Farm::GSLB::Config',
+						  func   => 'getGSLBFarmVip',
+						  args   => [$info, $farm_name],
+		);
 	}
 
 	return $output;
@@ -95,6 +97,7 @@ NOTE:
 =cut
 sub getFarmStatus    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $output = -1;
@@ -103,8 +106,25 @@ sub getFarmStatus    # ($farm_name)
 	my $farm_type = &getFarmType( $farm_name );
 	my $piddir = &getGlobalConfiguration('piddir');
 
+	if ( $farm_type eq "l4xnat" )
+	{
+		require Zevenet::Farm::L4xNAT::Config;
+		$output = &getL4FarmParam( 'status', $farm_name );
+	}
+	elsif ( $farm_type eq "datalink" )
+	{
+		# Only for datalink and l4xnat
+		if ( -e "$piddir\/$farm_name\_$farm_type.pid" )
+		{
+			$output = "up";
+		}
+		else
+		{
+			$output = "down";
+		}
+	}
 	# for every farm type but datalink or l4xnat
-	if ( $farm_type ne "datalink" && $farm_type ne "l4xnat" )
+	else
 	{
 		my $pid = &getFarmPid( $farm_name );
 		my $running_pid;
@@ -122,18 +142,6 @@ sub getFarmStatus    # ($farm_name)
 				unlink "$piddir\/$farm_name\_pound.pid"  if ( $farm_type =~ /http/ );
 			}
 
-			$output = "down";
-		}
-	}
-	else
-	{
-		# Only for datalink and l4xnat
-		if ( -e "$piddir\/$farm_name\_$farm_type.pid" )
-		{
-			$output = "up";
-		}
-		else
-		{
 			$output = "down";
 		}
 	}
@@ -168,6 +176,7 @@ NOTE:
 =cut
 sub getFarmVipStatus    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $output = -1;
@@ -175,7 +184,9 @@ sub getFarmVipStatus    # ($farm_name)
 	return $output if !defined ( $farm_name );    # farm name cannot be empty
 
 	$output = "problem";
-	if ( &getFarmLock( $farm_name ) != -1 )
+
+	require Zevenet::Lock;
+	if ( &getLockStatus( $farm_name ) )
 	{
 		return "needed restart";
 	}
@@ -192,33 +203,35 @@ sub getFarmVipStatus    # ($farm_name)
 	my $type = &getFarmType( $farm_name );
 
 	my $backends;
-	my $up_flag;		# almost one backend is not reachable
-	my $down_flag; 	# almost one backend is not reachable
+	my $up_flag;			# almost one backend is not reachable
+	my $down_flag; 			# almost one backend is not reachable
 	my $maintenance_flag; 	# almost one backend is not reachable
 
-	# Profile without services
-	if ( $type eq "datalink" || $type eq "l4xnat" )
-	{
-		require Zevenet::Farm::Config;
-		$backends = &getFarmBackends( $farm_name );
-	}
-	# Profiles with services
-	elsif ( $type eq "gslb" )
-	{
-		require Zevenet::Farm::GSLB::Stats;
-		my $stats = &getGSLBFarmBackendsStats($farm_name);
-		$backends = $stats->{ backends };
-	}
-	# Profiles with services
-	elsif ( $type =~ /http/ )
+	require Zevenet::Farm::Backend;
+	# HTTP, optimized for many services
+	if ( $type =~ /http/ )
 	{
 		require Zevenet::Farm::HTTP::Stats;
 		my $stats = &getHTTPFarmBackendsStats($farm_name);
 		$backends = $stats->{ backends };
 	}
+	# GSLB
+	elsif ( $type eq "gslb" && $eload )
+	{
+		my $stats = &eload(
+							module => 'Zevenet::Farm::GSLB::Stats',
+							func   => 'getGSLBFarmBackendsStats',
+							args   => [$farm_name],
+		);
+		$backends = $stats->{ backends };
+	}
+	else
+	{
+		$backends = &getFarmServers( $farm_name );
+	}
 
 	# checking status
-	foreach my $be ( @{$backends} )
+	foreach my $be ( @{ $backends } )
 	{
 		$up_flag = 1 if $be->{ 'status' } eq "up";
 		$maintenance_flag = 1 if $be->{ 'status' } eq "maintenance";
@@ -277,6 +290,7 @@ Returns:
 =cut
 sub getFarmPid    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -287,87 +301,16 @@ sub getFarmPid    # ($farm_name)
 		require Zevenet::Farm::HTTP::Config;
 		$output = &getHTTPFarmPid( $farm_name );
 	}
-	elsif ( $farm_type eq "gslb" )
+	elsif ( $farm_type eq "gslb" && $eload )
 	{
-		if ( eval { require Zevenet::Farm::GSLB::Config; } )
-		{
-			$output = &getGSLBFarmPid( $farm_name );
-		}
+		$output = &eload(
+						  module => 'Zevenet::Farm::GSLB::Config',
+						  func   => 'getGSLBFarmPid',
+						  args   => [$farm_name],
+		);
 	}
 
 	return $output;
-}
-
-=begin nd
-Function: getFarmLock
-
-	Check if a farm is locked.
-
-	A locked farm needs to be restarted to apply the latest changes.
-
-Parameters:
-	farmname - Farm name
-
-Returns:
-	Scalar - Return content of lock file if it is locked or -1 the farm is not locked
-
-NOTE:
-	Generic function
-=cut
-sub getFarmLock    # ($farm_name)
-{
-	my $farm_name = shift;
-
-	my $output = -1;
-	my $lockfile = "/tmp/$farm_name.lock";
-
-	if ( -e $lockfile )
-	{
-		open( my $fh, '<', $lockfile );
-		read $fh, $output, 255;
-		close $fh;
-	}
-
-	return $output;
-}
-
-=begin nd
-Function: setFarmLock
-
-	Set the lock status to "on" or "off"
-	If the new status in "on" it's possible to set a message inside.
-
-	A locked farm needs to be restarted to apply the latest changes.
-
-Parameters:
-	farmname - Farm name
-	status - This parameter can value "on" or "off"
-	message - Text for lock file
-
-Returns:
-	none - No returned value
-
-NOTE:
-	Generic function
-=cut
-sub setFarmLock    # ($farm_name, $status, $msg)
-{
-	my ( $farm_name, $status, $msg ) = @_;
-
-	my $lockfile = "/tmp/$farm_name.lock";
-	my $lockstatus = &getFarmLock( $farm_name );
-
-	if ( $status eq "on" && $lockstatus == -1 )
-	{
-		open my $fh, '>', $lockfile;
-		print $fh "$msg";
-		close $fh;
-	}
-
-	if ( $status eq "off" )
-	{
-		unlink( $lockfile ) if -e $lockfile;
-	}
 }
 
 =begin nd
@@ -383,6 +326,7 @@ Returns:
 =cut
 sub getFarmBootStatus    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -401,14 +345,15 @@ sub getFarmBootStatus    # ($farm_name)
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Config;
-		$output = &getL4FarmBootStatus( $farm_name );
+		$output = &getL4FarmParam( 'bootstatus', $farm_name );
 	}
-	elsif ( $farm_type eq "gslb" )
+	elsif ( $farm_type eq "gslb" && $eload )
 	{
-		if ( eval { require Zevenet::Farm::GSLB::Config; } )
-		{
-			$output = &getGSLBFarmBootStatus( $farm_name );
-		}
+		$output = &eload(
+						  module => 'Zevenet::Farm::GSLB::Config',
+						  func   => 'getGSLBFarmBootStatus',
+						  args   => [$farm_name],
+		);
 	}
 
 	return $output;
@@ -433,6 +378,7 @@ FIXME:
 =cut
 sub getFarmProto    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $farm_type     = &getFarmType( $farm_name );
@@ -441,18 +387,8 @@ sub getFarmProto    # ($farm_name)
 
 	if ( $farm_type eq "l4xnat" )
 	{
-		open FI, "<", "$configdir/$farm_filename";
-		my $first = "true";
-		while ( my $line = <FI> )
-		{
-			if ( $line ne "" && $first eq "true" )
-			{
-				$first = "false";
-				my @line = split ( "\;", $line );
-				$output = $line[1];
-			}
-		}
-		close FI;
+		require Zevenet::Farm::L4xNAT::Config;
+		$output = &getL4FarmParam( 'proto', $farm_name );
 	}
 	elsif ( $farm_type =~ /http/i )
 	{
@@ -479,6 +415,7 @@ Returns:
 =cut
 sub getNumberOfFarmTypeRunning
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $type    = shift;    # input value
 
 	my $counter = 0;        # return value
@@ -499,5 +436,23 @@ sub getNumberOfFarmTypeRunning
 
 	return $counter;
 }
+
+
+sub getFarmListByVip
+{
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my $ip = shift;
+	my @out;
+
+	foreach my $farm ( &getFarmNameList() )
+	{
+		if ( &getFarmVip( 'vip',$farm ) eq $ip )
+		{
+			push @out, $farm;
+		}
+	}
+	return @out;
+}
+
 
 1;

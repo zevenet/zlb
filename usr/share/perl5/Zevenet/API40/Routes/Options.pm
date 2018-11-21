@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 ###############################################################################
 #
 #    Zevenet Software License
@@ -22,15 +23,9 @@
 
 use strict;
 
-use Zevenet::API31::System::Service::DNS;
-use Zevenet::API31::System::Service::SSH;
-use Zevenet::API31::System::Service::SNMP;
-use Zevenet::API31::System::Service::NTP;
-use Zevenet::API31::System::Service::HTTP;
-use Zevenet::API31::System::Log;
-use Zevenet::API31::System::User;
-use Zevenet::API31::System::Backup;
-use Zevenet::API31::System::Notification;
-use Zevenet::API31::System::Info;
+#  OPTIONS PreAuth
+OPTIONS qr{^/.*$} => sub {
+	&httpResponse( { code => 200 } );
+};
 
 1;
