@@ -59,6 +59,7 @@ sub getDatalinkFarmBackends    # ($farm_name)
 	my $farmStatus = &getFarmStatus( $farm_name );
 
 	my $permission = 0;
+	my $alias;
 	if ( $eload )
 	{
 		$permission = &eload(
@@ -66,9 +67,12 @@ sub getDatalinkFarmBackends    # ($farm_name)
 							  func   => 'getRBACRolePermission',
 							  args   => ['alias', 'list'],
 		);
+		$alias = &eload(
+						 module => 'Zevenet::Alias',
+						 func   => 'getAlias',
+						 args   => ['backend']
+		) if $permission;
 	}
-	require Zevenet::Alias if ( $permission );
-	my $alias = &getAlias( "backend" ) if ( $permission );
 
 	open my $fd, '<', "$configdir/$farm_filename";
 
@@ -84,14 +88,15 @@ sub getDatalinkFarmBackends    # ($farm_name)
 			$status = "undefined" if ( $farmStatus eq "down" );
 			push @servers,
 			  {
-				alias => $permission ? $alias->{ $aux[2] } : undef,
-				id    => $sindex,
-				ip    => $aux[2],
+				id        => $sindex,
+				ip        => $aux[2],
 				interface => $aux[3],
 				weight    => $aux[4] + 0,
 				priority  => $aux[5] + 0,
 				status    => $status
 			  };
+			$servers[-1]->{ alias } = $permission ? $alias->{ $aux[2] } : undef
+			  if ( $eload );
 			$sindex = $sindex + 1;
 		}
 		else

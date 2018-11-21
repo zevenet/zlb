@@ -25,7 +25,11 @@ use strict;
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
+
 =begin nd
 Function: setHTTPFarmServer
 
@@ -47,7 +51,8 @@ Returns:
 
 sub setHTTPFarmServer # ($ids,$rip,$port,$priority,$timeout,$farm_name,$service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $ids, $rip, $port, $priority, $timeout, $farm_name, $service ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
@@ -249,7 +254,8 @@ Returns:
 
 sub runHTTPFarmServerDelete    # ($ids,$farm_name,$service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $ids, $farm_name, $service ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
@@ -314,7 +320,8 @@ Returns:
 
 sub getHTTPFarmBackendStatusCtl    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $poundctl = &getGlobalConfiguration( 'poundctl' );
@@ -339,7 +346,8 @@ Returns:
 
 sub getHTTPFarmBackends    # ($farm_name,$service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farmname, $service ) = @_;
 
 	require Zevenet::Farm::HTTP::Service;
@@ -351,17 +359,21 @@ sub getHTTPFarmBackends    # ($farm_name,$service)
 
 	# alias
 	my $permission = 0;
+	my $alias;
 	if ( $eload )
 	{
 		$permission = &eload(
-					module => 'Zevenet::RBAC::Core',
-					func   => 'getRBACRolePermission',
-					args   => ['alias', 'list'],
-			)
-	}
+							  module => 'Zevenet::RBAC::Core',
+							  func   => 'getRBACRolePermission',
+							  args   => ['alias', 'list'],
+		);
 
-	require Zevenet::Alias if ($permission);
-	my $alias = &getAlias( 'backend' ) if ($permission);
+		$alias = &eload(
+						 module => 'Zevenet::Alias',
+						 func   => 'getAlias',
+						 args   => ['backend']
+		) if $permission;
+	}
 
 	foreach my $subl ( @be )
 	{
@@ -381,7 +393,6 @@ sub getHTTPFarmBackends    # ($farm_name,$service)
 
 		push @out_ba,
 		  {
-			alias   => $permission ? $alias->{ $ip } : undef,
 			id      => $id,
 			status  => $status,
 			ip      => $ip,
@@ -389,6 +400,7 @@ sub getHTTPFarmBackends    # ($farm_name,$service)
 			timeout => $tout,
 			weight  => $prio
 		  };
+		$out_ba[-1]->{ alias } = $permission ? $alias->{ $ip } : undef if ( $eload );
 	}
 
 	return \@out_ba;
@@ -416,7 +428,8 @@ Returns:
 
 sub getHTTPFarmBackendsStatus    # ($farm_name,@content)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $service ) = @_;
 
 	require Zevenet::Farm::Base;
@@ -495,7 +508,8 @@ Returns:
 
 sub getHTTPBackendStatusFromFile    # ($farm_name,$backend,$service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $backend, $service ) = @_;
 
 	require Zevenet::Farm::HTTP::Service;
@@ -560,7 +574,8 @@ FIXME:
 
 sub setHTTPFarmBackendStatusFile    # ($farm_name,$backend,$status,$idsv)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $backend, $status, $idsv ) = @_;
 
 	require Tie::File;
@@ -659,7 +674,8 @@ Returns:
 
 sub getHTTPFarmBackendsClients    # ($idserver,@content,$farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $idserver, @content, $farm_name ) = @_;
 
 	if ( !@content )
@@ -699,7 +715,8 @@ FIXME:
 
 sub getHTTPFarmBackendsClientsList    # ($farm_name,@content)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, @content ) = @_;
 
 	my @client_list;
@@ -752,7 +769,8 @@ Returns:
 
 sub setHTTPFarmBackendMaintenance    # ($farm_name,$backend,$service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $backend, $mode, $service ) = @_;
 
 	my $output = -1;
@@ -766,7 +784,8 @@ sub setHTTPFarmBackendMaintenance    # ($farm_name,$backend,$service)
 	my $idsv = &getFarmVSI( $farm_name, $service );
 
 	&zenlog(
-		  "setting Maintenance mode for $farm_name service $service backend $backend", "info", "LSLB" );
+			"setting Maintenance mode for $farm_name service $service backend $backend",
+			"info", "LSLB" );
 
 	if ( &getFarmStatus( $farm_name ) eq 'up' )
 	{
@@ -801,7 +820,8 @@ Returns:
 
 sub setHTTPFarmBackendNoMaintenance    # ($farm_name,$backend,$service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $backend, $service ) = @_;
 
 	my $output = -1;
@@ -810,7 +830,8 @@ sub setHTTPFarmBackendNoMaintenance    # ($farm_name,$backend,$service)
 	my $idsv = &getFarmVSI( $farm_name, $service );
 
 	&zenlog(
-		"setting Disabled maintenance mode for $farm_name service $service backend $backend", "info", "LSLB"
+		"setting Disabled maintenance mode for $farm_name service $service backend $backend",
+		"info", "LSLB"
 	);
 
 	if ( &getFarmStatus( $farm_name ) eq 'up' )
@@ -850,7 +871,8 @@ FIXME:
 
 sub runRemoveHTTPBackendStatus    # ($farm_name,$backend,$service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $backend, $service ) = @_;
 
 	require Tie::File;
@@ -908,7 +930,8 @@ FIXME:
 
 sub setHTTPFarmBackendStatus    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	&zenlog( "Setting backends status in farm $farm_name", "info", "LSLB" );
@@ -936,7 +959,9 @@ sub setHTTPFarmBackendStatus    # ($farm_name)
 	while ( my $line_aux = <$fh> )
 	{
 		my @line = split ( "\ ", $line_aux );
-		my $err = &logAndRun ( "$poundctl -c /tmp/$farm_name\_pound.socket $line[0] $line[1] $line[2] $line[3]" );
+		my $err = &logAndRun(
+			"$poundctl -c /tmp/$farm_name\_pound.socket $line[0] $line[1] $line[2] $line[3]"
+		);
 	}
 	close $fh;
 }
@@ -961,7 +986,8 @@ FIXME:
 
 sub setHTTPFarmBackendsSessionsRemove    #($farm_name,$service,$backendid)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $service, $backendid ) = @_;
 
 	my @content = &getHTTPFarmBackendStatusCtl( $farm_name );
@@ -976,7 +1002,8 @@ sub setHTTPFarmBackendsSessionsRemove    #($farm_name,$service,$backendid)
 	my @output;
 
 	&zenlog(
-		"Deleting established sessions to a backend $backendid from farm $farm_name in service $service", "info", "LSLB"
+		"Deleting established sessions to a backend $backendid from farm $farm_name in service $service",
+		"info", "LSLB"
 	);
 
 	foreach ( @content )
@@ -1001,7 +1028,8 @@ sub setHTTPFarmBackendsSessionsRemove    #($farm_name,$service,$backendid)
 			$sessid     = $sessionid[1];
 			@output = `$poundctl -c  /tmp/$farm_name\_pound.socket -n 0 $serviceid $sessid`;
 			&zenlog(
-				"Executing:  $poundctl -c /tmp/$farm_name\_pound.socket -n 0 $serviceid $sessid", "info", "LSLB"
+				"Executing:  $poundctl -c /tmp/$farm_name\_pound.socket -n 0 $serviceid $sessid",
+				"info", "LSLB"
 			);
 		}
 	}
@@ -1009,7 +1037,8 @@ sub setHTTPFarmBackendsSessionsRemove    #($farm_name,$service,$backendid)
 
 sub getHTTPFarmBackendAvailableID
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farmname = shift;
 	my $service  = shift;
 
