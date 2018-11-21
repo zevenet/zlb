@@ -45,26 +45,32 @@ Returns:
 	Scalar - 0 on success or other value on failure
 
 =cut
+
 sub setL4FarmServer    # ($ids,$rip,$port,$weight,$priority,$farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $ids, $rip, $port, $weight, $priority, $farm_name, $max_conns ) = @_;
 
-	require Zevenet::FarmGuardian;
+	#	require Zevenet::FarmGuardian;
 	require Zevenet::Farm::L4xNAT::Config;
+	require Zevenet::Netfilter;
 
 	&zenlog(
 		"setL4FarmServer << ids:$ids rip:$rip port:$port weight:$weight priority:$priority farm_name:$farm_name max_conns:$max_conns"
 	) if &debug;
 
 	my $farm_filename = &getFarmFile( $farm_name );
+	my $mark          = &getNewMark( $farm_name );
 	my $output        = 0;                            # output: error code
 
-	if ( $weight == 0 ) {
+	if ( $weight == 0 )
+	{
 		$weight = 1;
 	}
 
-	if ( $priority == 0 ) {
+	if ( $priority == 0 )
+	{
 		$priority = 1;
 	}
 
@@ -81,11 +87,19 @@ sub setL4FarmServer    # ($ids,$rip,$port,$weight,$priority,$farm_name)
 		}
 	}
 
-	$output = &httpNLBRequest( { farm => $farm_name, configfile => "$configdir/$farm_filename", method => "PUT", uri => "/farms", body =>  qq({"farms" : [ { "name" : "$farm_name", "backends" : [ { "name" : "bck$ids", "ip-addr" : "$rip", "ports" : "", "weight" : "$weight", "priority" : "$priority", "state" : "up" } ] } ] })  } );
+	$output = &httpNLBRequest(
+		{
+		   farm       => $farm_name,
+		   configfile => "$configdir/$farm_filename",
+		   method     => "PUT",
+		   uri        => "/farms",
+		   body =>
+			 qq({"farms" : [ { "name" : "$farm_name", "backends" : [ { "name" : "bck$ids", "ip-addr" : "$rip", "ports" : "", "weight" : "$weight", "priority" : "$priority", "mark" : "$mark", "state" : "up" } ] } ] })
+		}
+	);
 
 	return $output;
 }
-
 
 =begin nd
 Function: runL4FarmServerDelete
@@ -100,16 +114,20 @@ Returns:
 	Scalar - 0 on success or other value on failure
 
 =cut
+
 sub runL4FarmServerDelete    # ($ids,$farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $ids, $farm_name ) = @_;
 
 	require Zevenet::Farm::L4xNAT::Config;
 	require Zevenet::Farm::L4xNAT::Action;
+	require Zevenet::Netfilter;
 
-	my $farm_filename	= &getFarmFile( $farm_name );
-	my $output		= 0;
+	my $farm_filename = &getFarmFile( $farm_name );
+	my $output        = 0;
+	my $mark          = "0x0";
 
 	# load the configuration file first if the farm is down
 	my $f_ref = &getL4FarmStruct( $farm_name );
@@ -122,11 +140,29 @@ sub runL4FarmServerDelete    # ($ids,$farm_name)
 		}
 	}
 
-	$output = &httpNLBRequest( { farm => $farm_name, configfile => "$configdir/$farm_filename", method => "DELETE", uri => "/farms/$farm_name/backends/bck$ids", body => undef } );
+	foreach my $server ( @{ $f_ref->{ servers } } )
+	{
+		if ( $server->{ id } eq $ids )
+		{
+			$mark = $server->{ tag };
+			last;
+		}
+	}
+
+	$output = &httpNLBRequest(
+							   {
+								 farm       => $farm_name,
+								 configfile => "$configdir/$farm_filename",
+								 method     => "DELETE",
+								 uri        => "/farms/$farm_name/backends/bck$ids",
+								 body       => undef
+							   }
+	);
+
+	&delMarks( "", $mark );
 
 	return $output;
 }
-
 
 =begin nd
 Function: setL4FarmBackendStatus
@@ -142,22 +178,23 @@ Returns:
 	Integer - 0 on success or other value on failure
 
 =cut
+
 sub setL4FarmBackendStatus    # ($farm_name,$server_id,$status)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $server_id, $status ) = @_;
 
 	require Zevenet::Farm::L4xNAT::Config;
 
 	my %farm = %{ &getL4FarmStruct( $farm_name ) };
 
-	my $output   = 0;
+	my $output = 0;
 
-# TODO
+	# TODO
 
 	return $output;
 }
-
 
 =begin nd
 Function: getL4FarmServers
@@ -171,20 +208,21 @@ Returns:
 	Array - array of hash refs of backend struct
 
 =cut
+
 sub getL4FarmServers    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $farm_filename = &getFarmFile( $farm_name );
 
 	open my $fd, '<', "$configdir/$farm_filename";
-	chomp(my @content = <$fd>);
+	chomp ( my @content = <$fd> );
 	close $fd;
 
 	return &_getL4FarmParseServers( \@content );
 }
-
 
 =begin nd
 Function: _getL4FarmParseServers
@@ -199,55 +237,64 @@ Returns:
 		\%backend = { $id, $alias, $family, $ip, $port, $tag, $weight, $priority, $status, $rip = $ip }
 
 =cut
+
 sub _getL4FarmParseServers
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $config = shift;
-	my $stage = 0;
+	my $stage  = 0;
 	my $server;
 	my @servers;
 
 	require Zevenet::Farm::L4xNAT::Config;
 	my $fproto = &_getL4ParseFarmConfig( 'proto', undef, $config );
 
-	foreach my $line( @{ $config } )
+	foreach my $line ( @{ $config } )
 	{
-		if ( $line =~ /\"farms\"/ ) {
+		if ( $line =~ /\"farms\"/ )
+		{
 			$stage = 1;
 		}
 
-		if ( $line =~ /\"backends\"/ ) {
+		if ( $line =~ /\"backends\"/ )
+		{
 			$stage = 2;
 		}
 
-		if ( $stage == 2 && $line =~ /\{/ ) {
+		if ( $stage == 2 && $line =~ /\{/ )
+		{
 			$stage = 3;
 			undef $server;
 		}
 
-		if ( $stage == 3 && $line =~ /\}/ ) {
+		if ( $stage == 3 && $line =~ /\}/ )
+		{
 			$stage = 2;
 			push ( @servers, $server );
 		}
 
-		if ( $stage == 3 && $line =~ /\"name\"/ ) {
+		if ( $stage == 3 && $line =~ /\"name\"/ )
+		{
 			my @l = split /"/, $line;
 			my $index = $l[3];
 			$index =~ s/bck//;
-			$server->{ id } = $index + 0;
-			$server->{ port } = undef;
-			$server->{ tag } = 400;
+			$server->{ id }        = $index + 0;
+			$server->{ port }      = undef;
+			$server->{ tag }       = 400;
 			$server->{ max_conns } = 0;
 		}
 
-		if ( $stage == 3 && $line =~ /\"ip-addr\"/ ) {
+		if ( $stage == 3 && $line =~ /\"ip-addr\"/ )
+		{
 			my @l = split /"/, $line;
-			$server->{ ip } = $l[3];
+			$server->{ ip }  = $l[3];
 			$server->{ rip } = $l[3];
 		}
 
-		if ( $stage == 3 && $line =~ /\"port\"/ ) {
-			$server->{ port } = ""; # TODO Not supported yet
+		if ( $stage == 3 && $line =~ /\"port\"/ )
+		{
+			$server->{ port } = "";    # TODO Not supported yet
 
 			require Zevenet::Net::Validate;
 			if ( $server->{ port } ne '' && $fproto ne 'all' )
@@ -263,17 +310,26 @@ sub _getL4FarmParseServers
 			}
 		}
 
-		if ( $stage == 3 && $line =~ /\"weight\"/ ) {
+		if ( $stage == 3 && $line =~ /\"weight\"/ )
+		{
 			my @l = split /"/, $line;
 			$server->{ weight } = $l[3] + 0;
 		}
 
-		if ( $stage == 3 && $line =~ /\"priority\"/ ) {
+		if ( $stage == 3 && $line =~ /\"priority\"/ )
+		{
 			my @l = split /"/, $line;
 			$server->{ priority } = $l[3] + 0;
 		}
 
-		if ( $stage == 3 && $line =~ /\"state\"/ ) {
+		if ( $stage == 3 && $line =~ /\"mark\"/ )
+		{
+			my @l = split /"/, $line;
+			$server->{ tag } = $l[3];
+		}
+
+		if ( $stage == 3 && $line =~ /\"state\"/ )
+		{
 			my @l = split /"/, $line;
 			$server->{ status } = $l[3];
 		}
@@ -281,7 +337,6 @@ sub _getL4FarmParseServers
 
 	return \@servers;    # return reference
 }
-
 
 =begin nd
 Function: _runL4ServerStart
@@ -297,9 +352,11 @@ Returns:
 	Integer - Error code: 0 on success or other value on failure
 
 =cut
+
 sub _runL4ServerStart    # ($farm_name,$server_id)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm_name = shift;    # input: farm name string
 	my $server_id = shift;    # input: server id number
 
@@ -357,9 +414,11 @@ Returns:
 	Integer - Error code: 0 on success or other value on failure
 
 =cut
+
 sub _runL4ServerStop    # ($farm_name,$server_id)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm_name = shift;    # input: farm name string
 	my $server_id = shift;    # input: server id number
 
@@ -416,9 +475,11 @@ Returns:
 	???
 
 =cut
+
 sub getL4ServerActionRules
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm   = shift;    # input: farm reference
 	my $server = shift;    # input: server reference
 	my $switch = shift;    # input: on/off
@@ -501,9 +562,11 @@ Returns:
 	hash ref - reference to the selected server for prio algorithm
 
 =cut
+
 sub getL4ServerWithLowestPriority    # ($farm)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm = shift;                # input: farm reference
 
 	my $prio_server;    # reference to the selected server for prio algorithm
@@ -537,9 +600,11 @@ Returns:
 	Integer - 0 on success or other value on failure
 
 =cut
+
 sub setL4FarmBackendMaintenance    # ( $farm_name, $backend )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $backend, $mode ) = @_;
 
 	if ( $mode eq "cut" )
@@ -568,12 +633,14 @@ Returns:
 	Integer - 0 on success or other value on failure
 
 =cut
+
 sub setL4FarmBackendNoMaintenance
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $backend ) = @_;
 
-# TODO
+	# TODO
 
 }
 
@@ -589,9 +656,11 @@ Returns:
 	none - .
 
 =cut
+
 sub getL4BackendsWeightProbability
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm = shift;    # input: farm reference
 
 	my $weight_sum = 0;
@@ -619,7 +688,8 @@ sub getL4BackendsWeightProbability
 # called by: refreshL4FarmRules, runL4FarmServerDelete
 sub resetL4FarmBackendConntrackMark
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $server = shift;
 
 	my $conntrack = &getGlobalConfiguration( 'conntrack' );
@@ -660,16 +730,17 @@ Returns:
 	integer - .
 
 =cut
+
 sub getL4FarmBackendAvailableID
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farmname = shift;
 
-	my $backends	= &getL4FarmServers( $farmname );
-	my $nbackends	= $#{$backends} + 1;
+	my $backends  = &getL4FarmServers( $farmname );
+	my $nbackends = $#{ $backends } + 1;
 
-
-	for ( my $id = 0; $id < $nbackends; $id++ )
+	for ( my $id = 0 ; $id < $nbackends ; $id++ )
 	{
 		my $noexist = 1;
 		foreach my $backend ( @{ $backends } )

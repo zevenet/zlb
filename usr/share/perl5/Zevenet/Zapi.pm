@@ -45,7 +45,8 @@ See Also:
 
 sub getZAPI    #($name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $name ) = @_;
 
 	use File::Grep 'fgrep';
@@ -96,7 +97,8 @@ See Also:
 
 sub setZAPI    #($name,$value)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $name, $value ) = @_;
 
 	my $result    = "false";
@@ -176,7 +178,8 @@ See Also:
 
 sub setZAPIKey    #()
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $passwordsize = shift;
 
 	my @alphanumeric = ( 'a' .. 'z', 'A' .. 'Z', 0 .. 9 );
@@ -188,8 +191,8 @@ sub setZAPIKey    #()
 
 sub validZapiKey    # ()
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
-	require Zevenet::Zapi;
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 
 	my $validKey = 0;                 # output
 	my $key      = "HTTP_ZAPI_KEY";
