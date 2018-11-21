@@ -1,3 +1,0 @@
-*/5  * * * *	root	/usr/local/zevenet/bin/zenrrd.pl &>/dev/null
-*/10 * * * *	root	/usr/local/zevenet/bin/zenntp.pl &>/dev/null
-*/30 * * * *	root	/usr/bin/find /tmp/ -name "cgisess_*" -mmin +60 -exec rm -f {} \;  &>/dev/null

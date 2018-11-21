@@ -38,16 +38,18 @@ Returns:
 See Also:
 	<getRandomPort>
 =cut
+
 #check if a port in a ip is up
 sub checkport    # ($host, $port)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $host, $port ) = @_;
 
 	# check local ports;
 	if ( $host eq '127.0.0.1' || $host =~ /local/ )
 	{
-		my $flag = system ( "netstat -putan | grep $port" );
-		if ( $flag )
+		my $flag = system ( "netstat -putan | grep $port >/dev/null 2>&1" );
+		if ( ! $flag )
 		{
 			return "true";
 		}
@@ -88,9 +90,11 @@ Parameters:
 Returns:
 	boolean - string "true" or "false".
 =cut
+
 #check if a ip is ok structure
 sub ipisok    # ($checkip, $version)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $checkip = shift;
 	my $version = shift;
 	my $return  = "false";
@@ -120,20 +124,20 @@ sub ipisok    # ($checkip, $version)
 =begin nd
 Function: ipversion
 
-	Returns IP version number of input IP address.
+	IP version number of an input IP address
 
 Parameters:
-	checkip - string to .
+	ip - ip to get the version
 
 Returns:
-	list - All IP addresses up.
+	scalar - 4 for ipv4, 6 for ipv6, 0 if unknown
 
-Bugs:
-	Fix return on non IPv4 or IPv6 valid address.
 =cut
+
 #check if a ip is IPv4 or IPv6
 sub ipversion    # ($checkip)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $checkip = shift;
 	my $output  = "-";
 
@@ -148,46 +152,12 @@ sub ipversion    # ($checkip)
 	{
 		$output = 6;
 	}
-
-	return $output;
-}
-
-=begin nd
-Function: ipinrange
-
-	[NOT USED] Check if an IP is in a range.
-
-Parameters:
-	netmask - .
-	toip - .
-	newip - .
-
-Returns:
-	boolean - string "true" or "false".
-
-Bugs:
-	NOT USED
-=cut
-#function checks if ip is in a range
-sub ipinrange    # ($netmask, $toip, $newip)
-{
-	my ( $netmask, $toip, $newip ) = @_;
-
-	require Net::IPv4Addr;
-	Net::IPv4Addr->import( qw( :all ) );
-
-	#$ip_str1="10.234.18.13";
-	#$mask_str1="255.255.255.0";
-	#$cidr_str2="10.234.18.23";
-	#print "true" if ipv4_in_network( $toip, $netmask, $newip );
-	if ( ipv4_in_network( $toip, $netmask, $newip ) )
-	{
-		return "true";
-	}
 	else
 	{
-		return "false";
+		$output = 0;
 	}
+
+	return $output;
 }
 
 =begin nd
@@ -207,16 +177,19 @@ Returns:
 	Integer - 1 if the configuration is correct or 0 on incorrect
 
 =cut
+
 sub getNetValidate    # ($ip, $mask, $ip2)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $ip, $mask, $ip2 ) = @_;
-	my $output = 0;
 
-	require Net::Netmask;
-	my $ip_struct = new2 Net::Netmask ( $ip, $mask );
+	require NetAddr::IP;
 
-	$output = 1 if ( $ip_struct->match( $ip2 ) );
-	return $output;
+	my $addr1 = NetAddr::IP->new( $ip, $mask );
+	my $addr2 = NetAddr::IP->new( $ip2, $mask );
+
+	return defined $addr1 && defined $addr2 &&
+		( $addr1->network() eq $addr2->network() );
 }
 
 =begin nd
@@ -237,12 +210,14 @@ Returns:
 Bugs:
 	"created"
 =cut
+
 #function check if interface exist
 sub ifexist    # ($nif)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $nif = shift;
 
-	use IO::Interface qw(:flags); # Needs to load with 'use'
+	use IO::Interface qw(:flags);    # Needs to load with 'use'
 
 	require IO::Socket;
 	require Zevenet::Net::Interface;
@@ -286,8 +261,10 @@ Returns:
 See Also:
 	snmp_functions.cgi, check_functions.cgi, zapi/v3/post.cgi, zapi/v3/put.cgi
 =cut
+
 sub isValidPortNumber    # ($port)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $port = shift;
 	my $valid;
 
@@ -301,6 +278,58 @@ sub isValidPortNumber    # ($port)
 	}
 
 	return $valid;
+}
+
+=begin nd
+Function: checkNetworkExists
+
+	Check if a network exists in other interface
+
+Parameters:
+	ip - A ip in the network segment
+	mask - mask of the network segment
+	exception - This parameter is optional, if it is sent, that interface will not be checked.
+		It is used to exclude the interface that is been changed
+
+Returns:
+	String - interface name where the checked network exists
+
+	v3.2/interface/vlan, v3.2/interface/nic, v3.2/interface/bonding
+=cut
+
+sub checkNetworkExists
+{
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my ( $net, $mask, $exception ) = @_;
+
+	require Zevenet::Net::Interface;
+	require NetAddr::IP;
+
+	my $net1 = NetAddr::IP->new( $net, $mask );
+
+	my @interfaces = &getInterfaceTypeList( 'nic' );
+	push @interfaces, &getInterfaceTypeList( 'bond' );
+	push @interfaces, &getInterfaceTypeList( 'vlan' );
+
+	foreach my $if_ref ( @interfaces )
+	{
+		# if it is the same net pass
+		next if defined $exception and $if_ref->{ name } eq $exception;
+		next if !$if_ref->{ addr };
+
+		# found
+		my $net2 = NetAddr::IP->new( $if_ref->{ addr }, $if_ref->{ mask } );
+
+		eval
+		{
+			if ( $net1->contains( $net2 ) or $net2->contains( $net1 ) )
+			{
+				return $if_ref->{ name };
+			}
+		};
+	}
+
+	return "";
 }
 
 1;

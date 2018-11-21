@@ -23,8 +23,12 @@
 
 use strict;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
 sub delete_interface_nic    # ( $nic )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $nic = shift;
 
 	require Zevenet::Net::Core;
@@ -47,7 +51,7 @@ sub delete_interface_nic    # ( $nic )
 	{
 		my $child_string = join ( ', ', @child );
 		my $msg =
-		  "Is is not possible to delete $nic because there are virtual interfaces using it: $child_string.";
+		  "It is not possible to delete $nic because there are virtual interfaces using it: $child_string.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -76,19 +80,22 @@ sub delete_interface_nic    # ( $nic )
 # GET /interfaces Get params of the interfaces
 sub get_nic_list    # ()
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	require Zevenet::Net::Interface;
 
 	my $desc  = "List NIC interfaces";
 	my @vlans = &getInterfaceTypeList( 'vlan' );
 	my @output_list;
-	my $bond;
 
 	# get cluster interface
 	my $cluster_if;
-	if ( eval { require Zevenet::Cluster; } )
+
+	if ( $eload )
 	{
-		$bond = 1;
-		my $zcl_conf = &getZClusterConfig();
+		my $zcl_conf = &eload(
+			module => 'Zevenet::Cluster',
+			func   => 'getZClusterConfig',
+		);
 		$cluster_if = $zcl_conf->{ _ }->{ interface };
 	}
 
@@ -111,10 +118,9 @@ sub get_nic_list    # ()
 						gateway  => $if_ref->{ gateway },
 						status   => $if_ref->{ status },
 						mac      => $if_ref->{ mac },
-						is_slave => $if_ref->{ is_slave },
 		};
 
-		$if_conf->{ is_slave } = $if_ref->{ is_slave } if ( $bond );
+		$if_conf->{ is_slave } = $if_ref->{ is_slave } if $eload;
 		$if_conf->{ is_cluster } = 'true' if $cluster_if eq $if_ref->{ name };
 
 		# include 'has_vlan'
@@ -142,13 +148,8 @@ sub get_nic_list    # ()
 
 sub get_nic    # ()
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $nic = shift;
-	my $bond;
-
-	if ( eval{ require Zevenet::Eload; } )
-	{
-		$bond=1;
-	}
 
 	require Zevenet::Net::Interface;
 
@@ -176,10 +177,9 @@ sub get_nic    # ()
 					   gateway  => $if_ref->{ gateway },
 					   status   => $if_ref->{ status },
 					   mac      => $if_ref->{ mac },
-					   is_slave => $if_ref->{ is_slave },
 		};
 
-		$interface->{ is_slave } = $if_ref->{ is_slave } if $bond;
+		$interface->{ is_slave } = $if_ref->{ is_slave } if $eload;
 	}
 
 	unless ( $interface )
@@ -198,6 +198,7 @@ sub get_nic    # ()
 
 sub actions_interface_nic    # ( $json_obj, $nic )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $nic      = shift;
 
@@ -233,7 +234,7 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 
 		&addIp( $if_ref ) if $if_ref;
 
-		my $state = &upIf( { name => $nic }, 'writeconf' );
+		my $state = &upIf( { name => $nic } );
 
 		if ( !$state )
 		{
@@ -244,26 +245,6 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 			# put all dependant interfaces up
 			&setIfacesUp( $nic, "vlan" );
 			&setIfacesUp( $nic, "vini" ) if $if_ref;
-
-
-			# WARNING: This is now control by GUI
-			#~ # put a NIC interface up will do all VLANs go up
-			#~ # Then put VLAN down again
-			#~ foreach my $if_vlan_name ( &getLinkNameList() )
-			#~ {
-				#~ if ( $if_vlan_name =~ /^$nic./ )
-				#~ {
-					#~ my $if_vlan_conf = &getInterfaceConfig ( $if_vlan_name );
-					#~ if ( $if_vlan_conf->{status} eq "down" )
-					#~ {
-						#~ if ( &downIf( $if_vlan_conf ) )
-						#~ {
-							#~ my $msg = "Error, setting up the appending VLAN $if_vlan_name";
-							#~ &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-						#~ }
-					#~ }
-				#~ }
-			#~ }
 		}
 		else
 		{
@@ -275,7 +256,7 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 	{
 		require Zevenet::Net::Core;
 
-		my $state = &downIf( { name => $nic }, 'writeconf' );
+		my $state = &downIf( { name => $nic } );
 
 		if ( $state )
 		{
@@ -299,6 +280,7 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 
 sub modify_interface_nic    # ( $json_obj, $nic )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $nic      = shift;
 
@@ -347,7 +329,7 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 		{
 			my $child_string = join ( ', ', @child );
 			my $msg =
-			  "Is is not possible to modify $nic because there are virtual interfaces using it: $child_string.";
+			  "It is not possible to modify $nic because there are virtual interfaces using it: $child_string.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}
@@ -460,7 +442,7 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 		my $previous_status = $if_ref->{ status };
 		if ( $previous_status eq "up" )
 		{
-			if ( &upIf( $if_ref, 'writeconf' ) == 0 )
+			if ( &upIf( $if_ref ) == 0 )
 			{
 				$if_ref->{ status } = "up";
 				&applyRoutes( "local", $if_ref );

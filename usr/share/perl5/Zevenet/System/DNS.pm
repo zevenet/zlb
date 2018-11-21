@@ -47,17 +47,18 @@ See Also:
 
 sub getDns
 {
-	my $dns;
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my $dns = { 'primary' => '', 'secondary' => '' };
 	my $dnsFile = &getGlobalConfiguration( 'filedns' );
 
 	if ( !-f $dnsFile )
 	{
-		return undef;
+		return;
 	}
 
-	open FI, '<', $dnsFile;
-	my @file = <FI>;
-	close FI;
+	open ( my $fd, '<', $dnsFile );
+	my @file = <$fd>;
+	close $fd;
 
 	my $index = 1;
 	foreach my $line ( @file )
@@ -96,6 +97,7 @@ See Also:
 
 sub setDns
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $dns, $value ) = @_;
 
 	my $dnsFile = &getGlobalConfiguration( 'filedns' );
@@ -113,16 +115,16 @@ sub setDns
 	{
 		if ( $line =~ /\s*nameserver/ )
 		{
-			$line = "nameserver $value" if ( $index == 1 and $dns eq 'primary' );
-			$line = "nameserver $value" if ( $index == 2 and $dns eq 'secondary' );
-
+			$line = "nameserver $value" if ( $index == 1 and $dns eq 'primary' and $value ne '' );
+			$line = "nameserver $value" if ( $index == 2 and $dns eq 'secondary' and $value ne '' );
+			splice @dnsArr, ($index - 1) if ( $index == 2 and $dns eq 'secondary' and $value eq '');;
 			$index++;
 			last if ( $index > 2 );
 		}
 	}
 
 	# if the secondary nameserver has not been found, add it
-	push @dnsArr, "nameserver $value" if ( $index == 2 and $dns eq 'secondary' );
+	push @dnsArr, "nameserver $value" if ( $index == 2 and $dns eq 'secondary' and $value ne '' );
 
 	untie @dnsArr;
 

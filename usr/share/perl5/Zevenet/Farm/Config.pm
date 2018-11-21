@@ -23,6 +23,9 @@
 
 use strict;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
 =begin nd
 Function: setFarmBlacklistTime
 
@@ -40,8 +43,10 @@ See Also:
 	zapi/v2/put_http.cgi
 	zapi/v2/put_tcp.cgi
 =cut
+
 sub setFarmBlacklistTime    # ($blacklist_time,$farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $blacklist_time, $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -72,8 +77,10 @@ See Also:
 	zapi/v2/put_http.cgi
 	zapi/v2/put_tcp.cgi
 =cut
+
 sub getFarmBlacklistTime    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $farm_type      = &getFarmType( $farm_name );
@@ -104,8 +111,10 @@ See Also:
 	zapi/v3/put_l4.cgi
 	zapi/v2/put_l4.cgi
 =cut
+
 sub setFarmSessionType    # ($session,$farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $session, $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -119,42 +128,7 @@ sub setFarmSessionType    # ($session,$farm_name)
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Config;
-		$output = &setL4FarmSessionType( $session, $farm_name );
-	}
-
-	return $output;
-}
-
-=begin nd
-Function: getFarmSessionType
-
-	NOT USED. Return the type of session persistence for a farm.
-
-Parameters:
-	farmname - Farm name
-
-Returns:
-	scalar - type of persistence or -1 on failure.
-
-Bugs:
-	NOT USED
-=cut
-sub getFarmSessionType    # ($farm_name)
-{
-	my ( $farm_name ) = @_;
-
-	my $farm_type = &getFarmType( $farm_name );
-	my $output    = -1;
-
-	if ( $farm_type eq "http" || $farm_type eq "https" )
-	{
-		require Zevenet::Farm::HTTP::Config;
-		$output = &getHTTPFarmSessionType( $farm_name );
-	}
-	elsif ( $farm_type eq "l4xnat" )
-	{
-		require Zevenet::Farm::L4xNAT::Config;
-		$output = &getL4FarmSessionType( $farm_name );
+		$output = &setL4FarmParam( 'persist', $session, $farm_name );
 	}
 
 	return $output;
@@ -177,14 +151,16 @@ See Also:
 	zapi/v2/put_http.cgi
 	zapi/v2/put_tcp.cgi
 =cut
+
 sub setFarmTimeout    # ($timeout,$farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $timeout, $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $output    = -1;
 
-	&zenlog( "setting 'Timeout $timeout' for $farm_name farm $farm_type" );
+	&zenlog( "setting 'Timeout $timeout' for $farm_name farm $farm_type", "info", "LSLB", "info", "LSLB" );
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
 	{
@@ -211,8 +187,10 @@ See Also:
 	zapi/v2/get_http.cgi
 	zapi/v2/get_tcp.cgi
 =cut
+
 sub getFarmTimeout    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -251,14 +229,16 @@ See Also:
 	zapi/v2/put_datalink.cgi
 	zapi/v2/put_tcp.cgi
 =cut
+
 sub setFarmAlgorithm    # ($algorithm,$farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $algorithm, $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $output    = -1;
 
-	&zenlog( "setting 'Algorithm $algorithm' for $farm_name farm $farm_type" );
+	&zenlog( "setting 'Algorithm $algorithm' for $farm_name farm $farm_type", "info", "FARMS" );
 
 	if ( $farm_type eq "datalink" )
 	{
@@ -268,7 +248,7 @@ sub setFarmAlgorithm    # ($algorithm,$farm_name)
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Config;
-		$output = &setL4FarmAlgorithm( $algorithm, $farm_name );
+		$output = &setL4FarmParam( 'alg', $algorithm, $farm_name );
 	}
 
 	return $output;
@@ -277,7 +257,7 @@ sub setFarmAlgorithm    # ($algorithm,$farm_name)
 =begin nd
 Function: getFarmAlgorithm
 
-	Get type of balancing algorithm. 
+	Get type of balancing algorithm.
 
 	Supports farm types: Datalink, L4xNAT.
 
@@ -289,7 +269,6 @@ Returns:
 
 See Also:
 	<_runDatalinkFarmStart>
-	<runL4FarmRestart>, <_runL4FarmRestart>, <sendL4ConfChange>
 	l4sd
 
 	zapi/v3/get_l4.cgi
@@ -298,8 +277,10 @@ See Also:
 	zapi/v2/get_l4.cgi
 	zapi/v2/get_datalink.cgi
 =cut
+
 sub getFarmAlgorithm    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -313,75 +294,12 @@ sub getFarmAlgorithm    # ($farm_name)
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Config;
-		$algorithm = &getL4FarmAlgorithm( $farm_name );
+		$algorithm = &getL4FarmParam( 'alg', $farm_name );
 	}
 
 	return $algorithm;
 }
 
-=begin nd
-Function: setFarmPersistence
-
-	Set client persistence to a farm
-
-	Supports farm types: L4xNAT.
-
-Parameters:
-	persistence - Type of persitence
-	farmname - Farm name
-
-Returns:
-	scalar - Error code: 0 on success or -1 on failure
-
-BUG:
-	Obsolete, only used in tcp farms
-=cut
-sub setFarmPersistence    # ($persistence,$farm_name)
-{
-	my ( $persistence, $farm_name ) = @_;
-
-	my $farm_type = &getFarmType( $farm_name );
-	my $output    = -1;
-
-	if ( $farm_type eq "l4xnat" )
-	{
-		require Zevenet::Farm::L4xNAT::Config;
-		$output = &setL4FarmPersistence( $persistence, $farm_name );
-	}
-
-	return $output;
-}
-
-=begin nd
-Function: getFarmPersistence
-
-	Get type of persistence session for a farm
-
-Parameters:
-	farmname - Farm name
-
-Returns:
-	Scalar - persistence type or -1 on failure
-
-BUG
-	DUPLICATED, use for l4 farms getFarmSessionType
-	obsolete for tcp farms
-=cut
-sub getFarmPersistence    # ($farm_name)
-{
-	my ( $farm_name ) = @_;
-
-	my $farm_type   = &getFarmType( $farm_name );
-	my $persistence = -1;
-
-	if ( $farm_type eq "l4xnat" )
-	{
-		require Zevenet::Farm::L4xNAT::Config;
-		$persistence = &getL4FarmPersistence( $farm_name );
-	}
-
-	return $persistence;
-}
 
 =begin nd
 Function: setFarmMaxClientTime
@@ -395,15 +313,17 @@ Parameters:
 Returns:
 	Integer - Error code: 0 on success, or -1 on failure.
 =cut
+
 sub setFarmMaxClientTime    # ($max_client_time,$track,$farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $max_client_time, $track, $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $output    = -1;
 
 	&zenlog(
-		"setting 'MaxClientTime $max_client_time $track' for $farm_name farm $farm_type"
+		"setting 'MaxClientTime $max_client_time $track' for $farm_name farm $farm_type", "info", "LSLB"
 	);
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
@@ -414,7 +334,7 @@ sub setFarmMaxClientTime    # ($max_client_time,$track,$farm_name)
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Config;
-		$output = &setL4FarmMaxClientTime( $track, $farm_name );
+		$output = &setL4FarmParam( 'persisttm', $track, $farm_name );
 	}
 
 	return $output;
@@ -431,8 +351,10 @@ Parameters:
 Returns:
 	Integer - Return maximum time, or -1 on failure.
 =cut
+
 sub getFarmMaxClientTime    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -446,84 +368,20 @@ sub getFarmMaxClientTime    # ($farm_name)
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Config;
-		@max_client_time = &getL4FarmMaxClientTime( $farm_name );
+		@max_client_time = &getL4FarmParam( 'persisttm', $farm_name );
 	}
 
 	return @max_client_time;
 }
 
 =begin nd
-Function: setFarmMaxConn
-
-	set the max conn of a farm
-
-Parameters:
-	maxiConns - Maximum number of allowed connections
-	farmname - Farm name
-
-Returns:
-	Integer - always return 0
-
-BUG:
-	Not used in zapi v3. It is used "setFarmMaxClientTime"
-=cut
-sub setFarmMaxConn    # ($max_connections,$farm_name)
-{
-	my ( $max_connections, $farm_name ) = @_;
-
-	my $farm_type     = &getFarmType( $farm_name );
-	my $farm_filename = &getFarmFile( $farm_name );
-	my $output        = -1;
-
-	&zenlog( "setting 'MaxConn $max_connections' for $farm_name farm $farm_type" );
-
-	if ( $farm_type eq "http" || $farm_type eq "https" )
-	{
-		require Zevenet::Farm::HTTP::Config;
-		$output = &setHTTPFarmMaxConn( $max_connections, $farm_name );
-	}
-
-	return $output;
-}
-
-=begin nd
-Function: getFarmMaxConn
-
-	Returns farm max connections
-
-Parameters:
-	none - .
-
-Returns:
-	Integer - always return 0
-
-BUG:
-	It is only used in tcp, for http farms profile does nothing
-=cut
-sub getFarmMaxConn    # ($farm_name)
-{
-	my $farm_name = shift;
-
-	my $farm_type = &getFarmType( $farm_name );
-	my $output    = -1;
-
-	if ( $farm_type eq "http" || $farm_type eq "https" )
-	{
-		require Zevenet::Farm::HTTP::Config;
-		$output = &getHTTPFarmMaxConn( $farm_name );
-	}
-
-	return $output;
-}
-
-=begin nd
 Function: setFarmVirtualConf
 
-	Set farm virtual IP and virtual PORT		
+	Set farm virtual IP and virtual PORT
 
 Parameters:
 	vip - virtual ip
-	port - virtual port
+	port or inteface - virtual port (interface in datalink farms). If the port is not sent, the port will not be changed
 	farmname - Farm name
 
 Returns:
@@ -532,15 +390,17 @@ Returns:
 See Also:
 	To get values use getFarmVip.
 =cut
+
 sub setFarmVirtualConf    # ($vip,$vip_port,$farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $vip, $vip_port, $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $stat      = -1;
 
 	&zenlog(
-			 "setting 'VirtualConf $vip $vip_port' for $farm_name farm $farm_type" );
+			 "setting 'VirtualConf $vip $vip_port' for $farm_name farm $farm_type", "info", "FARMS" );
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
 	{
@@ -555,51 +415,64 @@ sub setFarmVirtualConf    # ($vip,$vip_port,$farm_name)
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Config;
-		$stat = &setL4FarmVirtualConf( $vip, $vip_port, $farm_name );
-	}
-	elsif ( $farm_type eq "gslb" )
-	{
-		if ( eval { require Zevenet::Farm::GSLB::Config; } )
+		if ( $vip )
 		{
-			$stat = &setGSLBFarmVirtualConf( $vip, $vip_port, $farm_name );
+			$stat = &setL4FarmParam( 'vip', $vip, $farm_name );
 		}
+		return $stat if ( $stat != 0 );
+		if ( $vip_port )
+		{
+			$stat = &setL4FarmParam( 'vipp', $vip_port, $farm_name );
+		}
+	}
+	elsif ( $farm_type eq "gslb" && $eload )
+	{
+		$stat = &eload(
+						module => 'Zevenet::Farm::GSLB::Config',
+						func   => 'setGSLBFarmVirtualConf',
+						args   => [$vip, $vip_port, $farm_name],
+		);
 	}
 
 	return $stat;
 }
 
 =begin nd
-Function: getFarmConfigIsOK
+Function: setAllFarmByVip
 
-	Function that check if the config file is OK.
+	This function change the virtual interface for a set of farms. If some farm
+	is up, this function will restart it.
 
 Parameters:
-	farmname - Farm name
+	IP - New virtual interface for the farms
+	farm list - List of farms to update. This list will send as reference
 
 Returns:
-	scalar - return 0 on success or different on failure
+	None - .
 =cut
-sub getFarmConfigIsOK    # ($farm_name)
+
+sub setAllFarmByVip
 {
-	my ( $farm_name ) = @_;
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my $vip      = shift;
+	my $farmList = shift;
 
-	my $farm_type = &getFarmType( $farm_name );
-	my $output    = -1;
-
-	if ( $farm_type eq "http" || $farm_type eq "https" )
+	require Zevenet::Farm::Action;
+	foreach my $farm ( @{ $farmList } )
 	{
-		require Zevenet::Farm::HTTP::Config;
-		$output = &getHTTPFarmConfigIsOK( $farm_name );
-	}
-	elsif ( $farm_type eq "gslb" )
-	{
-		if ( eval { require Zevenet::Farm::GSLB::Validate; } )
-		{
-			$output = &getGSLBFarmConfigIsOK( $farm_name );
-		}
+		# get status
+		my $status = &getFarmStatus( $farm );
+
+		# stop farm
+		if ( $status eq 'up' ) { &runFarmStop( $farm ); }
+
+		# change vip
+		&setFarmVirtualConf( $vip, undef, $farm );
+
+		# start farm
+		if ( $status eq 'up' ) { &runFarmStart( $farm ); }
 	}
 
-	return $output;
 }
 
 =begin nd
@@ -621,8 +494,10 @@ FIXME:
 NOTE:
 	Generic function.
 =cut
+
 sub checkFarmnameOK    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	return ( $farm_name =~ /^[a-zA-Z0-9\-]+$/ )
@@ -643,8 +518,10 @@ Parameters:
 Returns:
 	Integer - The requested parameter value
 =cut
+
 sub getFarmVS    # ($farm_name, $service, $tag)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name, $service, $tag ) = @_;
 
 	my $output    = "";
@@ -655,61 +532,18 @@ sub getFarmVS    # ($farm_name, $service, $tag)
 		require Zevenet::Farm::HTTP::Service;
 		$output = &getHTTPFarmVS( $farm_name, $service, $tag );
 	}
-	elsif ( $farm_type eq "gslb" )
+	elsif ( $farm_type eq "gslb" && $eload )
 	{
-		if ( eval { require Zevenet::Farm::GSLB::Service; } )
-		{
-			$output = &getGSLBFarmVS( $farm_name, $service, $tag );
-		}
+		$output = &eload(
+						  module => 'Zevenet::Farm::GSLB::Service',
+						  func   => 'getGSLBFarmVS',
+						  args   => [$farm_name, $service, $tag],
+		);
 	}
 
 	return $output;
 }
 
-=begin nd
-Function: getFarmBackends
-
-	Return a list with all backends
-
-Parameters:
-	farmname - Farm name
-	service - Service name, required parameter to profiles: http and gslb)
-
-Returns:
-	Array ref - Each element in the array it is a hash ref to a backend.
-=cut
-sub getFarmBackends    # ($farm_name, $service)
-{
-	my ( $farm_name, $service ) = @_;
-
-	my $output    = "";
-	my $farm_type = &getFarmType( $farm_name );
-
-	if ( $farm_type =~ /http/ )
-	{
-		require Zevenet::Farm::HTTP::Backend;
-		$output = &getHTTPFarmBackends( $farm_name, $service );
-	}
-	elsif ( $farm_type eq "l4xnat" )
-	{
-		require Zevenet::Farm::L4xNAT::Backend;
-		$output = &getL4FarmBackends( $farm_name );
-	}
-	elsif ( $farm_type eq "datalink" )
-	{
-		require Zevenet::Farm::Datalink::Backend;
-		$output = &getDatalinkFarmBackends( $farm_name );
-	}
-	elsif ( $farm_type eq "gslb" )
-	{
-		if ( eval { require Zevenet::Farm::GSLB::Backend; } )
-		{
-			$output = &getGSLBFarmBackends( $farm_name, $service );
-		}
-	}
-
-	return $output;
-}
 
 =begin nd
 Function: setFarmVS
@@ -725,8 +559,10 @@ Parameters:
 Returns:
 	Integer - Error code: 0 on success or -1 on failure
 =cut
+
 sub setFarmVS    # ($farm_name,$service,$tag,$string)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name, $service, $tag, $string ) = @_;
 
 	my $output    = "";
@@ -739,67 +575,11 @@ sub setFarmVS    # ($farm_name,$service,$tag,$string)
 	}
 	elsif ( $farm_type eq "gslb" )
 	{
-		if ( eval { require Zevenet::Farm::GSLB::Service; } )
-		{
-			$output = &setGSLBFarmVS( $farm_name, $service, $tag, $string );
-		}
-	}
-
-	return $output;
-}
-
-=begin nd
-Function: setFarmName
-
-	Set values for service parameters
-
-Parameters:
-	farmname - Farm name
-
-Returns:
-	none - .
-
-Bugs:
-	WARNING: This function is only used in zapi/v2/post.cgi, this substitution should be done without a function, so we can remove iŧ.
-=cut
-sub setFarmName    # ($farm_name)
-{
-	my $farm_name = shift;
-	$farm_name =~ s/[^a-zA-Z0-9]//g;
-}
-
-=begin nd
-Function: getServiceStruct
-
-	Get a struct with all parameters of a service
-
-Parameters:
-	farmname - Farm name
-	service - Farm name
-
-Returns:
-	hash ref - It is a struct with all information about a farm service
-
-FIXME: 
-	Complete with more farm profiles.
-	Use it in zapi to get services from a farm
-		
-=cut
-sub getServiceStruct
-{
-	my ( $farmname, $service ) = @_;
-
-	my $output;
-	my $farm_type = &getFarmType( $farmname );
-
-	if ( $farm_type =~ /http/ )
-	{
-		require Zevenet::Farm::HTTP::Service;
-		$output = &getHTTPServiceStruct( $farmname, $service );
-	}
-	else
-	{
-		$output = -1;
+		$output = &eload(
+			module => 'Zevenet::Farm::GSLB::Service',
+			func   => 'setGSLBFarmVS',
+			args   => [$farm_name, $service, $tag, $string],
+		) if $eload;
 	}
 
 	return $output;

@@ -29,22 +29,18 @@ my $configdir = &getGlobalConfiguration('configdir');
 Function: _runDatalinkFarmStart
 
 	Run a datalink farm
-	
+
 Parameters:
 	farmname - Farm name
-	writeconf - If this param has the value "true" in config file will be saved the current status
 
 Returns:
 	Integer - Error code: return 0 on success or different of 0 on failure
-	
-BUG: 
-	writeconf must not exist, always it has to be TRUE 
-	status parameter is not useful
-	
+
 =cut
-sub _runDatalinkFarmStart    # ($farm_name, $writeconf, $status)
+sub _runDatalinkFarmStart    # ($farm_name)
 {
-	my ( $farm_name, $writeconf ) = @_;
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my ( $farm_name ) = @_;
 
 	require Tie::File;
 	require Zevenet::Net::Util;
@@ -54,21 +50,18 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf, $status)
 	my $status;
 	my $farm_filename = &getFarmFile( $farm_name );
 
-	if ( $writeconf eq "true" )
-	{
-		tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
-		my $first = 1;
+	tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
+	my $first = 1;
 
-		foreach ( @configfile )
+	foreach ( @configfile )
+	{
+		if ( $first eq 1 )
 		{
-			if ( $first eq 1 )
-			{
-				s/\;down/\;up/g;
-				$first = 0;
-			}
+			s/\;down/\;up/g;
+			$first = 0;
 		}
-		untie @configfile;
 	}
+	untie @configfile;
 
 	# include cron task to check backends
 	tie my @cron_file, 'Tie::File', "/etc/cron.d/zevenet";
@@ -87,27 +80,24 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf, $status)
 	my $iface     = &getDatalinkFarmInterface( $farm_name );
 	my $ip_bin    = &getGlobalConfiguration('ip_bin');
 	my @eject     = `$ip_bin route del default table table_$iface 2> /dev/null`;
-	my @servers   = &getDatalinkFarmServers( $farm_name );
+	my $backends   = &getDatalinkFarmBackends( $farm_name );
 	my $algorithm = &getDatalinkFarmAlgorithm( $farm_name );
 	my $routes    = "";
 
 	if ( $algorithm eq "weight" )
 	{
-		foreach my $serv ( @servers )
+		foreach my $serv ( @{ $backends } )
 		{
-			chomp ( $serv );
-			my @line = split ( "\;", $serv );
-			my $stat = $line[5];
-			chomp ( $stat );
+			my $stat = $serv->{ status };
 			my $weight = 1;
 
-			if ( $line[3] ne "" )
+			if ( $serv->{ weight } ne "" )
 			{
-				$weight = $line[3];
+				$weight = $serv->{ weight };
 			}
 			if ( $stat eq "up" )
 			{
-				$routes = "$routes nexthop via $line[1] dev $line[2] weight $weight";
+				$routes = "$routes nexthop via $serv->{ ip } dev $serv->{ interface } weight $weight";
 			}
 		}
 	}
@@ -115,21 +105,17 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf, $status)
 	if ( $algorithm eq "prio" )
 	{
 		my $bestprio = 100;
-		foreach my $serv ( @servers )
+		foreach my $serv ( @{ $backends } )
 		{
-			chomp ( $serv );
-			my @line = split ( "\;", $serv );
-			my $stat = $line[5];
-			my $prio = $line[4];
-			chomp ( $stat );
+			my $stat = $serv->{ status };
 
 			if (    $stat eq "up"
-				 && $prio > 0
-				 && $prio < 10
-				 && $prio < $bestprio )
+				 && $serv->{ priority } > 0
+				 && $serv->{ priority } < 10
+				 && $serv->{ priority } < $bestprio )
 			{
-				$routes   = "nexthop via $line[1] dev $line[2] weight 1";
-				$bestprio = $prio;
+				$routes   = "nexthop via $serv->{ ip } dev $serv->{ interface } weight 1";
+				$bestprio = $serv->{ priority };
 			}
 		}
 	}
@@ -139,7 +125,7 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf, $status)
 		my $ip_command =
 		  "$ip_bin route add default scope global table table_$iface $routes";
 
-		&zenlog( "running $ip_command" );
+		&zenlog( "running $ip_command", "info", "DSLB" );
 		$status = system ( "$ip_command >/dev/null 2>&1" );
 	}
 	else
@@ -156,7 +142,7 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf, $status)
 
 		my $ipmask = &maskonif( $iface );
 		my ( $net, $mask ) = ipv4_network( "$ip / $ipmask" );
-		&zenlog( "running $ip_bin rule add from $net/$mask lookup table_$iface" );
+		&zenlog( "running $ip_bin rule add from $net/$mask lookup table_$iface", "info", "DSLB" );
 		my @eject = `$ip_bin rule add from $net/$mask lookup table_$iface 2> /dev/null`;
 	}
 
@@ -165,8 +151,8 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf, $status)
 
 	# Enable active datalink file
 	my $piddir = &getGlobalConfiguration('piddir');
-	open FI, ">$piddir\/$farm_name\_datalink.pid";
-	close FI;
+	open my $fd, '>', "$piddir\/$farm_name\_datalink.pid";
+	close $fd;
 
 	return $status;
 }
@@ -175,51 +161,43 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf, $status)
 Function: _runDatalinkFarmStop
 
 	Stop a datalink farm
-	
+
 Parameters:
 	farmname - Farm name
-	writeconf - If this param has the value "true" in config file will be saved the current status
 
 Returns:
 	Integer - Error code: return 0 on success or -1 on failure
-	
-BUG: 
-	writeconf must not exist, always it has to be TRUE 
-	
+
 =cut
-sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
+sub _runDatalinkFarmStop    # ($farm_name)
 {
-	my ( $farm_name, $writeconf ) = @_;
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my ( $farm_name ) = @_;
 
 	require Tie::File;
 	require Zevenet::Net::Util;
 	require Zevenet::Farm::Datalink::Config;
 
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $status = ( $writeconf eq "true" ) ? -1 : 0;
+	my $status = -1;
 
-	if ( $writeconf eq "true" )
+	tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
+	my $first = 1;
+	foreach ( @configfile )
 	{
-		tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
-		my $first = 1;
-		foreach ( @configfile )
+		if ( $first == 1 )
 		{
-			if ( $first == 1 )
-			{
-				s/\;up/\;down/g;
-				$status = $?;
-				$first  = 0;
-			}
+			s/\;up/\;down/g;
+			$status = $?;
+			$first  = 0;
 		}
-		untie @configfile;
 	}
+	untie @configfile;
 
 	# delete cron task to check backends
 	tie my @cron_file, 'Tie::File', "/etc/cron.d/zevenet";
 	@cron_file = grep !/\# \_\_$farm_name\_\_/, @cron_file;
 	untie @cron_file;
-
-	$status = 0 if $writeconf eq 'false';
 
 	# Apply changes online
 	if ( $status == -1 )
@@ -238,7 +216,7 @@ sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
 		my $ipmask = &maskonif( $iface );
 		my ( $net, $mask ) = ipv4_network( "$ip / $ipmask" );
 
-		&zenlog( "running $ip_bin rule del from $net/$mask lookup table_$iface" );
+		&zenlog( "running $ip_bin rule del from $net/$mask lookup table_$iface", "info", "DSLB" );
 		my @eject = `$ip_bin rule del from $net/$mask lookup table_$iface 2> /dev/null`;
 	}
 
@@ -261,24 +239,24 @@ sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
 Function: setDatalinkNewFarmName
 
 	Function that renames a farm
-	
+
 Parameters:
 	farmname - Farm name
 	newfarmname - New farm name
 
 Returns:
 	Integer - Error code: return 0 on success or -1 on failure
-	
+
 =cut
 sub setDatalinkNewFarmName    # ($farm_name,$new_farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name, $new_farm_name ) = @_;
 
 	require Tie::File;
 
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $farm_type     = &getFarmType( $farm_name );
-	my $newffile      = "$new_farm_name\_$farm_type.cfg";
+	my $newffile      = "$new_farm_name\_datalink.cfg";
 	my $output        = -1;
 
 	tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
@@ -291,8 +269,8 @@ sub setDatalinkNewFarmName    # ($farm_name,$new_farm_name)
 
 	my $piddir = &getGlobalConfiguration('piddir');
 	rename ( "$configdir\/$farm_filename", "$configdir\/$newffile" );
-	rename ( "$piddir\/$farm_name\_$farm_type.pid",
-			 "$piddir\/$new_farm_name\_$farm_type.pid" );
+	rename ( "$piddir\/$farm_name\_datalink.pid",
+			 "$piddir\/$new_farm_name\_datalink.pid" );
 	$output = $?;
 
 	return $output;

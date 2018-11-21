@@ -23,15 +23,19 @@
 use strict;
 use Zevenet::Farm::Core;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
 sub modify_farm # ( $json_obj, $farmname )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $farmname = shift;
 
 	my $desc = "Modify farm";
 
 	# Check that the farm exists
-	if ( &getFarmFile( $farmname ) eq '-1' )
+	if ( !&getFarmExists( $farmname ) )
 	{
 		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -57,12 +61,13 @@ sub modify_farm # ( $json_obj, $farmname )
 		&modify_datalink_farm( $json_obj, $farmname );
 	}
 
-	if ( $type eq "gslb" )
+	if ( $type eq "gslb" && $eload)
 	{
-		if ( eval { require Zevenet::API31::Farm::Put::GSLB; } )
-		{
-			&modify_gslb_farm( $json_obj, $farmname );
-		}
+		&eload(
+			module => 'Zevenet::API31::Farm::Put::GSLB',
+			func   => 'modify_gslb_farm',
+			args   => [$json_obj, $farmname],
+		);
 	}
 }
 

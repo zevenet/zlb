@@ -29,7 +29,7 @@ my $configdir = &getGlobalConfiguration('configdir');
 Function: runDatalinkFarmCreate
 
 	Create a datalink farm through its configuration file and run it
-	
+
 Parameters:
 	farmname - Farm name
 	vip - Virtual IP
@@ -37,26 +37,28 @@ Parameters:
 
 Returns:
 	Integer - Error code: return 0 on success or different of 0 on failure
-	
-FIXME: 
+
+FIXME:
 	it is possible calculate here the inteface of VIP and put standard the input as the others create farm functions
-		
+
 =cut
 sub runDatalinkFarmCreate    # ($farm_name,$vip,$fdev)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name, $vip, $fdev ) = @_;
 
-	open FO, ">$configdir\/$farm_name\_datalink.cfg";
-	print FO "$farm_name\;$vip\;$fdev\;weight\;up\n";
-	close FO;
-	my $output = $?;
+	open my $fd, '>', "$configdir\/$farm_name\_datalink.cfg";
+	print $fd "$farm_name\;$vip\;$fdev\;weight\;up\n";
+	close $fd;
 
+	my $output = $?;
 	my $piddir = &getGlobalConfiguration('piddir');
+
 	if ( !-e "$piddir/${farm_name}_datalink.pid" )
 	{
 		# Enable active datalink file
-		open FI, ">$piddir\/$farm_name\_datalink.pid";
-		close FI;
+		open my $fd, '>', "$piddir\/$farm_name\_datalink.pid";
+		close $fd;
 	}
 
 	return $output;

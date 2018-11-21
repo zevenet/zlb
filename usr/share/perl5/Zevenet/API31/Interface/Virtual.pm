@@ -23,9 +23,13 @@
 
 use strict;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
 # POST /addvini/<interface> Create a new virtual network interface
 sub new_vini    # ( $json_obj )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $json_obj = shift;
 
 	my $desc = "Add a virtual interface";
@@ -126,7 +130,7 @@ sub new_vini    # ( $json_obj )
 	eval {
 		die if &addIp( $if_ref );
 
-		my $state = &upIf( $if_ref, 'writeconf' );
+		my $state = &upIf( $if_ref );
 
 		if ( $state == 0 )
 		{
@@ -143,10 +147,11 @@ sub new_vini    # ( $json_obj )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	if ( eval { require Zevenet::Cluster; } )
-	{
-		&runZClusterRemoteManager( 'interface', 'start', $if_ref->{ name } );
-	}
+	&eload(
+			module => 'Zevenet::Cluster',
+			func   => 'runZClusterRemoteManager',
+			args   => ['interface', 'start', $if_ref->{ name }],
+	) if ( $eload );
 
 	my $body = {
 				 description => $desc,
@@ -164,6 +169,7 @@ sub new_vini    # ( $json_obj )
 
 sub delete_interface_virtual    # ( $virtual )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $virtual = shift;
 
 	require Zevenet::Net::Interface;
@@ -183,7 +189,7 @@ sub delete_interface_virtual    # ( $virtual )
 	{
 		my $child_string = join ( ', ', @child );
 		my $msg =
-		  "Before of removing $virtual interface, disable the floating IPs: $child_string.";
+		  "Before removing $virtual interface, disable the floating IPs: $child_string.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -194,7 +200,7 @@ sub delete_interface_virtual    # ( $virtual )
 		if ( $if_ref->{ status } eq 'up' )
 		{
 			die if &delRoutes( "local", $if_ref );
-			die if &downIf( $if_ref, 'writeconf' );
+			die if &downIf( $if_ref );
 		}
 		die if &delIf( $if_ref );
 	};
@@ -205,11 +211,17 @@ sub delete_interface_virtual    # ( $virtual )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	if ( eval { require Zevenet::Cluster; } )
-	{
-		&runZClusterRemoteManager( 'interface', 'stop',   $if_ref->{ name } );
-		&runZClusterRemoteManager( 'interface', 'delete', $if_ref->{ name } );
-	}
+	&eload(
+			module => 'Zevenet::Cluster',
+			func   => 'runZClusterRemoteManager',
+			args   => ['interface', 'stop', $if_ref->{ name }],
+	) if ( $eload );
+
+	&eload(
+			module => 'Zevenet::Cluster',
+			func   => 'runZClusterRemoteManager',
+			args   => ['interface', 'delete', $if_ref->{ name }],
+	) if ( $eload );
 
 	my $message = "The virtual interface $virtual has been deleted.";
 	my $body = {
@@ -223,6 +235,7 @@ sub delete_interface_virtual    # ( $virtual )
 
 sub get_virtual_list    # ()
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	require Zevenet::Net::Interface;
 
 	my $desc = "List virtual interfaces";
@@ -262,6 +275,7 @@ sub get_virtual_list    # ()
 
 sub get_virtual    # ()
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $virtual = shift;
 
 	my $desc = "Show virtual interface $virtual";
@@ -309,6 +323,7 @@ sub get_virtual    # ()
 
 sub actions_interface_virtual    # ( $json_obj, $virtual )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $virtual  = shift;
 
@@ -356,7 +371,7 @@ sub actions_interface_virtual    # ( $json_obj, $virtual )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		my $state = &upIf( $if_ref, 'writeconf' );
+		my $state = &upIf( $if_ref );
 		if ( !$state )
 		{
 			require Zevenet::Net::Route;
@@ -368,16 +383,17 @@ sub actions_interface_virtual    # ( $json_obj, $virtual )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		if ( eval { require Zevenet::Cluster; } )
-		{
-			&runZClusterRemoteManager( 'interface', 'start', $if_ref->{ name } );
-		}
+		&eload(
+				module => 'Zevenet::Cluster',
+				func   => 'runZClusterRemoteManager',
+				args   => ['interface', 'start', $if_ref->{ name }],
+		) if ( $eload );
 	}
 	elsif ( $json_obj->{ action } eq "down" )
 	{
 		require Zevenet::Net::Core;
 
-		my $state = &downIf( $if_ref, 'writeconf' );
+		my $state = &downIf( $if_ref );
 
 		if ( $state )
 		{
@@ -385,10 +401,11 @@ sub actions_interface_virtual    # ( $json_obj, $virtual )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		if ( eval { require Zevenet::Cluster; } )
-		{
-			&runZClusterRemoteManager( 'interface', 'stop', $if_ref->{ name } );
-		}
+		&eload(
+			module => 'Zevenet::Cluster',
+			func   => 'runZClusterRemoteManager',
+			args   => ['interface', 'stop', $if_ref->{ name }],
+		) if ( $eload );
 	}
 	else
 	{
@@ -406,6 +423,7 @@ sub actions_interface_virtual    # ( $json_obj, $virtual )
 
 sub modify_interface_virtual    # ( $json_obj, $virtual )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $virtual  = shift;
 
@@ -475,10 +493,11 @@ sub modify_interface_virtual    # ( $json_obj, $virtual )
 	my $state = $if_ref->{ 'status' };
 	&downIf( $if_ref ) if $state eq 'up';
 
-	if ( eval { require Zevenet::Cluster; } )
-	{
-		&runZClusterRemoteManager( 'interface', 'stop', $if_ref->{ name } );
-	}
+	&eload(
+		module => 'Zevenet::Cluster',
+		func   => 'runZClusterRemoteManager',
+		args   => ['interface', 'stop', $if_ref->{ name }],
+	) if ( $eload );
 
 	eval {
 		# Set the new params
@@ -502,10 +521,11 @@ sub modify_interface_virtual    # ( $json_obj, $virtual )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	if ( eval { require Zevenet::Cluster; } )
-	{
-		&runZClusterRemoteManager( 'interface', 'start', $if_ref->{ name } );
-	}
+	&eload(
+		module => 'Zevenet::Cluster',
+		func   => 'runZClusterRemoteManager',
+		args   => ['interface', 'start', $if_ref->{ name }],
+	) if ( $eload );
 
 	my $body = {
 				 description => $desc,

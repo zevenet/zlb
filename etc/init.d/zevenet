@@ -31,9 +31,8 @@
 #
 ###############################################################################
 
-$bindir="/usr/local/zevenet";
-$zenbin="$bindir/bin/zevenet";
-$checkcfg="$bindir/bin/checkglobalconf";
+$zenbin="/usr/local/zevenet/app/zbin/zevenet";
+$checkcfg="/usr/local/zevenet/app/zbin/checkglobalconf";
 $action=$ARGV[0];
 
 if ( "$action" eq "start"){

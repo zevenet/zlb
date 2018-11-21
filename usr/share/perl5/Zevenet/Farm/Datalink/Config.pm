@@ -23,31 +23,33 @@
 
 use strict;
 
-my $configdir = &getGlobalConfiguration('configdir');
+my $configdir = &getGlobalConfiguration( 'configdir' );
 
 =begin nd
 Function: getDatalinkFarmAlgorithm
 
-	Get type of balancing algorithm. 
-	
+	Get type of balancing algorithm.
+
 Parameters:
 	farmname - Farm name
 
 Returns:
 	scalar - The possible values are "weight", "priority" or -1 on failure
-	
+
 =cut
+
 sub getDatalinkFarmAlgorithm    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $algorithm     = -1;
 	my $first         = "true";
 
-	open FI, "<$configdir/$farm_filename";
+	open my $fd, '<', "$configdir/$farm_filename";
 
-	while ( my $line = <FI> )
+	while ( my $line = <$fd> )
 	{
 		if ( $line ne "" && $first eq "true" )
 		{
@@ -56,7 +58,7 @@ sub getDatalinkFarmAlgorithm    # ($farm_name)
 			$algorithm = $line[3];
 		}
 	}
-	close FI;
+	close $fd;
 
 	return $algorithm;
 }
@@ -65,26 +67,28 @@ sub getDatalinkFarmAlgorithm    # ($farm_name)
 Function: setDatalinkFarmAlgorithm
 
 	Set the load balancing algorithm to a farm
-	
+
 Parameters:
 	algorithm - Type of balancing mode: "weight" or "priority"
 	farmname - Farm name
 
 Returns:
 	none - .
-	
+
 FIXME:
 	set a return value, and do error control
-	
+
 =cut
+
 sub setDatalinkFarmAlgorithm    # ($algorithm,$farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $algorithm, $farm_name ) = @_;
 
 	require Tie::File;
 
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $i = 0;
+	my $i             = 0;
 
 	tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
 
@@ -115,7 +119,7 @@ sub setDatalinkFarmAlgorithm    # ($algorithm,$farm_name)
 Function: getDatalinkFarmBootStatus
 
 	Return the farm status at boot zevenet
-	 
+
 Parameters:
 	farmname - Farm name
 
@@ -123,17 +127,19 @@ Returns:
 	scalar - return "down" if the farm not run at boot or "up" if the farm run at boot
 
 =cut
+
 sub getDatalinkFarmBootStatus    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = "down";
 	my $first         = "true";
 
-	open FI, "<$configdir/$farm_filename";
+	open my $fd, '<', "$configdir/$farm_filename";
 
-	while ( my $line = <FI> )
+	while ( my $line = <$fd> )
 	{
 		if ( $line ne "" && $first eq "true" )
 		{
@@ -143,7 +149,7 @@ sub getDatalinkFarmBootStatus    # ($farm_name)
 			chomp ( $output );
 		}
 	}
-	close FI;
+	close $fd;
 
 	return $output;
 }
@@ -152,39 +158,40 @@ sub getDatalinkFarmBootStatus    # ($farm_name)
 Function: getDatalinkFarmInterface
 
 	 Get network physical interface used by the farm vip
-	 
+
 Parameters:
 	farmname - Farm name
 
 Returns:
-	scalar - return NIC inteface or -1 on failure
+	scalar - return NIC interface or -1 on failure
 
 =cut
+
 sub getDatalinkFarmInterface    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
-	my $type   = &getFarmType( $farm_name );
 	my $output = -1;
-	my $line;
 
-	if ( $type eq "datalink" )
+	my $line;
+	my $first = "true";
+	my $farm_filename = &getFarmFile( $farm_name );
+
+	open my $fd, '<', "$configdir/$farm_filename";
+
+	while ( $line = <$fd> )
 	{
-		my $farm_filename = &getFarmFile( $farm_name );
-		open FI, "<$configdir/$farm_filename";
-		my $first = "true";
-		while ( $line = <FI> )
+		if ( $line ne "" && $first eq "true" )
 		{
-			if ( $line ne "" && $first eq "true" )
-			{
-				$first = "false";
-				my @line_a = split ( "\;", $line );
-				my @line_b = split ( "\:", $line_a[2] );
-				$output = $line_b[0];
-			}
+			$first = "false";
+			my @line_a = split ( "\;", $line );
+			my @line_b = split ( "\:", $line_a[2] );
+			$output = $line_b[0];
 		}
-		close FI;
 	}
+
+	close $fd;
 
 	return $output;
 }
@@ -193,26 +200,28 @@ sub getDatalinkFarmInterface    # ($farm_name)
 Function: getDatalinkFarmVip
 
 	Returns farm vip, vport or vip:vport
-	
+
 Parameters:
-	info - parameter to return: vip, for virtual ip; vipp, for virtual port or vipps, for vip:vipp
+	info - parameter to return: vip, for virtual ip; vipp, for virtual port
 	farmname - Farm name
 
 Returns:
 	Scalar - return request parameter on success or -1 on failure
-		
+
 =cut
+
 sub getDatalinkFarmVip    # ($info,$farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $info, $farm_name ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
 	my $first         = "true";
 
-	open FI, "<$configdir/$farm_filename";
+	open my $fd, '<', "$configdir/$farm_filename";
 
-	while ( my $line = <FI> )
+	while ( my $line = <$fd> )
 	{
 		if ( $line ne "" && $first eq "true" )
 		{
@@ -221,10 +230,9 @@ sub getDatalinkFarmVip    # ($info,$farm_name)
 
 			if ( $info eq "vip" )   { $output = $line_a[1]; }
 			if ( $info eq "vipp" )  { $output = $line_a[2]; }
-			if ( $info eq "vipps" ) { $output = "$line_a[1]\:$line_a[2]"; }
 		}
 	}
-	close FI;
+	close $fd;
 
 	return $output;
 }
@@ -233,22 +241,35 @@ sub getDatalinkFarmVip    # ($info,$farm_name)
 Function: setDatalinkFarmVirtualConf
 
 	Set farm virtual IP and virtual PORT
-	
+
 Parameters:
 	vip - virtual ip
-	port - virtual port
+	interface - interface
 	farmname - Farm name
 
 Returns:
 	Scalar - Error code: 0 on success or -1 on failure
-		
+
 =cut
-sub setDatalinkFarmVirtualConf    # ($vip,$vip_port,$farm_name)
+
+sub setDatalinkFarmVirtualConf    # ($vip,$interface,$farm_name)
 {
-	my ( $vip, $vip_port, $farm_name ) = @_;
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my ( $vip, $interface, $farm_name ) = @_;
 
 	require Tie::File;
 	require Zevenet::Farm::Action;
+
+	# set the interface that has defined the vip
+	require Zevenet::Net::Interface;
+	foreach my $if_ref ( @{ &getConfigInterfaceList() } )
+	{
+		if ( $if_ref->{ addr } eq $vip )
+		{
+			$interface = $if_ref->{ name };
+			last;
+		}
+	}
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $farm_state    = &getFarmStatus( $farm_name );
@@ -264,7 +285,8 @@ sub setDatalinkFarmVirtualConf    # ($vip,$vip_port,$farm_name)
 		if ( $line =~ /^$farm_name\;/ )
 		{
 			my @args = split ( "\;", $line );
-			$line = "$args[0]\;$vip\;$vip_port\;$args[3]\;$args[4]";
+			$interface = $args[2] if ( !$interface );
+			$line = "$args[0]\;$vip\;$interface\;$args[3]\;$args[4]";
 			splice @configfile, $i, $line;
 			$stat = $?;
 		}

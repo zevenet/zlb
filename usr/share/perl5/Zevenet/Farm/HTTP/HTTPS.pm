@@ -26,83 +26,6 @@ use strict;
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
 =begin nd
-Function: getHTTPFarmDHStatus
-
-	[NOT USED] Obtain the status of the DH file
-
-Parameters:
-	farmname - Farm name
-
-Returns:
-	scalar - on, if it is actived or off, if it is desactived
-
-=cut
-sub getHTTPFarmDHStatus    # ($farm_name)
-{
-	my ( $farm_name ) = @_;
-
-	my $farm_filename = &getFarmFile( $farm_name );
-	my $output        = "off";
-
-	my $dhfile = "$configdir\/$farm_name\_dh2048.pem";
-	tie my @filefarmhttp, 'Tie::File', "$configdir/$farm_filename";
-	# my $match =~ /^DHParams.*/, @filefarmhttp;
-	my @match = grep ( /^DHParams.*/, @filefarmhttp );
-	untie @filefarmhttp;
-
-	if ($match[0] ne "" && -e "$dhfile"){
-		$output = "on";
-	}
-
-	return $output;
-}
-
-=begin nd
-Function: setHTTPFarmDHStatus
-
-	[NOT USED] Configure the status of the DH file
-
-Parameters:
-	farmname - Farm name
-	status - set a status for the DH file
-
-Returns:
-	Integer - Error code: 1 on success, or 0 on failure.
-
-=cut
-sub setHTTPFarmDHStatus    # ($farm_name, $newstatus)
-{
-	my ( $farm_name, $newstatus ) = @_;
-
-	my $farm_type     = &getFarmType( $farm_name );
-	my $farm_filename = &getFarmFile( $farm_name );
-	my $dhfile = "$configdir\/$farm_name\_dh2048.pem";
-	my $output        = 0;
-
-	#lock file
-	require Zevenet::Farm::HTTP::Config;
-	my $lock_fh = &lockHTTPFile( $farm_name );
-
-	tie my @filefarmhttp, 'Tie::File', "$configdir/$farm_filename";
-	foreach my $row (@filefarmhttp)
-	{
-		if ($row =~ /.*DHParams.*/)
-		{
-			$row =~ s/.*DHParams.*/DHParams\t"$dhfile"/ if $newstatus eq "on";
-			$row =~ s/.*DHParams/\#DHParams/ if $newstatus eq "off";
-			$output = 1;
-		}
-	}
-	untie @filefarmhttp;
-
-	&unlockfile( $lock_fh );
-
-	unlink ( "$dhfile" ) if -e "$dhfile" && $newstatus eq "off";
-
-	return $output;
-}
-
-=begin nd
 Function: getFarmCertificate
 
 	Return the certificate applied to the farm
@@ -119,26 +42,24 @@ FIXME:
 =cut
 sub getFarmCertificate    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
-	my $farm_type = &getFarmType( $farm_name );
 	my $output    = -1;
 
-	if ( $farm_type eq "https" )
+	my $farm_filename = &getFarmFile( $farm_name );
+	open my $fd, '<', "$configdir/$farm_filename";
+	my @content = <$fd>;
+	close $fd;
+
+	foreach my $line ( @content )
 	{
-		my $farm_filename = &getFarmFile( $farm_name );
-		open FI, "<$configdir/$farm_filename";
-		my @content = <FI>;
-		close FI;
-		foreach my $line ( @content )
+		if ( $line =~ /Cert/ && $line !~ /\#.*Cert/ )
 		{
-			if ( $line =~ /Cert/ && $line !~ /\#.*Cert/ )
-			{
-				my @partline = split ( '\"', $line );
-				@partline = split ( "\/", $partline[1] );
-				my $lfile = @partline;
-				$output = $partline[$lfile - 1];
-			}
+			my @partline = split ( '\"', $line );
+			@partline = split ( "\/", $partline[1] );
+			my $lfile = @partline;
+			$output = $partline[$lfile - 1];
 		}
 	}
 
@@ -148,7 +69,7 @@ sub getFarmCertificate    # ($farm_name)
 =begin nd
 Function: setFarmCertificate
 
-	[NOT USED] Configure a certificate for a HTTP farm
+	Configure a certificate for a HTTP farm
 
 Parameters:
 	certificate - certificate file name
@@ -163,112 +84,33 @@ FIXME:
 =cut
 sub setFarmCertificate    # ($cfile,$farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $cfile, $farm_name ) = @_;
 
 	require Tie::File;
+	require Zevenet::Lock;
+	require Zevenet::Farm::HTTP::Config;
 
-	my $farm_type     = &getFarmType( $farm_name );
 	my $farm_filename = &getFarmFile( $farm_name );
+	my $lock_file     = &getLockFile( $farm_name );
+	my $lock_fh       = &openlock( $lock_file, 'w' );
 	my $output        = -1;
 
-	&zenlog( "setting 'Certificate $cfile' for $farm_name farm $farm_type" );
-	if ( $farm_type eq "https" )
-	{
-		# lock file
-		require Zevenet::Farm::HTTP::Config;
-		my $lock_fh = &lockHTTPFile( $farm_name );
+	&zenlog( "Setting 'Certificate $cfile' for $farm_name farm https", "info", "LSLB" );
 
-		tie my @array, 'Tie::File', "$configdir/$farm_filename";
-		for ( @array )
+	tie my @array, 'Tie::File', "$configdir/$farm_filename";
+	for ( @array )
+	{
+		if ( $_ =~ /Cert "/ )
 		{
-			if ( $_ =~ /Cert "/ )
-			{
-				s/.*Cert\ .*/\tCert\ \"$configdir\/$cfile\"/g;
-				$output = $?;
-			}
-		}
-		untie @array;
-
-		&unlockfile( $lock_fh );
-	}
-
-	return $output;
-}
-
-=begin nd
-Function: validateHTTPFarmDH
-
-	[NOT USED] Validate the farm Diffie Hellman configuration
-
-Parameters:
-	farmname - Farm name
-
-Returns:
-	Integer - always return -1
-
-BUG
-	Not finish
-
-=cut
-sub validateHTTPFarmDH    # ($farm_name)
-{
-	my ( $farm_name ) = @_;
-
-	my $farm_type     = &getFarmType( $farm_name );
-	my $farm_filename = &getFarmFile( $farm_name );
-	my $output        = -1;
-
-	my $dhstatus = &getHTTPFarmDHStatus($farm_name);
-	if ( $farm_type eq "https" && $dhstatus ne "on" )
-	{
-		my $lockstatus = &getFarmLock( $farm_name );
-		if ( $lockstatus !~ /Diffie-Hellman/ ) {
-			#$output = &setHTTPFarmDHStatus( $farm_name, "on" );
-			#&genDHFile( $farm_name );
+			s/.*Cert\ .*/\tCert\ \"$configdir\/$cfile\"/g;
+			$output = $?;
 		}
 	}
-
-	if ( $farm_type eq "http" && $dhstatus ne "on" )
-	{
-		#$output = &setHTTPFarmDHStatus( $farm_name, "off" );
-	}
+	untie @array;
+	close $lock_fh;
 
 	return $output;
-}
-
-=begin nd
-Function: genDHFile
-
-	[NOT USED] Generate the Diffie Hellman keys file
-
-Parameters:
-	farmname - Farm name
-
-Returns:
-	Integer - return 0 on success or different of 0 on failure
-
-=cut
-sub genDHFile    # ($farm_name)
-{
-	my ( $farm_name ) = @_;
-
-	my $farm_type     = &getFarmType( $farm_name );
-	my $farm_filename = &getFarmFile( $farm_name );
-	my $output        = 0;
-
-	my $dhfile = "$configdir\/$farm_name\_dh2048.pem";
-
-	if ( ! -e "$dhfile" )
-	{
-		&zenlog( "Generating DH keys in $dhfile ..." );
-		&setFarmLock( $farm_name, "on", "<a href=\"https://www.zenloadbalancer.com/knowledge-base/misc/diffie-hellman-keys-generation-important/\" target=\"_blank\">Generating SSL Diffie-Hellman 2048 keys</a> <img src=\"img/loading.gif\"/>" );
-
-		my $openssl = &getGlobalConfiguration('openssl');
-		system("$openssl dhparam -5 2048 -out $dhfile &");
-		$output = $?;
-	}
-
-	return $output
 }
 
 =begin nd
@@ -283,26 +125,26 @@ Parameters:
 
 Returns:
 	Integer - return 0 on success or -1 on failure
-
 =cut
 sub setFarmCipherList    # ($farm_name,$ciphers,$cipherc)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	# assign first/second/third argument or take global value
 	my $farm_name = shift;
 	my $ciphers   = shift;
 	my $cipherc   = shift;
 
-	my $farm_type     = &getFarmType( $farm_name );
+	require Tie::File;
+	require Zevenet::Lock;
+	require Zevenet::Farm::HTTP::Config;
+
 	my $farm_filename = &getFarmFile( $farm_name );
+	my $lock_file     = &getLockFile( $farm_name );
+	my $lock_fh       = &openlock( $lock_file, 'w' );
 	my $output        = -1;
 
-	require Tie::File;
-
-	# lock file
-	require Zevenet::Farm::HTTP::Config;
-	my $lock_fh = &lockHTTPFile( $farm_name );
-
 	tie my @array, 'Tie::File', "$configdir/$farm_filename";
+
 	for my $line ( @array )
 	{
 		# takes the first Ciphers line only
@@ -345,9 +187,9 @@ sub setFarmCipherList    # ($farm_name,$ciphers,$cipherc)
 
 		last;
 	}
-	untie @array;
 
-	&unlockfile( $lock_fh );
+	untie @array;
+	close $lock_fh;
 
 	return $output;
 }
@@ -362,18 +204,18 @@ Parameters:
 
 Returns:
 	scalar - return a string with cipher value or -1 on failure
-
 =cut
 sub getFarmCipherList    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $farm_name = shift;
 	my $output = -1;
 
 	my $farm_filename = &getFarmFile( $farm_name );
 
-	open FI, "<$configdir/$farm_filename";
-	my @content = <FI>;
-	close FI;
+	open my $fd, '<', "$configdir/$farm_filename";
+	my @content = <$fd>;
+	close $fd;
 
 	foreach my $line ( @content )
 	{
@@ -402,6 +244,7 @@ Returns:
 =cut
 sub getFarmCipherSet    # ($farm_name)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $output = -1;
@@ -428,46 +271,6 @@ sub getFarmCipherSet    # ($farm_name)
 	return $output;
 }
 
-
-=begin nd
-Function: getFarmCipherSSLOffLoadingSupport
-
-	Get if the process supports aes aceleration
-
-Parameters:
-	none -.
-
-Returns:
-	Integer - return 1 if proccess support AES aceleration or 0 if it doesn't
-		support it
-
-=cut
-sub getFarmCipherSSLOffLoadingSupport
-{
-	my $output = 0;
-	my $proc_cpu = "/proc/cpuinfo";
-
-	if ( -f $proc_cpu )
-	{
-		open my $fh, "<", $proc_cpu;
-
-		my $line;
-		while ( $line = <$fh> )
-		{
-			if ( $line =~ /^flags.* aes / )
-			{
-				$output = 1;
-				last;
-			}
-
-		}
-		close $fh;
-	}
-
-	return $output;
-}
-
-
 =begin nd
 Function: getHTTPFarmDisableSSL
 
@@ -479,30 +282,27 @@ Parameters:
 
 Returns:
 	Integer - 1 on disabled, 0 on enabled or -1 on failure
-
 =cut
 sub getHTTPFarmDisableSSL    # ($farm_name, $protocol)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name, $protocol ) = @_;
 
-	my $farm_type     = &getFarmType( $farm_name );
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
 
-	if ( $farm_type eq "https" )
+	open my $fd, '<', "$configdir\/$farm_filename" or return $output;
+	$output = 0;	# if the directive is not in config file, it is disabled
+	my @file = <$fd>;
+	close $fd;
+
+	foreach my $line ( @file )
 	{
-		open FR, "<$configdir\/$farm_filename" or return $output;
-		$output = 0;	# if the sentence is not in config file, it is disabled
-		my @file = <FR>;
-		foreach my $line ( @file )
+		if ( $line =~ /^\tDisable $protocol$/ )
 		{
-			if ( $line =~ /^\tDisable $protocol$/ )
-			{
-				$output = 1;
-				last;
-			}
+			$output = 1;
+			last;
 		}
-		close FR;
 	}
 
 	return $output;
@@ -520,54 +320,49 @@ Parameters:
 
 Returns:
 	Integer - Error code: 0 on success or -1 on failure
-
 =cut
 sub setHTTPFarmDisableSSL    # ($farm_name, $protocol, $action )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name, $protocol, $action ) = @_;
 
 	require Tie::File;
+	require Zevenet::Lock;
+	require Zevenet::Farm::HTTP::Config;
 
-	my $farm_type     = &getFarmType( $farm_name );
 	my $farm_filename = &getFarmFile( $farm_name );
+	my $lock_file     = &getLockFile( $farm_name );
+	my $lock_fh       = &openlock( $lock_file, 'w' );
 	my $output        = -1;
 
-	if ( $farm_type eq "https" )
+	tie my @file, 'Tie::File', "$configdir/$farm_filename";
+
+	if ( $action == 1 )
 	{
-		# lock file
-		require Zevenet::Farm::HTTP::Config;
-		my $lock_fh = &lockHTTPFile( $farm_name );
-
-		tie my @file, 'Tie::File', "$configdir/$farm_filename";
-
-		if ( $action == 1 )
+		foreach my $line (@file)
 		{
-			foreach my $line (@file)
+			if ( $line =~ /Ciphers\ .*/ )
 			{
-				if ( $line =~ /Ciphers\ .*/ )
-				{
-					$line = "$line\n\tDisable $protocol";
-					last;
-				}
+				$line = "$line\n\tDisable $protocol";
+				last;
 			}
-			$output = 0;
 		}
-		else
-		{
-			my $it=-1;
-			foreach my $line (@file)
-			{
-				$it = $it +1;
-				last if( $line =~ /Disable $protocol$/);
-			}
-			splice @file, $it, 1;
-			$output = 0;
-		}
-
-		untie @file;
-
-		&unlockfile( $lock_fh );
+		$output = 0;
 	}
+	else
+	{
+		my $it=-1;
+		foreach my $line (@file)
+		{
+			$it = $it +1;
+			last if( $line =~ /Disable $protocol$/);
+		}
+		splice @file, $it, 1;
+		$output = 0;
+	}
+
+	untie @file;
+	close $lock_fh;
 
 	return $output;
 }

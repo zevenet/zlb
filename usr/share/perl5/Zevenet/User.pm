@@ -23,11 +23,50 @@
 
 use strict;
 
-use Zevenet::Farm::HTTP::Config;
-use Zevenet::Farm::HTTP::Factory;
-use Zevenet::Farm::HTTP::Action;
-use Zevenet::Farm::HTTP::Service;
-use Zevenet::Farm::HTTP::Backend;
-use Zevenet::Farm::HTTP::Stats;
+=begin nd
+Function: getUser
+
+	Get the user that is executing the API or WEBGUI
+
+Parameters:
+	User - User name
+
+Returns:
+	String - User name
+
+=cut
+
+sub getUser
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	if ( !exists $ENV{ REQ_USER } || !defined $ENV{ REQ_USER } )
+	{
+		&zenlog( 'User name not defined', 'Warning' );
+	}
+
+	return $ENV{ REQ_USER } // '';
+}
+
+=begin nd
+Function: setUser
+
+	Save the user that is executing the API or WEBGUI
+
+Parameters:
+	None - .
+
+Returns:
+	String - User name
+
+=cut
+
+sub setUser
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $user = shift;
+	$ENV{ REQ_USER } = $user;
+}
 
 1;

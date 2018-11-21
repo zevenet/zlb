@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 ###############################################################################
 #
 #    Zevenet Software License
@@ -34,6 +34,8 @@ fi
 backup_dir="${prefix}/${ss_dir}"
 
 config_paths=`perl -MZevenet::Config -e 'print getGlobalConfiguration("backupfor");'`;
+zbindir=`perl -MZevenet::Config -e 'print getGlobalConfiguration("zbindir");'`;
+
 monitoring_paths="${home_dir}/app/zenrrd/rrd ${home_dir}/logs /var/log/messages* /var/log/syslog* /var/log/cherokee* ${home_dir}/node_status";
 
 
@@ -72,11 +74,18 @@ echo "- Partitions"
 /bin/df -h                              >> $backup_dir/partitions.txt 2>&1
 
 echo "- Time"
-${home_dir}/app/zenntp/zenntp.pl        >> $backup_dir/ntp_test.txt 2>&1
+${zbindir}/zenntp.pl                    >> $backup_dir/ntp_test.txt 2>&1
 
 echo "- Sessions Table"
 ${home_dir}/app/ssyncd/bin/ssyncdctl show http	>> $backup_dir/sessions_http.txt 2>&1
 ${home_dir}/app/ssyncd/bin/ssyncdctl show recent	>> $backup_dir/sessions_recent.txt 2>&1
+
+if [[ -d ${home_dir}/lib/Zevenet/RBAC ]];
+then
+	echo "- RBAC"
+	cp /etc/group                          $backup_dir/
+	cp /etc/passwd                         $backup_dir/
+fi
 
 
 echo "Saving network information:"
@@ -116,8 +125,11 @@ echo -e "\nRaw table "                  >> $backup_dir/netfilter.txt
 
 echo "- ARP table"
 /usr/sbin/arp -n                        >> $backup_dir/arp_table.txt
-echo "- ARP filtering"
-/sbin/arptables -nL                     >> $backup_dir/arp_filtering.txt
+if [ -f /sbin/arptables ];
+then
+	echo "- ARP filtering"
+	/sbin/arptables -nL                      >> $backup_dir/arp_filtering.txt
+fi
 
 echo "- nf_conntrack"
 if [ -f /usr/sbin/conntrack ];
@@ -134,17 +146,21 @@ then
     done
 fi
 
-echo "- ipset"
 if [ -f /sbin/ipset ]; then
+	echo "- ipset"
     /sbin/ipset save                    >> $backup_dir/ipset_tables.txt 2>&1
 fi
 
+if [ -f /etc/zevenet_version ]; then
+	/bin/cp /etc/zevenet_version $backup_dir/template_version
+fi
+
+package_vers=`perl -MZevenet::Config -e 'print getGlobalConfiguration("version");'`;
+echo $package_vers > $backup_dir/zevenet_pkg_version
 
 echo "Saving configuration files"
 #################################
-echo `dpkg -l | grep zevenet\  | awk '{print $3}'` > /zevenet_version
 /bin/tar zcf $backup_dir/config.tar.gz $config_paths 2>/dev/null
-rm /zevenet_version
 
 
 echo "Saving monitoring files"

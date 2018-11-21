@@ -23,9 +23,39 @@
 
 use strict;
 
-use Zevenet::API31::Farm::Post;
-use Zevenet::API31::Farm::Get;
-use Zevenet::API31::Farm::Put;
-use Zevenet::API31::Farm::Delete;
+=begin nd
+Function: ismport
+
+	Check if the string is a valid multiport definition
+	
+Parameters:
+	port - Multiport string
+
+Returns:
+	String - "true" if port has a correct format or "false" if port has a wrong format
+	
+FIXME: 
+	Define regexp in check_functions.cgi and use it here
+	
+=cut
+sub ismport    # ($string)
+{
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my $string = shift;
+
+	chomp ( $string );
+	if ( $string eq "*" )
+	{
+		return "true";
+	}
+	elsif ( $string =~ /^([1-9][0-9]*|[1-9][0-9]*\:[1-9][0-9]*)(,([1-9][0-9]*|[1-9][0-9]*\:[1-9][0-9]*))*$/ )
+	{
+		return "true";
+	}
+	else
+	{
+		return "false";
+	}
+}
 
 1;

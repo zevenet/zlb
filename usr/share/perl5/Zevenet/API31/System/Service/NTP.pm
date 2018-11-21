@@ -26,6 +26,7 @@ use strict;
 # GET /system/ntp
 sub get_ntp
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $desc = "Get ntp";
 	my $ntp  = &getGlobalConfiguration( 'ntp' );
 
@@ -36,6 +37,7 @@ sub get_ntp
 #  POST /system/ntp
 sub set_ntp
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $json_obj = shift;
 
 	my $desc = "Post ntp";

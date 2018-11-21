@@ -22,15 +22,20 @@
 
 use strict;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
 #  PUT /farms/<farmname>/fg Modify the parameters of the farm guardian in a Farm
 #  PUT /farms/<farmname>/fg Modify the parameters of the farm guardian in a Service
 sub modify_farmguardian    # ( $json_obj, $farmname )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $farmname = shift;
 
 	require Zevenet::Farm::Core;
 	require Zevenet::Farm::Base;
+	require Zevenet::FarmGuardian;
 
 	my $desc    = "Modify farm guardian";
 	my $type    = &getFarmType( $farmname );
@@ -40,7 +45,7 @@ sub modify_farmguardian    # ( $json_obj, $farmname )
 	#~ my @fgKeys = ( "fg_time", "fg_log", "fg_enabled", "fg_type" );
 
 	# validate FARM NAME
-	if ( &getFarmFile( $farmname ) == -1 )
+	if ( !&getFarmExists( $farmname ) )
 	{
 		my $msg = "The farmname $farmname does not exists.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -114,9 +119,21 @@ sub modify_farmguardian    # ( $json_obj, $farmname )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	if ( $type eq 'gslb' )
+	my $fg = &getFGFarm( $farmname, $service );
+	if ( $fg )
 	{
-		require Zevenet::ELoad;
+		my $num_farms = scalar @{ &getFGObject( $fg )->{ farms } };
+		if ( $num_farms > 1 )
+		{
+			my $errormsg =
+			  "Farm guardian $fg is used for several farms, modify it from API 3.2 or later";
+			my $body = { description => $desc, error => "true", message => $errormsg };
+			&httpResponse( { code => 400, body => $body } );
+		}
+	}
+
+	if ( $type eq 'gslb' && $eload )
+	{
 		&eload(
 				module => 'Zevenet::API31::Farm::GSLB',
 				func   => 'modify_gslb_farmguardian',
@@ -127,8 +144,6 @@ sub modify_farmguardian    # ( $json_obj, $farmname )
 	else
 	{
 		# HTTP or L4xNAT
-		require Zevenet::FarmGuardian;
-
 		# get current farmguardian configuration
 		my @fgconfig = &getFarmGuardianConf( $farmname, $service );
 
@@ -186,7 +201,6 @@ sub modify_farmguardian    # ( $json_obj, $farmname )
 		}
 
 		# get current farmguardian configuration
-		require Zevenet::FarmGuardian;
 		my ( undef, $timetocheck, $check_script, $usefarmguardian, $farmguardianlog ) =
 		  &getFarmGuardianConf( $farmname, $service );
 

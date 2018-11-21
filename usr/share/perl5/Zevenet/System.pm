@@ -39,6 +39,7 @@ See Also:
 =cut
 sub zsystem
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( @exec ) = @_;
 
 	my $out   = `. /etc/profile && @exec`;
@@ -47,8 +48,8 @@ sub zsystem
 	if ( $error or &debug() )
 	{
 		my $message = $error ? 'failed' : 'running';
-		&zenlog( "$message: @exec" );
-		&zenlog( "output: $out" ) if $out;
+		&zenlog( "$message: @exec", "info", "SYSTEM" );
+		&zenlog( "output: $out", "info", "SYSTEM" ) if $out;
 	}
 
 	return $error;
@@ -70,11 +71,12 @@ See Also:
 =cut
 sub getTotalConnections
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $conntrack = &getGlobalConfiguration ( "conntrack" );
 	my $conns = `$conntrack -C`;
 	$conns =~ s/(\d+)/$1/;
 	$conns += 0;
-	
+
 	return $conns;
 }
 
@@ -95,6 +97,7 @@ See Also:
 =cut
 sub indexOfElementInArray
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $searched_element = shift;
 	my $array_ref = shift;
 
@@ -102,10 +105,10 @@ sub indexOfElementInArray
 	{
 		return -2;
 	}
-	
+
 	my @arrayOfElements = @{ $array_ref };
 	my $index = 0;
-	
+
 	for my $list_element ( @arrayOfElements )
 	{
 		if ( $list_element eq $searched_element )
@@ -124,6 +127,54 @@ sub indexOfElementInArray
 	}
 
 	return $index;
+}
+
+sub slurpFile
+{
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my $path = shift;
+
+	# Slurp: store an entire file in a variable.
+
+	require Zevenet::Log;
+
+	my $file;
+
+	open ( my $fh, '<', $path );
+
+	unless ( $fh )
+	{
+		my $msg = "Could not open $file: $!";
+
+		&zenlog( $msg );
+		die $msg;
+	}
+
+	{
+		local $/ = undef;
+		$file = <$fh>;
+	}
+
+	close $fh;
+
+	return $file;
+}
+
+sub getSupportSave
+{
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	my $zbindir = &getGlobalConfiguration( 'zbindir' );
+	my @ss_output = `${zbindir}/supportsave 2>&1`;
+
+	# get the last "word" from the first line
+	my $first_line = shift @ss_output;
+	my $last_word = ( split ( ' ', $first_line ) )[-1];
+
+	my $ss_path = $last_word;
+
+	my ( undef, $ss_filename ) = split ( '/tmp/', $ss_path );
+
+	return $ss_filename;
 }
 
 1;

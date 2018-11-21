@@ -1,4 +1,4 @@
-#!/usr/bin/perl 
+#!/usr/bin/perl
 ###############################################################################
 #
 #    Zevenet Software License
@@ -41,7 +41,7 @@
 # end debug
 
 use strict;
-#~ use warnings;
+use warnings;
 use Time::HiRes qw(ualarm usleep clock_gettime CLOCK_REALTIME);
 use Zevenet::Log;
 use Zevenet::Config;
@@ -240,16 +240,13 @@ while ()
 
 				if ( $ftype eq 'l4xnat' && $falg eq $algorithm && $fstate eq 'up' )
 				{
-					my @backend_lines = &getFarmBackendStatusCtl( $fname );
+					my $backends = &getFarmServers( $fname );
 
-					foreach my $l_servers ( @backend_lines )
+					foreach my $l_serv ( @{ $backends } )
 					{
-						my @l_serv = split ( "\;", $l_servers );
-
-						my $server = $l_serv[2];
-						my $mark   = $l_serv[4];
-						my $status = $l_serv[7];
-						chomp($status);
+						my $server = $l_serv->{ ip };
+						my $mark   = $l_serv->{ tag };
+						my $status = $l_serv->{ status };
 
 						if ( $status eq "up" )
 						{

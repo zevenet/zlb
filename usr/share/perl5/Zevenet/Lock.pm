@@ -25,143 +25,107 @@ use strict;
 
 use Fcntl ':flock';    #use of lock functions
 
-sub lockfile
+# generate a lock file based on a input path
+sub getLockFile
 {
-	my $lockfile = shift;
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $lock = shift;
 
-	require Zevenet::Debug;
-	## lock iptables use ##
-	my $open_rc = open ( my $lock_fd, '>', $lockfile );
+	$lock =~ s/\//_/g;
+	$lock = "/tmp/$lock.lock";
 
-	if ( $open_rc )
-	{
-		if ( flock ( $lock_fd, LOCK_EX ) )
-		{
-			&zenlog( "Success locking IPTABLES" ) if &debug == 3;
-		}
-		else
-		{
-			&zenlog( "Cannot lock iptables: $!" );
-		}
-	}
-	else
-	{
-		&zenlog( "Cannot open $lockfile: $!" );
-	}
-
-	return $lock_fd;
+	return $lock;
 }
 
-sub unlockfile
+# return 1 if locked, 0 if not
+sub getLockStatus
 {
-	my $lock_fd = shift;
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $lock = shift;
 
-	if ( flock ( $lock_fd, LOCK_UN ) )
-	{
-		&zenlog( "Success unlocking IPTABLES" ) if &debug == 3;
-	}
-	else
-	{
-		&zenlog( "Cannot unlock iptables: $!" );
-	}
+	my $lfile = &getLockFile( $lock );
+
+	return 0 if ( !-e $lfile );
+
+	#	my $fh;
+	#	$fh = &openlock( $lfile, 'r' ) or return 1;
+	#	close $fh;
+
+	return 1;
 }
 
 =begin nd
 Function: openlock
 
-	Open file with lock
+	Open file and lock it, return the filehandle.
 
 	Usage:
 
-		$filehandle = &openlock($mode, $expr);
-		$filehandle = &openlock($mode);
+		my $filehandle = &openlock( $path );
+		my $filehandle = &openlock( $path, 'r' );
 
-	Examples:
+	Lock is exclusive when the file is openend for writing.
+	Lock is shared when the file is openend for reading.
+	So only opening for writing is blocking the file for other uses.
 
-		$filehandle = &openlock(">>","output.txt");
-		$filehandle = &openlock("<$fichero");
+	Opening modes:
+		r - Read
+		w - Write
+		a - Append
+
+		t - text mode. To enforce encoding UTF-8.
+		b - binary mode. To make sure no information is lost.
+
+	'r', 'w' and 'a' are mutually exclusive.
+	't' and 'b' are mutually exclusive.
+
+	If neither 't' or 'b' are used on the mode parameter, the default Perl mode is used.
 
 Parameters:
+	path - Absolute or relative path to the file to be opened.
 	mode - Mode used to open the file.
-	expr - Path of file if 3 arguments open is used.
 
 Returns:
-	scalar - File handler.
-
-Bugs:
-	Not used yet.
+	scalar - Filehandle
 =cut
 
-sub openlock    # ($mode,$expr)
+sub openlock    # ( $path, $mode )
 {
-	my ( $mode, $expr ) = @_;    #parameters
-	my $filehandle;
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $path = shift;
+	my $mode = shift // '';
 
-	if ( $expr ne "" )
-	{                            #3 parameters
-		if ( $mode =~ /</ )
-		{                        #only reading
-			open ( $filehandle, $mode, $expr )
-			  || die "some problems happened reading the file $expr\n";
-			flock $filehandle, LOCK_SH
-			  ; #other scripts with LOCK_SH can read the file. Writing scripts with LOCK_EX will be locked
-		}
-		elsif ( $mode =~ />/ )
-		{       #only writing
-			open ( $filehandle, $mode, $expr )
-			  || die "some problems happened writing the file $expr\n";
-			flock $filehandle, LOCK_EX;    #other scripts cannot open the file
-		}
+	$mode =~ s/a/>>/;    # append
+	$mode =~ s/w/>/;     # write
+	$mode =~ s/r/</;     # read
+
+	my $binmode  = $mode =~ s/b//;
+	my $textmode = $mode =~ s/t//;
+
+	my $encoding = '';
+	$encoding = ":encoding(UTF-8)" if $textmode;
+	$encoding = ":raw :bytes"      if $binmode;
+
+	open ( my $fh, "$mode $encoding", $path )
+	  or do { &zenlog( "Error openning the file $path" ); return undef; };
+
+	binmode $fh if $fh && $binmode;
+
+	if ( $mode =~ />/ )
+	{
+		# exclusive lock for writing
+		flock $fh, LOCK_EX;
 	}
 	else
-	{                                      #2 parameters
-		if ( $mode =~ /</ )
-		{                                  #only reading
-			open ( $filehandle, $mode )
-			  || die "some problems happened reading the filehandle $filehandle\n";
-			flock $filehandle, LOCK_SH
-			  ; #other scripts with LOCK_SH can read the file. Writing scripts with LOCK_EX will be locked
-		}
-		elsif ( $mode =~ />/ )
-		{       #only writing
-			open ( $filehandle, $mode )
-			  || die "some problems happened writing the filehandle $filehandle\n";
-			flock $filehandle, LOCK_EX;    #other scripts cannot open the file
-		}
+	{
+		# shared lock for reading
+		flock $fh, LOCK_SH;
 	}
-	return $filehandle;
-}
 
-=begin nd
-Function: closelock
-
-	Close file with lock
-
-	Usage:
-
-		&closelock($filehandle);
-
-	Examples:
-
-		&closelock(FILE);
-
-Parameters:
-	filehandle - reference to file handler.
-
-Returns:
-	none - .
-
-Bugs:
-	Not used yet.
-=cut
-
-sub closelock    # ($filehandle)
-{
-	my $filehandle = shift;
-
-	close ( $filehandle )
-	  || warn
-	  "some problems happened closing the filehandle $filehandle";    #close file
+	return $fh;
 }
 
 =begin nd
@@ -190,6 +154,8 @@ Bugs:
 
 sub ztielock    # ($file_name)
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $array_ref = shift;    #parameters
 	my $file_name = shift;    #parameters
 
@@ -199,34 +165,23 @@ sub ztielock    # ($file_name)
 	$o->flock;
 }
 
-=begin nd
-Function: untielock
-
-	Untie close file with lock
-
-	Usage:
-
-		&untielock($array);
-
-	Examples:
-
-		&untielock($myarray);
-
-Parameters:
-	array - Reference to array.
-
-Returns:
-	none - .
-
-Bugs:
-	Not used yet.
-=cut
-
-sub untielock    # (@array)
+sub copyLock
 {
-	my $array = shift;
+	my $ori = shift;
+	my $dst = shift;
 
-	untie @{ $array };
+	my $fhOri = &openlock( $ori, 'r' ) or return 1;
+	my $fhDst = &openlock( $dst, 'w' ) or do { close $fhOri; return 1; };
+
+	foreach my $line ( <$fhOri> )
+	{
+		print $fhDst $line;
+	}
+
+	close $fhOri;
+	close $fhDst;
+
+	return 0;
 }
 
 1;

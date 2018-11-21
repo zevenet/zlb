@@ -24,40 +24,6 @@
 use strict;
 
 =begin nd
-Function: getFarmBackendMaintenance
-
-	Function that check if a backend on a farm is on maintenance mode
-
-Parameters:
-	farmname - Farm name
-	backend - Backend id
-	service - Service name
-
-Returns:
-	scalar - if backend is in maintenance mode, return 0 else return -1
-=cut
-sub getFarmBackendMaintenance    # ($farm_name,$backend,$service)
-{
-	my ( $farm_name, $backend, $service ) = @_;
-
-	my $farm_type = &getFarmType( $farm_name );
-	my $output    = -1;
-
-	if ( $farm_type eq "http" || $farm_type eq "https" )
-	{
-		require Zevenet::Farm::HTTP::Backend;
-		$output = &getHTTPFarmBackendMaintenance( $farm_name, $backend, $service );
-	}
-	elsif ( $farm_type eq "l4xnat" )
-	{
-		require Zevenet::Farm::L4xNAT::Backend;
-		$output = &getL4FarmBackendMaintenance( $farm_name, $backend );
-	}
-
-	return $output;
-}
-
-=begin nd
 Function: setFarmBackendMaintenance
 
 	Function that enable the maintenance mode for backend
@@ -65,8 +31,8 @@ Function: setFarmBackendMaintenance
 Parameters:
 	farmname - Farm name
 	backend - Backend id
-	mode - Maintenance mode, the options are: drain, the backend continues working with 
-	  the established connections; or cut, the backend cuts all the established 
+	mode - Maintenance mode, the options are: drain, the backend continues working with
+	  the established connections; or cut, the backend cuts all the established
 	  connections
 	service - Service name
 
@@ -75,6 +41,7 @@ Returns:
 =cut
 sub setFarmBackendMaintenance    # ($farm_name,$backend,$mode,$service)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name, $backend, $mode, $service ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -109,6 +76,7 @@ Returns:
 =cut
 sub setFarmBackendNoMaintenance    # ($farm_name,$backend,$service)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_name, $backend, $service ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );

@@ -23,8 +23,12 @@
 use strict;
 use Zevenet::Farm::Datalink::Backend;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
 sub farms_name_datalink    # ( $farmname )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $farmname = shift;
 
 	require Zevenet::Farm::Config;
@@ -46,9 +50,13 @@ sub farms_name_datalink    # ( $farmname )
 				 backends    => $out_b,
 	};
 
-	if ( eval{ require Zevenet::IPDS; } )
+	if ( $eload )
 	{
-		$body->{ ipds } = &getIPDSfarmsRules( $farmname );
+		$body->{ ipds } = &eload(
+			module => 'Zevenet::IPDS::Core',
+			func   => 'getIPDSfarmsRules',
+			args   => [$farmname],
+		);
 		delete $body->{ ipds }->{ rbl };
 		delete $body->{ ipds }->{ dos };
 	}

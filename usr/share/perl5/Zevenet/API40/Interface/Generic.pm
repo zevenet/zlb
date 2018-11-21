@@ -23,17 +23,40 @@
 
 use strict;
 
-use Zevenet::API31::Certificate;
-use Zevenet::API31::Certificate::Farm;
-use Zevenet::API31::Farm::Delete;
-use Zevenet::API31::Farm::Action;
-use Zevenet::API31::Farm::Guardian;
-use Zevenet::API31::Farm::Get;
-use Zevenet::API31::Farm::Post;
-use Zevenet::API31::Farm::Put;
-use Zevenet::API31::Interface;
-use Zevenet::API31::System;
-use Zevenet::API31::Stats;
-use Zevenet::API31::Graph;
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
+
+# GET /interfaces Get params of the interfaces
+sub get_interfaces    # ()
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	require Zevenet::Net::Interface;
+
+	my $desc = "List interfaces";
+	my $if_list_ref;
+
+	if ( $eload )
+	{
+		$if_list_ref = &eload(
+							   module => 'Zevenet::Net::Interface',
+							   func   => 'get_interface_list_struct',    # 100
+		);
+	}
+	else
+	{
+		$if_list_ref = &get_interface_list_struct();
+	}
+
+	my $body = {
+				 description => $desc,
+				 interfaces  => $if_list_ref,
+	};
+
+	&httpResponse( { code => 200, body => $body } );
+}
 
 1;

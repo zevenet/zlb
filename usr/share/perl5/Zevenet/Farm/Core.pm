@@ -23,7 +23,9 @@
 
 use strict;
 
-my $configdir = &getGlobalConfiguration('configdir');
+use Zevenet::Config;
+
+my $configdir = &getGlobalConfiguration( 'configdir' );
 
 =begin nd
 Function: getFarmType
@@ -40,8 +42,11 @@ NOTE:
 	Generic function
 
 =cut
+
 sub getFarmType    # ($farm_name)
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
@@ -50,10 +55,12 @@ sub getFarmType    # ($farm_name)
 	{
 		use File::Grep qw( fgrep );
 
-		if ( fgrep { /ListenHTTPS/ } "$configdir/$farm_filename" ) {
+		if ( fgrep { /ListenHTTPS/ } "$configdir/$farm_filename" )
+		{
 			return "https";
 		}
-		else {
+		else
+		{
 			return "http";
 		}
 	}
@@ -88,16 +95,19 @@ NOTE:
 	Generic function
 
 =cut
+
 sub getFarmFile    # ($farm_name)
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	opendir ( my $dir, "$configdir" ) || return -1;
 	my @farm_files =
 	  grep {
-		     /^$farm_name\_(?:gslb|pound|datalink|l4xnat)\.cfg/
-		  && !/^$farm_name\_.*guardian\.conf/
-		  && !/^$farm_name\_status.cfg/
+		     /^$farm_name\_(?:gslb|pound|datalink|l4xnat)\.cfg$/
+		  && !/^$farm_name\_.*guardian\.conf$/
+		  && !/^$farm_name\_status.cfg$/
 	  } readdir ( $dir );
 	closedir $dir;
 
@@ -126,8 +136,11 @@ NOTE:
 	Generic function
 
 =cut
+
 sub getFarmName    # ($farm_filename)
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm_filename = shift;
 
 	my @filename_split = split ( "_", $farm_filename );
@@ -150,8 +163,11 @@ NOTE:
 	Generic function
 
 =cut
+
 sub getFarmList    # ()
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	opendir ( DIR, $configdir );
 	my @files1 = grep ( /\_pound.cfg$/, readdir ( DIR ) );
 	closedir ( DIR );
@@ -188,8 +204,11 @@ NOTE:
 	Generic function
 
 =cut
+
 sub getFarmsByType    # ($farm_type)
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_type ) = @_;
 
 	my @farm_names = ();
@@ -226,8 +245,11 @@ Parameters:
 Returns:
 	array - list of farm names.
 =cut
+
 sub getFarmNameList
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my @farm_names;    # output: returned list
 
 	# take every farm filename
@@ -238,6 +260,28 @@ sub getFarmNameList
 	}
 
 	return @farm_names;
+}
+
+=begin nd
+Function: getFarmExists
+
+	Check if a farm exists
+
+Parameters:
+	Farm - Farm name
+
+Returns:
+	Integer - 1 if the farm exists or 0 if it is not
+=cut
+
+sub getFarmExists
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $farmname = shift;
+	my $out      = 0;
+	$out = 1 if ( grep /^$farmname$/, &getFarmNameList() );
+	return $out;
 }
 
 1;

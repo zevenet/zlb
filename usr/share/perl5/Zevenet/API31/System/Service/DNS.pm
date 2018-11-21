@@ -26,6 +26,7 @@ use strict;
 # GET /system/dns
 sub get_dns
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	require Zevenet::System::DNS;
 
 	my $desc = "Get dns";
@@ -37,6 +38,7 @@ sub get_dns
 #  POST /system/dns
 sub set_dns
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $json_obj = shift;
 
 	require Zevenet::System::DNS;

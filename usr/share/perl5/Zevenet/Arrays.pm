@@ -23,9 +23,33 @@
 
 use strict;
 
-use Zevenet::Farm::Datalink::Config;
-use Zevenet::Farm::Datalink::Backend;
-use Zevenet::Farm::Datalink::Action;
-use Zevenet::Farm::Datalink::Factory;
+=begin nd
+Function: moveByIndex
+
+	This function moves an element of an list to another position using its index.
+	This funcion uses the original array to apply the changes, so it does not return anything.
+
+Parameters:
+	Array - Array reference with the list to modify.
+	Origin index - Index of the element will be moved.
+	Destination index - Position in the list that the element will have.
+
+Returns:
+	None - .
+
+=cut
+
+sub moveByIndex
+{
+	my ( $list, $ori_index, $dst_index ) = @_;
+
+	my $elem = $list->[$ori_index];
+
+	# delete item
+	splice ( @{ $list }, $ori_index, 1 );
+
+	# add item
+	splice ( @{ $list }, $dst_index, 0, $elem );
+}
 
 1;

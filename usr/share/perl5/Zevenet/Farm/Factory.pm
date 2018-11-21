@@ -23,6 +23,9 @@
 
 use strict;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
 =begin nd
 Function: runFarmCreate
 
@@ -42,8 +45,10 @@ Returns:
 FIXME:
 	Use hash to pass the parameters
 =cut
+
 sub runFarmCreate    # ($farm_type,$vip,$vip_port,$farm_name,$fdev)
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my ( $farm_type, $vip, $vip_port, $farm_name, $fdev ) = @_;
 
 	my $output        = -1;
@@ -56,7 +61,7 @@ sub runFarmCreate    # ($farm_type,$vip,$vip_port,$farm_name,$fdev)
 		return $output;
 	}
 
-	&zenlog( "running 'Create' for $farm_name farm $farm_type" );
+	&zenlog( "running 'Create' for $farm_name farm $farm_type", "info", "LSLB" );
 
 	if ( $farm_type =~ /^HTTP[S]?$/i )
 	{
@@ -75,11 +80,18 @@ sub runFarmCreate    # ($farm_type,$vip,$vip_port,$farm_name,$fdev)
 	}
 	elsif ( $farm_type =~ /^GSLB$/i )
 	{
-		if ( eval { require Zevenet::Farm::GSLB::Factory; } )
-		{
-			$output = &runGSLBFarmCreate( $vip, $vip_port, $farm_name );
-		}
+		$output = &eload(
+						  module => 'Zevenet::Farm::GSLB::Factory',
+						  func   => 'runGSLBFarmCreate',
+						  args   => [$vip, $vip_port, $farm_name],
+		) if $eload;
 	}
+
+	&eload(
+			module => 'Zevenet::RBAC::Group::Config',
+			func   => 'addRBACUserResource',
+			args   => [$farm_name, 'farms'],
+	) if $eload;
 
 	return $output;
 }

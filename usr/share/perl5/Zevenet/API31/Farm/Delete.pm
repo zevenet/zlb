@@ -25,15 +25,18 @@ use Zevenet::Farm::Core;
 use Zevenet::Farm::Base;
 use Zevenet::Farm::Action;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+
 # DELETE /farms/FARMNAME
 sub delete_farm # ( $farmname )
 {
+	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $farmname = shift;
 
 	my $desc = "Delete farm $farmname";
-	my $newffile = &getFarmFile( $farmname );
 
-	if ( $newffile == -1 )
+	unless ( &getFarmExists( $farmname ) )
 	{
 		my $msg = "The farm $farmname doesn't exist, try another name.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -43,10 +46,11 @@ sub delete_farm # ( $farmname )
 	{
 		&runFarmStop( $farmname, "true" );
 
-		if ( eval { require Zevenet::Cluster; } )
-		{
-			&runZClusterRemoteManager( 'farm', 'stop', $farmname );
-		}
+		&eload(
+			module => 'Zevenet::Cluster',
+			func   => 'runZClusterRemoteManager',
+			args   => ['farm', 'stop', $farmname],
+		) if ( $eload );
 	}
 
 	my $error = &runFarmDelete( $farmname );
@@ -57,12 +61,13 @@ sub delete_farm # ( $farmname )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	&zenlog( "ZAPI success, the farm $farmname has been deleted." );
+	&zenlog( "Success, the farm $farmname has been deleted.", "info", "FARMS" );
 
-	if ( eval { require Zevenet::Cluster; } )
-	{
-		&runZClusterRemoteManager( 'farm', 'delete', $farmname );
-	}
+	&eload(
+		module => 'Zevenet::Cluster',
+		func   => 'runZClusterRemoteManager',
+		args   => ['farm', 'delete', $farmname],
+	) if ( $eload );
 
 	my $msg = "The Farm $farmname has been deleted.";
 	my $body = {
