@@ -482,10 +482,10 @@ sub _getL4FarmParseServers
 	my @servers;
 
 	require Zevenet::Farm::L4xNAT::Config;
-	require Zevenet::Alias;
 	require Zevenet::Net::Validate;
 
 	my $permission = 0;
+	my $alias;
 	if ( $eload )
 	{
 		$permission = &eload(
@@ -493,9 +493,13 @@ sub _getL4FarmParseServers
 							  func   => 'getRBACRolePermission',
 							  args   => ['alias', 'list'],
 		);
+		$alias = &eload(
+						 module => 'Zevenet::Alias',
+						 func   => 'getAlias',
+						 args   => ['backend']
+		) if $permission;
 	}
-	require Zevenet::Alias if ( $permission );
-	my $alias = getAlias( 'backend' ) if ( $permission );
+
 	my $farmStatus = &_getL4ParseFarmConfig( 'status', undef, $config );
 	my $fproto     = &_getL4ParseFarmConfig( 'proto',  undef, $config );
 
@@ -539,17 +543,18 @@ sub _getL4FarmParseServers
 
 			push @servers,
 			  {
-				alias => $permission ? $alias->{ $aux[2] } : undef,
-				id    => $sindex,
-				ip    => $aux[2],
-				port  => ( $aux[3] ) ? $aux[3] + 0         : undef,
-				tag   => $aux[4],
+				id        => $sindex,
+				ip        => $aux[2],
+				port      => ( $aux[3] ) ? $aux[3] + 0 : undef,
+				tag       => $aux[4],
 				weight    => $aux[5] + 0,
 				priority  => $aux[6] + 0,
 				max_conns => $aux[8] + 0,
 				status    => $status,
 				rip       => $rip,
 			  };
+
+			$servers[-1]->{ alias } = $permission ? $alias->{ $aux[2] } : undef if $eload;
 
 			$sindex++;
 		}

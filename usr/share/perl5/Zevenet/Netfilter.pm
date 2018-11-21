@@ -109,7 +109,7 @@ sub getIptList                              # ($table,$chain)
 }
 
 #
-sub deleteIptRules    # ($type,$desc,$table,$chain,@allrules)
+sub deleteIptRules    # ($farm_name, $type,$desc,$table,$chain,@allrules)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );

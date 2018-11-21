@@ -24,7 +24,10 @@
 use strict;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 =begin nd
 Function: getHTTPFarmEstConns
@@ -41,7 +44,8 @@ Returns:
 
 sub getHTTPFarmEstConns    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $netstat ) = @_;
 
 	my $vip      = &getFarmVip( "vip",  $farm_name );
@@ -77,7 +81,8 @@ Returns:
 
 sub getHTTPFarmSYNConns    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $netstat ) = @_;
 
 	my $vip      = &getFarmVip( "vip",  $farm_name );
@@ -122,7 +127,8 @@ BUG:
 
 sub getHTTPBackendEstConns    # ($farm_name,$backend_ip,$backend_port, $netstat)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $backend_ip, $backend_port, $netstat ) = @_;
 
 	my $filter = {
@@ -159,7 +165,8 @@ BUG:
 
 sub getHTTPBackendSYNConns    # ($farm_name, $backend_ip, $backend_port)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $backend_ip, $backend_port, $netstat ) = @_;
 
 	my $filter = {
@@ -220,7 +227,8 @@ FIXME:
 
 sub getHTTPFarmBackendsStats    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	require Zevenet::Farm::Base;
@@ -252,8 +260,12 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 	#3. Backend 172.16.110.12:80 active (1 0.826 sec) alive (75)
 	my @poundctl = &getHTTPFarmGlobalStatus( $farm_name );
 
-	require Zevenet::Alias;
-	my $alias = &getAlias( 'backend' );
+	my $alias;
+	$alias = &eload(
+					 module => 'Zevenet::Alias',
+					 func   => 'getAlias',
+					 args   => ['backend']
+	) if $eload;
 
 	# Parse pound info
 	foreach my $line ( @poundctl )
@@ -269,10 +281,10 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 		# i.e.
 		#      0. Backend 192.168.100.254:80 active (5 0.000 sec) alive (0)
 		if ( $line =~
-			/(\d+)\. Backend (\d+\.\d+\.\d+\.\d+|[a-fA-F0-9:]+):(\d+) (\w+) .+ (\w+)(?: \((\d+)\))?/ )
+			/(\d+)\. Backend (\d+\.\d+\.\d+\.\d+|[a-fA-F0-9:]+):(\d+) (\w+) .+ (\w+)(?: \((\d+)\))?/
+		  )
 		{
 			my $backendHash = {
-								alias   => $alias->{ $2 },
 								id      => $1 + 0,
 								ip      => $2,
 								port    => $3 + 0,
@@ -280,6 +292,7 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 								pending => 0,
 								service => $serviceName,
 			};
+			$backendHash->{ alias } = $alias->{ $2 } if $eload;
 
 			if ( defined $6 )
 			{

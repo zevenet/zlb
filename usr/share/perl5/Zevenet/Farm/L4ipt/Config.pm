@@ -1082,9 +1082,18 @@ sub refreshL4FarmRules    # AlgorithmRules
 			my $rule_ref = &genIptMasquerade( $farm, $server );
 			foreach my $rule ( @{ $rule_ref } )
 			{
-				$rule = &getIptRuleReplace( $farm, $server, $rule );
+				$rule =
+				  ( &getIptRuleNumber( $rule, $farm->{ name }, $server->{ id } ) == -1 )
+				  ? &getIptRuleAppend( $rule )
+				  : &getIptRuleReplace( $farm, $server, $rule );
 				$return_code |= &applyIptRules( $rule );
 			}
+		}
+		else
+		{
+			&deleteIptRules( $farm->{ name },
+							 "farm", ".*", "nat", "POSTROUTING",
+							 &getIptList( $farm->{ name }, "nat", "POSTROUTING" ) );
 		}
 
 		# reset connection mark on udp
