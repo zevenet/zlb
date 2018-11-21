@@ -32,9 +32,10 @@ apt-get update || exit 1
 
 # Install dependencies
 echo "* Installing dependencies"
-if [ "${REPO_DIR}" != "${INSTALL_DIR}" ]; then
+#~ if [ "${REPO_DIR}" != "${INSTALL_DIR}" ]; then
 	#~ ln -sf ${REPO_DIR} ${INSTALL_DIR}
-fi
+#~ fi
+
 DEPENDENCIES=`perl -a -E 'if (s/^Depends: //){ s/\,//g; print }' ${REPO_DIR}/DEBIAN/control`
 apt-get install ${DEPENDENCIES} zevenet-gui-ce || exit 1
 
