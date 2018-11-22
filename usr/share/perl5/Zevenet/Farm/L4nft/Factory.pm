@@ -69,7 +69,7 @@ sub runL4FarmCreate    # ($vip,$farm_name,$vip_port)
 		   method     => "PUT",
 		   uri        => "/farms",
 		   body =>
-			 qq({"farms" : [ { "name" : "$farm_name", "virtual-addr" : "$vip", "virtual-ports" : "$vip_port", "protocol" : "tcp", "mode" : "snat", "scheduler" : "weight", "state" : "up" } ] })
+			 qq({"farms" : [ { "name" : "$farm_name", "virtual-addr" : "$vip", "virtual-ports" : "$vip_port", "source-addr" : "$vip", "protocol" : "tcp", "mode" : "snat", "scheduler" : "weight", "state" : "up" } ] })
 		}
 	);
 
@@ -109,15 +109,18 @@ sub runL4FarmDelete    # ($farm_name)
 	my $output = -1;
 
 	require Zevenet::Farm::L4xNAT::Action;
-	require Zevenet::Farm::Core;
 	require Zevenet::Farm::L4xNAT::Config;
+	require Zevenet::Farm::Core;
+	require Zevenet::Netfilter;
 
 	my $farmfile = &getFarmFile( $farm_name );
 
 	$output = &httpNLBRequest(
-						  { farm => $farm_name, method => "DELETE", uri => "/farms" } );
+			   { farm => $farm_name, method => "DELETE", uri => "/farms/$farm_name" } );
 
-	unlink ( "$configdir/$farmfile" ) if -e "$configdir/$farmfile";
+	unlink ( "$configdir/$farmfile" ) if ( -f "$configdir/$farmfile" );
+
+	&delMarks( $farm_name, "" );
 
 	return $output;
 }

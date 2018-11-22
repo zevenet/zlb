@@ -24,8 +24,6 @@
 use strict;
 use warnings;
 
-use Data::Dumper;
-
 my $eload;
 if ( eval { require Zevenet::ELoad; } )
 {
@@ -151,6 +149,7 @@ sub getNewMark    # ($farm_name)
 	my $marknum     = 0x200;
 	my $fwmarksconf = &getGlobalConfiguration( 'fwmarksconf' );
 
+	require Tie::File;
 	tie my @contents, 'Tie::File', "$fwmarksconf";
 
 	for my $i ( 512 .. 1023 )
@@ -185,38 +184,41 @@ sub delMarks    # ($farm_name,$mark)
 			 "debug", "PROFILING" );
 	my ( $farm_name, $mark ) = @_;
 
+	require Tie::File;
+
 	my $status      = 0;
 	my $fwmarksconf = &getGlobalConfiguration( 'fwmarksconf' );
 
 	if ( $farm_name ne "" )
 	{
-		require Tie::File;
 		tie my @contents, 'Tie::File', "$fwmarksconf";
-		@contents = grep { !/ \/\/ FARM\_$farm_name\_$/x } @contents;
-		$status = $?;    # FIXME
+		@contents = grep { !/ \/\/ FARM\_$farm_name\_$/ } @contents;
+		$status = $?;
 		untie @contents;
 	}
 
 	if ( $mark ne "" )
 	{
-		require Tie::File;
 		tie my @contents, 'Tie::File', "$fwmarksconf";
-		@contents = grep { !/^$mark \/\//x } @contents;
-		$status = $?;    # FIXME
+		$mark =~ s/0x0*//;
+		@contents = grep { !/^0x0*$mark \// } @contents;
+		$status = $?;
 		untie @contents;
 	}
 
-	return $status;    # FIXME
+	return $status;
 }
 
 #
-sub renameMarks        # ( $farm_name, $newfname )
+sub renameMarks    # ( $farm_name, $newfname )
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $farm_name = shift;
 	my $newfname  = shift;
+
+	require Tie::File;
 
 	my $status = 0;
 
