@@ -284,6 +284,7 @@ sub setInterfaceConfig    # $bool ($if_ref)
 
 	if ( $if_ref->{ addr } && !$if_ref->{ ip_v } )
 	{
+		require Zevenet::Net::Validate;
 		$if_ref->{ ip_v } = &ipversion( $if_ref->{ addr } );
 	}
 
