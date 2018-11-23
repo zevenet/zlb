@@ -230,6 +230,7 @@ if ( $action eq "start" )
 	my @interfaces = @{ &getConfigInterfaceList() };
 
 	&zenlog("zevenet: Setting up NIC interfaces...");
+	require Zevenet::Net::Core;
 
 	# first real interfaces
 	foreach my $iface ( @interfaces )

@@ -176,7 +176,7 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 
 		&addIp( $if_ref ) if $if_ref;
 
-		my $state = &upIf( { name => $nic } );
+		my $state = &upIf( { name => $nic }, 'writeconf' );
 
 		if ( !$state )
 		{
@@ -197,7 +197,7 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 	{
 		require Zevenet::Net::Core;
 
-		my $state = &downIf( { name => $nic } );
+		my $state = &downIf( { name => $nic }, 'writeconf' );
 
 		if ( $state )
 		{
@@ -434,7 +434,7 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 
 		if ( $previous_status eq "up" )
 		{
-			if ( &upIf( $if_ref ) == 0 )
+			if ( &upIf( $if_ref, 'writeconf' ) == 0 )
 			{
 				$if_ref->{ status } = "up";
 				&applyRoutes( "local", $if_ref );

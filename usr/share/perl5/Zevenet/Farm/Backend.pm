@@ -26,7 +26,10 @@ use strict;
 use Zevenet::Farm::Backend::Maintenance;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 =begin nd
 Function: getFarmServers
@@ -44,9 +47,11 @@ FIXME:
 	changes output to hash format
 
 =cut
+
 sub getFarmServers    # ($farm_name, $service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $service ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -70,9 +75,9 @@ sub getFarmServers    # ($farm_name, $service)
 	elsif ( $farm_type eq "gslb" && $eload )
 	{
 		$servers = &eload(
-						  module => 'Zevenet::Farm::GSLB::Backend',
-						  func   => 'getGSLBFarmBackends',
-						  args   => [$farm_name, $service],
+						   module => 'Zevenet::Farm::GSLB::Backend',
+						   func   => 'getGSLBFarmBackends',
+						   args   => [$farm_name, $service],
 		);
 	}
 
@@ -103,9 +108,11 @@ FIXME:
 	max parameter is only used by tcp farms
 
 =cut
+
 sub setFarmServer # $output ($ids,$rip,$port|$iface,$max,$weight,$priority,$timeout,$farm_name,$service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my (
 		 $ids,      $rip,     $port,      $max, $weight,
 		 $priority, $timeout, $farm_name, $service
@@ -115,7 +122,8 @@ sub setFarmServer # $output ($ids,$rip,$port|$iface,$max,$weight,$priority,$time
 	my $output    = -1;
 
 	&zenlog(
-		"setting 'Server $ids $rip $port max $max weight $weight prio $priority timeout $timeout' for $farm_name farm $farm_type", "info", "FARMS"
+		"setting 'Server $ids $rip $port max $max weight $weight prio $priority timeout $timeout' for $farm_name farm $farm_type",
+		"info", "FARMS"
 	);
 
 	if ( $farm_type eq "datalink" )
@@ -127,7 +135,8 @@ sub setFarmServer # $output ($ids,$rip,$port|$iface,$max,$weight,$priority,$time
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Backend;
-		$output = &setL4FarmServer( $ids, $rip, $port, $weight, $priority, $farm_name, $max );
+		$output =
+		  &setL4FarmServer( $farm_name, $ids, $rip, $port, $weight, $priority, $max );
 	}
 	elsif ( $farm_type eq "http" || $farm_type eq "https" )
 	{
@@ -156,15 +165,18 @@ Returns:
 	Scalar - Error code: undef on success or -1 on error
 
 =cut
+
 sub runFarmServerDelete    # ($ids,$farm_name,$service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $ids, $farm_name, $service ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $output    = -1;
 
-	&zenlog( "running 'ServerDelete $ids' for $farm_name farm $farm_type", "info", "FARMS" );
+	&zenlog( "running 'ServerDelete $ids' for $farm_name farm $farm_type",
+			 "info", "FARMS" );
 
 	if ( $farm_type eq "datalink" )
 	{

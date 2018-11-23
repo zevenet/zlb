@@ -173,6 +173,10 @@ sub startNLB    # ()
 	if ( $nlbpid eq "-1" )
 	{
 		&logAndRun( "$nftlbd start" );
+
+		#required to wait at startup to ensure the process is up
+		sleep 1;
+
 		$nlbpid = `$pidof nftlb`;
 		if ( $nlbpid eq "" )
 		{

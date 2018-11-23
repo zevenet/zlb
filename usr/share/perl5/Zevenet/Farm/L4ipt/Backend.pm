@@ -37,12 +37,13 @@ Function: setL4FarmServer
 	Edit a backend or add a new one if the id is not found
 
 Parameters:
+	farmname - Farm name
 	id - Backend id
-	ip - Backend IP
+	rip - Backend IP
 	port - Backend port
 	weight - Backend weight. The backend with more weight will manage more connections
 	priority - The priority of this backend (between 1 and 9). Higher priority backends will be used more often than lower priority ones
-	farmname - Farm name
+	maxconn - Maximum connections for the given backend
 
 Returns:
 	Integer - return 0 on success or -1 on failure
@@ -52,18 +53,17 @@ Returns:
 
 =cut
 
-sub setL4FarmServer    # ($ids,$rip,$port,$weight,$priority,$farm_name)
+sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $ids, $rip, $port, $weight, $priority, $farm_name, $max_conns ) = @_;
+	my ( $farm_name, $ids, $rip, $port, $weight, $priority, $max_conns ) = @_;
 
 	require Zevenet::FarmGuardian;
 	require Zevenet::Farm::L4xNAT::Config;
 
 	&zenlog(
-		"setL4FarmServer << ids:$ids rip:$rip port:$port weight:$weight priority:$priority farm_name:$farm_name max_conns:$max_conns",
-		"debug", "LSLB", "debug", "LSLB"
+		"setL4FarmServer << farm_name:$farm_name ids:$ids rip:$rip port:$port weight:$weight priority:$priority max_conns:$max_conns"
 	) if &debug;
 
 	my $farm_filename = &getFarmFile( $farm_name );

@@ -139,7 +139,7 @@ sub new_vini    # ( $json_obj )
 	eval {
 		die if &addIp( $if_ref );
 
-		my $state = &upIf( $if_ref );
+		my $state = &upIf( $if_ref, 'writeconf' );
 
 		if ( $state == 0 )
 		{
@@ -238,7 +238,7 @@ sub delete_interface_virtual    # ( $virtual )
 			) if ( $eload );
 
 			die if &delRoutes( "local", $if_ref );
-			die if &downIf( $if_ref );
+			die if &downIf( $if_ref, 'writeconf' );
 		}
 		die if &delIf( $if_ref );
 	};
@@ -370,7 +370,7 @@ sub actions_interface_virtual    # ( $json_obj, $virtual )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		my $state = &upIf( $if_ref );
+		my $state = &upIf( $if_ref, 'writeconf' );
 		if ( !$state )
 		{
 			require Zevenet::Net::Route;
@@ -392,7 +392,7 @@ sub actions_interface_virtual    # ( $json_obj, $virtual )
 	{
 		require Zevenet::Net::Core;
 
-		my $state = &downIf( $if_ref );
+		my $state = &downIf( $if_ref, 'writeconf' );
 
 		if ( $state )
 		{

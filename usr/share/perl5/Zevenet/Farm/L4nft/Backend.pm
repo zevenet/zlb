@@ -31,12 +31,13 @@ Function: setL4FarmServer
 	Edit a backend or add a new one if the id is not found
 
 Parameters:
+	farmname - Farm name
 	id - Backend id
 	rip - Backend IP
 	port - Backend port
 	weight - Backend weight. The backend with more weight will manage more connections
 	priority - The priority of this backend (between 1 and 9). Higher priority backends will be used more often than lower priority ones
-	farmname - Farm name
+	maxconn - Maximum connections for the given backend
 
 Returns:
 	Integer - return 0 on success or -1 on failure
@@ -46,18 +47,19 @@ Returns:
 
 =cut
 
-sub setL4FarmServer    # ($ids,$rip,$port,$weight,$priority,$farm_name)
+sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $ids, $rip, $port, $weight, $priority, $farm_name, $max_conns ) = @_;
+	my ( $farm_name, $ids, $rip, $port, $weight, $priority, $max_conns ) = @_;
 
 	#	require Zevenet::FarmGuardian;
 	require Zevenet::Farm::L4xNAT::Config;
+	require Zevenet::Farm::L4xNAT::Action;
 	require Zevenet::Netfilter;
 
 	&zenlog(
-		"setL4FarmServer << ids:$ids rip:$rip port:$port weight:$weight priority:$priority farm_name:$farm_name max_conns:$max_conns"
+		"setL4FarmServer << farm_name:$farm_name ids:$ids rip:$rip port:$port weight:$weight priority:$priority max_conns:$max_conns"
 	) if &debug;
 
 	my $farm_filename = &getFarmFile( $farm_name );
@@ -73,8 +75,6 @@ sub setL4FarmServer    # ($ids,$rip,$port,$weight,$priority,$farm_name)
 	{
 		$priority = 1;
 	}
-
-	require Zevenet::Farm::L4xNAT::Action;
 
 	# load the configuration file first if the farm is down
 	my $f_ref = &getL4FarmStruct( $farm_name );
@@ -179,19 +179,40 @@ Returns:
 
 =cut
 
-sub setL4FarmBackendStatus    # ($farm_name,$server_id,$status)
+sub setL4FarmBackendStatus    # ($farm_name,$backend,$status)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name, $server_id, $status ) = @_;
+	my ( $farm_name, $backend, $status ) = @_;
 
 	require Zevenet::Farm::L4xNAT::Config;
+	require Zevenet::Farm::L4xNAT::Action;
 
-	my %farm = %{ &getL4FarmStruct( $farm_name ) };
+	my $farm_filename = &getFarmFile( $farm_name );
 
-	my $output = 0;
+	$status = 'off' if ( $status eq "maintenance" );
 
-	# TODO
+	# load the configuration file first if the farm is down
+	my $f_ref = &getL4FarmStruct( $farm_name );
+	if ( $f_ref->{ status } ne "up" )
+	{
+		my $out = &loadNLBFarm( $farm_name );
+		if ( $out != 0 )
+		{
+			return $out;
+		}
+	}
+
+	my $output = &httpNLBRequest(
+		{
+		   farm       => $farm_name,
+		   configfile => "$configdir/$farm_filename",
+		   method     => "PUT",
+		   uri        => "/farms",
+		   body =>
+			 qq({"farms" : [ { "name" : "$farm_name", "backends" : [ { "name" : "bck$backend", "state" : "$status" } ] } ] })
+		}
+	);
 
 	return $output;
 }
@@ -332,6 +353,9 @@ sub _getL4FarmParseServers
 		{
 			my @l = split /"/, $line;
 			$server->{ status } = $l[3];
+			$server->{ status } = "maintenance"
+			  if ( $server->{ status } eq "off" ) $server->{ status } = "fgDOWN"
+			  if ( $server->{ status } eq "down" );
 		}
 	}
 
@@ -640,8 +664,7 @@ sub setL4FarmBackendNoMaintenance
 			 "debug", "PROFILING" );
 	my ( $farm_name, $backend ) = @_;
 
-	# TODO
-
+	return &setL4FarmBackendStatus( $farm_name, $backend, 'up' );
 }
 
 =begin nd

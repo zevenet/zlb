@@ -24,11 +24,15 @@
 use strict;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 sub delete_interface_nic    # ( $nic )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $nic = shift;
 
 	require Zevenet::Net::Core;
@@ -80,7 +84,8 @@ sub delete_interface_nic    # ( $nic )
 # GET /interfaces Get params of the interfaces
 sub get_nic_list    # ()
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	require Zevenet::Net::Interface;
 
 	my $desc  = "List NIC interfaces";
@@ -92,10 +97,8 @@ sub get_nic_list    # ()
 
 	if ( $eload )
 	{
-		my $zcl_conf = &eload(
-			module => 'Zevenet::Cluster',
-			func   => 'getZClusterConfig',
-		);
+		my $zcl_conf = &eload( module => 'Zevenet::Cluster',
+							   func   => 'getZClusterConfig', );
 		$cluster_if = $zcl_conf->{ _ }->{ interface };
 	}
 
@@ -112,12 +115,12 @@ sub get_nic_list    # ()
 		if ( !defined $if_ref->{ mac } )     { $if_ref->{ mac }     = ""; }
 
 		my $if_conf = {
-						name     => $if_ref->{ name },
-						ip       => $if_ref->{ addr },
-						netmask  => $if_ref->{ mask },
-						gateway  => $if_ref->{ gateway },
-						status   => $if_ref->{ status },
-						mac      => $if_ref->{ mac },
+						name    => $if_ref->{ name },
+						ip      => $if_ref->{ addr },
+						netmask => $if_ref->{ mask },
+						gateway => $if_ref->{ gateway },
+						status  => $if_ref->{ status },
+						mac     => $if_ref->{ mac },
 		};
 
 		$if_conf->{ is_slave } = $if_ref->{ is_slave } if $eload;
@@ -148,7 +151,8 @@ sub get_nic_list    # ()
 
 sub get_nic    # ()
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $nic = shift;
 
 	require Zevenet::Net::Interface;
@@ -171,12 +175,12 @@ sub get_nic    # ()
 		if ( !defined $if_ref->{ mac } )     { $if_ref->{ mac }     = ""; }
 
 		$interface = {
-					   name     => $if_ref->{ name },
-					   ip       => $if_ref->{ addr },
-					   netmask  => $if_ref->{ mask },
-					   gateway  => $if_ref->{ gateway },
-					   status   => $if_ref->{ status },
-					   mac      => $if_ref->{ mac },
+					   name    => $if_ref->{ name },
+					   ip      => $if_ref->{ addr },
+					   netmask => $if_ref->{ mask },
+					   gateway => $if_ref->{ gateway },
+					   status  => $if_ref->{ status },
+					   mac     => $if_ref->{ mac },
 		};
 
 		$interface->{ is_slave } = $if_ref->{ is_slave } if $eload;
@@ -198,7 +202,8 @@ sub get_nic    # ()
 
 sub actions_interface_nic    # ( $json_obj, $nic )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $nic      = shift;
 
@@ -234,7 +239,7 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 
 		&addIp( $if_ref ) if $if_ref;
 
-		my $state = &upIf( { name => $nic } );
+		my $state = &upIf( { name => $nic }, 'writeconf' );
 
 		if ( !$state )
 		{
@@ -256,7 +261,7 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 	{
 		require Zevenet::Net::Core;
 
-		my $state = &downIf( { name => $nic } );
+		my $state = &downIf( { name => $nic }, 'writeconf' );
 
 		if ( $state )
 		{
@@ -280,7 +285,8 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 
 sub modify_interface_nic    # ( $json_obj, $nic )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $nic      = shift;
 
@@ -395,7 +401,7 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 	if ( $json_obj->{ ip } )
 	{
 		if ( ( ( $json_obj->{ ip } ne $if_ref->{ addr } ) && $if_ref->{ addr } )
-			|| ! $if_ref->{ addr } )
+			 || !$if_ref->{ addr } )
 		{
 			require Zevenet::Net::Util;
 			if ( grep ( /^$json_obj->{ ip }$/, &listallips() ) )
@@ -442,7 +448,7 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 		my $previous_status = $if_ref->{ status };
 		if ( $previous_status eq "up" )
 		{
-			if ( &upIf( $if_ref ) == 0 )
+			if ( &upIf( $if_ref, 'writeconf' ) == 0 )
 			{
 				$if_ref->{ status } = "up";
 				&applyRoutes( "local", $if_ref );
@@ -460,9 +466,9 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 		{
 			foreach my $appending ( &getInterfaceChild( $nic ) )
 			{
-				my $app_config = &getInterfaceConfig ( $appending );
+				my $app_config = &getInterfaceConfig( $appending );
 				$app_config->{ gateway } = $json_obj->{ gateway };
-				&setInterfaceConfig ( $app_config );
+				&setInterfaceConfig( $app_config );
 			}
 		}
 

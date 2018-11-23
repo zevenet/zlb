@@ -25,13 +25,17 @@ use strict;
 use Zevenet::Farm::Core;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 # POST
 
 sub new_farm_backend    # ( $json_obj, $farmname )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $farmname = shift;
 
@@ -60,7 +64,7 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		my $id = &getL4FarmBackendAvailableID( $farmname );
 
 		# validate IP
-		if ( ! $json_obj->{ ip } )
+		if ( !$json_obj->{ ip } )
 		{
 			my $msg = "Invalid backend IP value. It cannot be in blank.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -110,12 +114,12 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 
 		# Create backend
 		my $status = &setL4FarmServer(
+									   $farmname,
 									   $id,
 									   $json_obj->{ ip },
 									   $json_obj->{ port },
 									   $json_obj->{ weight },
 									   $json_obj->{ priority },
-									   $farmname,
 									   $json_obj->{ max_conns },
 		);
 
@@ -126,7 +130,8 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		&zenlog( "New backend created in farm $farmname with IP $json_obj->{ip}.", "info", "FARMS" );
+		&zenlog( "New backend created in farm $farmname with IP $json_obj->{ip}.",
+				 "info", "FARMS" );
 
 		$json_obj->{ port }     += 0 if $json_obj->{ port };
 		$json_obj->{ weight }   += 0 if $json_obj->{ weight };
@@ -148,9 +153,9 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		};
 
 		&eload(
-			module => 'Zevenet::Cluster',
-			func   => 'runZClusterRemoteManager',
-			args   => ['farm', 'restart', $farmname],
+				module => 'Zevenet::Cluster',
+				func   => 'runZClusterRemoteManager',
+				args   => ['farm', 'restart', $farmname],
 		) if ( $eload );
 
 		&httpResponse( { code => 201, body => $body } );
@@ -236,12 +241,15 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		}
 
 		&zenlog(
-			"Success, a new backend has been created in farm $farmname with IP $json_obj->{ip}.", "info", "FARMS"
+			"Success, a new backend has been created in farm $farmname with IP $json_obj->{ip}.",
+			"info", "FARMS"
 		);
 
 		my $message = "Backend added";
-		my $weight = ( $json_obj->{ weight } ne '' ) ? $json_obj->{ weight } + 0 : undef;
-		my $prio = ( $json_obj->{ priority } ne '' ) ? $json_obj->{ priority } + 0 : undef;
+		my $weight =
+		  ( $json_obj->{ weight } ne '' ) ? $json_obj->{ weight } + 0 : undef;
+		my $prio =
+		  ( $json_obj->{ priority } ne '' ) ? $json_obj->{ priority } + 0 : undef;
 
 		my $body = {
 					 description => $desc,
@@ -257,9 +265,9 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		};
 
 		&eload(
-			module => 'Zevenet::Cluster',
-			func   => 'runZClusterRemoteManager',
-			args   => ['farm', 'restart', $farmname],
+				module => 'Zevenet::Cluster',
+				func   => 'runZClusterRemoteManager',
+				args   => ['farm', 'restart', $farmname],
 		) if $eload;
 
 		&httpResponse( { code => 201, body => $body } );
@@ -273,7 +281,8 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 
 sub new_service_backend    # ( $json_obj, $farmname, $service )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $farmname = shift;
 	my $service  = shift;
@@ -346,7 +355,8 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 	# validate PORT
 	unless ( &isValidPortNumber( $json_obj->{ port } ) eq 'true' )
 	{
-		&zenlog( "Invalid IP address and port for a backend, ir can't be blank.", "warning", "FARMS" );
+		&zenlog( "Invalid IP address and port for a backend, ir can't be blank.",
+				 "warning", "FARMS" );
 
 		my $msg = "Invalid port for a backend.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -390,7 +400,8 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 
 	# no error found, return successful response
 	&zenlog(
-		"Success, a new backend has been created in farm $farmname in service $service with IP $json_obj->{ip}.", "info", "FARMS"
+		"Success, a new backend has been created in farm $farmname in service $service with IP $json_obj->{ip}.",
+		"info", "FARMS"
 	);
 
 	$json_obj->{ timeout } = $json_obj->{ timeout } + 0 if $json_obj->{ timeout };
@@ -424,7 +435,8 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 #GET /farms/<name>/backends
 sub backends
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farmname = shift;
 
 	my $desc = "List backends";
@@ -473,7 +485,8 @@ sub backends
 #GET /farms/<name>/services/<service>/backends
 sub service_backends
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farmname, $service ) = @_;
 
 	my $desc = "List service backends";
@@ -527,7 +540,8 @@ sub service_backends
 
 sub modify_backends    #( $json_obj, $farmname, $id_server )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $json_obj, $farmname, $id_server ) = @_;
 
 	my $desc = "Modify backend";
@@ -595,8 +609,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 			unless (    $json_obj->{ weight } =~ /^[1-9]$/
 					 || $json_obj->{ weight } == undef )    # 1 or higher
 			{
-				my $msg =
-				  "Invalid backend weight value, please insert a value form 1 to 9.";
+				my $msg = "Invalid backend weight value, please insert a value form 1 to 9.";
 				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
 
@@ -629,12 +642,12 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 		}
 
 		my $status = &setL4FarmServer(
+									   $farmname,
 									   $backend->{ id },
 									   $backend->{ vip },
 									   $backend->{ vport },
 									   $backend->{ weight },
 									   $backend->{ priority },
-									   $farmname,
 									   $backend->{ max_conns },
 		);
 
@@ -734,12 +747,12 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 
 		my $status =
 		  &setDatalinkFarmServer( $id_server,
-						  $be->{ ip },
-						  $be->{ interface },
-						  "",
-						  $be->{ weight },
-						  $be->{ priority },
-						  "", $farmname );
+								  $be->{ ip },
+								  $be->{ interface },
+								  "",
+								  $be->{ weight },
+								  $be->{ priority },
+								  "", $farmname );
 
 		if ( $status == -1 )
 		{
@@ -755,7 +768,8 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 	}
 
 	&zenlog(
-		"Success, some parameters have been changed in the backend $id_server in farm $farmname.", "info", "FARMS"
+		"Success, some parameters have been changed in the backend $id_server in farm $farmname.",
+		"info", "FARMS"
 	);
 
 	require Zevenet::Farm::Base;
@@ -768,9 +782,9 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 	};
 
 	&eload(
-		module => 'Zevenet::Cluster',
-		func   => 'runZClusterRemoteManager',
-		args   => ['farm', 'restart', $farmname],
+			module => 'Zevenet::Cluster',
+			func   => 'runZClusterRemoteManager',
+			args   => ['farm', 'restart', $farmname],
 	) if ( $eload && &getFarmStatus( $farmname ) eq 'up' );
 
 	&httpResponse( { code => 200, body => $body } );
@@ -778,7 +792,8 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 
 sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $json_obj, $farmname, $service, $id_server ) = @_;
 
 	my $desc = "Modify service backend";
@@ -828,7 +843,7 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 	my $be;
 	{
 		my $servers = &getHTTPFarmBackends( $farmname, $service );
-		$be = @{ $servers }[ $id_server ];
+		$be = @{ $servers }[$id_server];
 	}
 
 	# check if the backend was found
@@ -908,7 +923,8 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 
 	# no error found, return successful response
 	&zenlog(
-		"Success, some parameters have been changed in the backend $id_server in service $service in farm $farmname.", "info", "FARMS"
+		"Success, some parameters have been changed in the backend $id_server in service $service in farm $farmname.",
+		"info", "FARMS"
 	);
 
 	if ( &getFarmStatus( $farmname ) eq "up" )
@@ -937,7 +953,8 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 # DELETE /farms/<farmname>/backends/<backendid> Delete a backend of a Farm
 sub delete_backend    # ( $farmname, $id_server )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farmname, $id_server ) = @_;
 
 	my $desc = "Delete backend";
@@ -962,14 +979,14 @@ sub delete_backend    # ( $farmname, $id_server )
 	require Zevenet::Farm::Backend;
 	if ( $type eq 'l4xnat' )
 	{
-		my $servers = &getFarmServers( $farmname );
+		my $servers  = &getFarmServers( $farmname );
 		my $nservers = @{ $servers };
 		$exists = ( $nservers ) ? 1 : 0;
 	}
 	else
 	{
 		my $backends = &getFarmServers( $farmname );
-		my $exists = @{ $backends }[$id_server];
+		my $exists   = @{ $backends }[$id_server];
 	}
 
 	if ( !$exists )
@@ -987,13 +1004,13 @@ sub delete_backend    # ( $farmname, $id_server )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	&zenlog(
-		   "Success, the backend $id_server in farm $farmname has been deleted.", "info", "FARMS" );
+	&zenlog( "Success, the backend $id_server in farm $farmname has been deleted.",
+			 "info", "FARMS" );
 
 	&eload(
-		module => 'Zevenet::Cluster',
-		func   => 'runZClusterRemoteManager',
-		args   => ['farm', 'restart', $farmname],
+			module => 'Zevenet::Cluster',
+			func   => 'runZClusterRemoteManager',
+			args   => ['farm', 'restart', $farmname],
 	) if ( $eload );
 
 	my $message = "Backend removed";
@@ -1011,7 +1028,8 @@ sub delete_backend    # ( $farmname, $id_server )
 #  DELETE /farms/<farmname>/services/<servicename>/backends/<backendid> Delete a backend of a Service
 sub delete_service_backend    # ( $farmname, $service, $id_server )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farmname, $service, $id_server ) = @_;
 
 	my $desc = "Delete service backend";
@@ -1061,7 +1079,7 @@ sub delete_service_backend    # ( $farmname, $service, $id_server )
 	my $be_found;
 	{
 		my $be = &getHTTPFarmBackends( $farmname, $service );
-		$be_found = defined @{ $be }[ $id_server ];
+		$be_found = defined @{ $be }[$id_server];
 	}
 
 	unless ( $be_found )
@@ -1084,7 +1102,8 @@ sub delete_service_backend    # ( $farmname, $service, $id_server )
 
 	# no error found, return successful response
 	&zenlog(
-		"Success, the backend $id_server in service $service in farm $farmname has been deleted.", "info", "FARMS"
+		"Success, the backend $id_server in service $service in farm $farmname has been deleted.",
+		"info", "FARMS"
 	);
 
 	if ( &getFarmStatus( $farmname ) eq 'up' )

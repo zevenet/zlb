@@ -28,7 +28,7 @@ GLOBALCFT="/usr/local/zevenet/share/global.conf.template"
 [   "$1" == "configure" ] && echo "Completing the Zevenet installation..."
 
 # upgrading global.conf
-/usr/local/zevenet/app/zbin/checkglobalconf.cgi
+/usr/local/zevenet/bin/checkglobalconf
 
 # Enable root access through SSH
 SSHDCONFIG="/etc/ssh/sshd_config"

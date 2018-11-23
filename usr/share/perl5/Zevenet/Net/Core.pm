@@ -73,6 +73,7 @@ Function: upIf
 
 Parameters:
 	if_ref - network interface hash reference.
+	writeconf - true value to apply change in interface configuration file. Optional.
 
 Returns:
 	integer - return code of ip command.
@@ -82,11 +83,11 @@ See Also:
 =cut
 
 # up network interface
-sub upIf    # ($if_ref)
+sub upIf    # ($if_ref, $writeconf)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $if_ref ) = @_;
+	my ( $if_ref, $writeconf ) = @_;
 
 	my $configdir = &getGlobalConfiguration( 'configdir' );
 	my $status    = 0;
@@ -124,7 +125,8 @@ sub upIf    # ($if_ref)
 			&downIf( { name => $if_ref->{ name } }, '' );
 		}
 	}
-	if ( !$status )
+
+	if ( $writeconf )
 	{
 		my $file = "$configdir/if_$$if_ref{name}_conf";
 
@@ -168,17 +170,18 @@ Parameters:
 
 Returns:
 	integer - return code of ip command.
+	writeconf - true value to apply change in interface configuration file. Optional.
 
 See Also:
 	<upIf>, <stopIf>, zapi/v?/interface.cgi
 =cut
 
 # down network interface in system and configuration file
-sub downIf    # ($if_ref)
+sub downIf    # ($if_ref, $writeconf)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $if_ref ) = @_;
+	my ( $if_ref, $writeconf ) = @_;
 
 	if ( ref $if_ref ne 'HASH' )
 	{
@@ -205,7 +208,7 @@ sub downIf    # ($if_ref)
 	my $status = &logAndRun( $ip_cmd );
 
 	# Set down status in configuration file
-	if ( !$status )
+	if ( $writeconf )
 	{
 		my $configdir = &getGlobalConfiguration( 'configdir' );
 		my $file      = "$configdir/if_$$if_ref{name}_conf";
