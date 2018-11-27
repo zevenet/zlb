@@ -32,17 +32,19 @@ Function: startL4Farm
 
 Parameters:
 	farmname - Farm name
+	writeconf - write this change in configuration status "writeconf" for true or omit it for false
 
 Returns:
 	Integer - return 0 on success or different of 0 on failure
 
 =cut
 
-sub startL4Farm    # ($farm_name)
+sub startL4Farm    # ($farm_name,$writeconf)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
+	my $writeconf = shift;
 
 	require Zevenet::Lock;
 	require Zevenet::Net::Util;
@@ -53,10 +55,14 @@ sub startL4Farm    # ($farm_name)
 
 	my $status = 0;
 
-	&zenlog( "startL4Farm << farm_name:$farm_name", "debug", "LSLB" )
+	&zenlog( "startL4Farm << farm_name:$farm_name writeconf:$writeconf",
+			 "debug", "LSLB" )
 	  if &debug;
 
-	&setL4FarmParam( 'status', "up", $farm_name );
+	if ( $writeconf )
+	{
+		&setL4FarmParam( 'status', "up", $farm_name );
+	}
 
 	# initialize a farm struct
 	my $farm = &getL4FarmStruct( $farm_name );
@@ -155,17 +161,18 @@ Function: stopL4Farm
 
 Parameters:
 	farmname - Farm name
+	writeconf - write this change in configuration status "writeconf" for true or omit it for false
 
 Returns:
 	Integer - return 0 on success or other value on failure
 
 =cut
 
-sub stopL4Farm    # ($farm_name)
+sub stopL4Farm    # ($farm_name,$writeconf)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name ) = @_;
+	my ( $farm_name, $writeconf ) = @_;
 
 	require Zevenet::Lock;
 	require Zevenet::Net::Util;
@@ -218,7 +225,12 @@ sub stopL4Farm    # ($farm_name)
 	## Delete ip rule mark ##
 	my $farm   = &getL4FarmStruct( $farm_name );
 	my $ip_bin = &getGlobalConfiguration( 'ip_bin' );
-	&setL4FarmParam( 'status', "down", $farm_name );
+
+	if ( $writeconf )
+	{
+		&setL4FarmParam( 'status', "down", $farm_name );
+	}
+
 	my $vip_if_name = &getInterfaceOfIp( $farm->{ vip } );
 	my $vip_if      = &getInterfaceConfig( $vip_if_name );
 	my $table_if =
