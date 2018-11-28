@@ -6,6 +6,32 @@ IFS='.' read -a DEBVERSION < /etc/debian_version
 	#~ exit 1
 #~ fi
 
+function print_help ()
+{
+  echo "Usage: \"$0 [Options...]\""
+  echo -e "-f, --force-install \t \tForce the dependency installation."
+  exit
+}
+
+while [[ $# -gt 0 ]]; do
+  ARG="$1"
+  case $ARG in
+    "-f"|"force-install")
+      FORCE='-y'
+      shift
+      ;;
+    "-h"|"--help")
+      print_help
+      shift
+      ;;
+    *)
+      echo "Try $0 -h or --help"
+      exit
+      ;;
+  esac
+done
+
+
 if [ "`grep dhcp /etc/network/interfaces`" != "" ]; then
 	echo "Zevenet Load Balancer doesn't support DHCP network configurations yet. Please configure a static IP address in the file /etc/network/interfaces."
 	exit 1
@@ -37,7 +63,7 @@ echo "* Installing dependencies"
 #~ fi
 
 DEPENDENCIES=`perl -a -E 'if (s/^Depends: //){ s/\,//g; print }' ${REPO_DIR}/DEBIAN/control`
-apt-get install ${DEPENDENCIES} zevenet-gui-ce || exit 1
+apt-get install $FORCE ${DEPENDENCIES} zevenet-gui-ce || exit 1
 
 # Create package and install it
 echo "* Creating package"
