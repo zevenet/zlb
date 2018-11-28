@@ -250,7 +250,7 @@ sub _runFarmStop    # ($farm_name, $writeconf)
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Action;
-		$status = &stopL4Farm( $farm_name );
+		$status = &stopL4Farm( $farm_name, $writeconf );
 	}
 	elsif ( $farm_type eq "gslb" && $eload )
 	{
