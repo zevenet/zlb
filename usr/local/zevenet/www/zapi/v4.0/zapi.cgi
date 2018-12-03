@@ -27,7 +27,7 @@ use warnings;
 use Zevenet::Log;
 use Zevenet::Debug;
 use Zevenet::CGI;
-use Zevenet::API31::HTTP;
+use Zevenet::API40::HTTP;
 
 my $q = &getCGI();
 
@@ -75,11 +75,11 @@ require Zevenet::Validate;
 
 
 ##### Authentication #################################################
-require Zevenet::API31::Auth;
+require Zevenet::API40::Auth;
 require Zevenet::Zapi;
 
 # Session request
-require Zevenet::API31::Routes::Session if ( $q->path_info eq '/session' );
+require Zevenet::API40::Routes::Session if ( $q->path_info eq '/session' );
 
 
 # Verify authentication
@@ -93,7 +93,7 @@ unless (    ( exists $ENV{ HTTP_ZAPI_KEY } && &validZapiKey() )
 
 ##### Load API routes ################################################
 #~ require Zevenet::SystemInfo;
-require Zevenet::API31::Routes;
+require Zevenet::API40::Routes;
 
 my $desc = 'Request not found';
 my $req = $ENV{ PATH_INFO };

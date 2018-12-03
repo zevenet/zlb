@@ -445,10 +445,10 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 		}
 	}
 
-	# sts options
-	if ( exists $json_obj->{ sts_status } )
+	if ( $eload )
 	{
-		if ( $eload )
+		# sts options
+		if ( exists $json_obj->{ sts_status } )
 		{
 			# status
 			if ( $type ne 'https' )
@@ -477,16 +477,8 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 			}
 
 		}
-		else
-		{
-			my $msg = "Strict Transport Security feature not available.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-	}
 
-	if ( exists $json_obj->{ sts_timeout } )
-	{
-		if ( $eload )
+		if ( exists $json_obj->{ sts_timeout } )
 		{
 			if ( $type ne 'https' )
 			{

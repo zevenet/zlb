@@ -1090,6 +1090,83 @@ sub getHTTPFarmBootStatus    # ($farm_name)
 }
 
 =begin nd
+Function: setHTTPFarmBootStatus
+
+	Return the farm status at boot zevenet
+
+Parameters:
+	farmname - Farm name
+	value - Write the boot status "up" or "down" 
+
+Returns:
+	scalar - return "down" if the farm not run at boot or "up" if the farm run at boot
+
+=cut
+
+sub setHTTPFarmBootStatus    # ($farm_name, $value)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $value ) = @_;
+
+	my $farm_filename = &getFarmFile( $farm_name );
+	my $output        = "down";
+	my $lastline;
+
+	require Zevenet::Lock;
+	my $lock_file = &getLockFile( $farm_name );
+	my $lock_fh = &openlock( $lock_file, 'w' );
+
+	require Tie::File;
+	tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
+	@configfile = grep !/^\#down/, @configfile;
+
+	push @configfile, '#down' if ( $value eq "down" );
+
+	untie @configfile;
+	close $lock_fh;
+
+	return;
+}
+
+=begin nd
+Function: getHTTPFarmStatus
+
+	Return current farm process status
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	string - return "up" if the process is running or "down" if it isn't
+
+=cut
+
+sub getHTTPFarmStatus    # ($farm_name)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name ) = @_;
+
+	my $pid    = &getHTTPFarmPid( $farm_name );
+	my $output = -1;
+	my $running_pid;
+	$running_pid = kill ( 0, $pid ) if $pid ne "-";
+
+	if ( $pid ne "-" && $running_pid )
+	{
+		$output = "up";
+	}
+	else
+	{
+		unlink &getHTTPFarmPidFile( $farm_name ) if ( $pid ne "-" && !$running_pid );
+		$output = "down";
+	}
+
+	return $output;
+}
+
+=begin nd
 Function: getHTTPFarmSocket
 
 	Returns socket for HTTP farm.
@@ -1159,6 +1236,31 @@ sub getHTTPFarmPid    # ($farm_name)
 	}
 
 	return $output;
+}
+
+=begin nd
+Function: getHTTPFarmPidFile
+
+	Returns farm PID File
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	String - Pid file path
+
+=cut
+
+sub getHTTPFarmPidFile    # ($farm_name)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name ) = @_;
+
+	my $piddir  = &getGlobalConfiguration( 'piddir' );
+	my $pidfile = "$piddir\/$farm_name\_pound.pid";
+
+	return $pidfile;
 }
 
 =begin nd
@@ -1391,6 +1493,7 @@ sub getHTTPFarmStruct
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farmname = shift;
+	my $type = shift // &getFarmType( $farmname );
 
 	require Zevenet::Farm::Core;
 	require Zevenet::Farm::Base;
@@ -1400,9 +1503,8 @@ sub getHTTPFarmStruct
 
 	return unless $farmname;
 
-	my $type   = &getFarmType( $farmname );
-	my $vip    = &getFarmVip( "vip", $farmname );
-	my $vport  = &getFarmVip( "vipp", $farmname ) + 0;
+	my $vip   = &getFarmVip( "vip",  $farmname );
+	my $vport = &getFarmVip( "vipp", $farmname ) + 0;
 	my $status = &getFarmVipStatus( $farmname );
 
 	my $connto          = 0 + &getFarmConnTO( $farmname );

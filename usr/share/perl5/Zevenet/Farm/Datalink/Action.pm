@@ -55,18 +55,7 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf)
 
 	if ( $writeconf )
 	{
-		tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
-		my $first = 1;
-
-		foreach ( @configfile )
-		{
-			if ( $first eq 1 )
-			{
-				s/\;down/\;up/g;
-				$first = 0;
-			}
-		}
-		untie @configfile;
+		&setDatalinkFarmBootStatus( $farm_name, "up" );
 	}
 
 	# include cron task to check backends
@@ -190,36 +179,17 @@ sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
 	require Zevenet::Farm::Datalink::Config;
 
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $status = ( $writeconf ) ? -1 : 0;
+	my $status        = 0;
 
 	if ( $writeconf )
 	{
-		tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
-		my $first = 1;
-		foreach ( @configfile )
-		{
-			if ( $first == 1 )
-			{
-				s/\;up/\;down/g;
-				$status = $?;
-				$first  = 0;
-			}
-		}
-		untie @configfile;
+		$status = &setDatalinkFarmBootStatus( $farm_name, "down" );
 	}
 
 	# delete cron task to check backends
 	tie my @cron_file, 'Tie::File', "/etc/cron.d/zevenet";
 	@cron_file = grep !/\# \_\_$farm_name\_\_/, @cron_file;
 	untie @cron_file;
-
-	$status = 0 if $writeconf eq 'false';
-
-	# Apply changes online
-	if ( $status == -1 )
-	{
-		return $status;
-	}
 
 	my $iface  = &getDatalinkFarmInterface( $farm_name );
 	my $ip_bin = &getGlobalConfiguration( 'ip_bin' );

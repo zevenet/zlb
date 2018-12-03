@@ -37,8 +37,6 @@ Parameters:
 Returns:
 	Integer - return 0 on success or different of 0 on failure
 
-FIXME:
-	Control error if fail when restore backend status
 =cut
 
 sub _runHTTPFarmStart    # ($farm_name, $writeconf)
@@ -68,20 +66,7 @@ sub _runHTTPFarmStart    # ($farm_name, $writeconf)
 	{
 		# set backend at status before that the farm stopped
 		&setHTTPFarmBackendStatus( $farm_name );
-
-		if ( $writeconf )
-		{
-			require Zevenet::Lock;
-			my $lock_file = &getLockFile( $farm_name );
-			my $lock_fh = &openlock( $lock_file, 'w' );
-
-			require Tie::File;
-			tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
-			@configfile = grep !/^\#down/, @configfile;
-
-			untie @configfile;
-			close $lock_fh;
-		}
+		&setHTTPFarmBootStatus( $farm_name, "up" ) if ( $writeconf );
 	}
 	else
 	{
@@ -98,22 +83,24 @@ Function: _runHTTPFarmStop
 
 Parameters:
 	farmname - Farm name
+	writeconf - write this change in configuration status "writeconf" for true or omit it for false
 
 Returns:
 	Integer - return 0 on success or different of 0 on failure
 =cut
 
-sub _runHTTPFarmStop    # ($farm_name)
+sub _runHTTPFarmStop    # ($farm_name, $writeconf)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name ) = @_;
+	my ( $farm_name, $writeconf ) = @_;
 
 	require Zevenet::FarmGuardian;
 
 	my $status = -1;
 
 	&runFarmGuardianStop( $farm_name, "" );
+	&setHTTPFarmBootStatus( $farm_name, "down" ) if ( $writeconf );
 
 	if ( &getHTTPFarmConfigIsOK( $farm_name ) == 0 )
 	{

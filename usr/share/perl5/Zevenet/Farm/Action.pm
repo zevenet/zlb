@@ -237,10 +237,10 @@ sub _runFarmStop    # ($farm_name, $writeconf)
 
 	&zenlog( "Stopping farm $farm_name with type $farm_type", "info", "FARMS" );
 
-	if ( $farm_type =~ /^https?$/ )
+	if ( $farm_type =~ /http/ )
 	{
 		require Zevenet::Farm::HTTP::Action;
-		$status = &_runHTTPFarmStop( $farm_name );
+		$status = &_runHTTPFarmStop( $farm_name, $writeconf );
 	}
 	elsif ( $farm_type eq "datalink" )
 	{

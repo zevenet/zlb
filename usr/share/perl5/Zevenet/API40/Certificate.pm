@@ -22,6 +22,12 @@
 
 use strict;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
+
 my $CSR_KEY_SIZE = 2048;
 
 # GET /certificates
@@ -245,6 +251,38 @@ sub upload_certificate    # ()
 				 description => $desc,
 				 success     => "true",
 				 message     => $message,
+	};
+
+	&httpResponse( { code => 200, body => $body } );
+}
+
+# GET /ciphers
+sub ciphers_available    # ( $json_obj, $farmname )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $desc = "Get the ciphers available";
+
+	my @out = (
+				{ 'ciphers' => "all",            "description" => "All" },
+				{ 'ciphers' => "highsecurity",   "description" => "High security" },
+				{ 'ciphers' => "customsecurity", "description" => "Custom security" }
+	);
+
+	if ( $eload )
+	{
+		push (
+			   @out,
+			   &eload(
+					   module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
+					   func   => 'getExtraCipherProfiles',
+			   )
+		);
+	}
+
+	my $body = {
+				 description => $desc,
+				 params      => \@out,
 	};
 
 	&httpResponse( { code => 200, body => $body } );

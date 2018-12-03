@@ -60,12 +60,7 @@ sub getL4FarmParam    # ($param, $farm_name)
 
 	if ( $param eq "status" )
 	{
-		require Zevenet::Farm::L4xNAT::Action;
-		my $nlbpid = &getNLBPid();
-		if ( $nlbpid eq "-1" )
-		{
-			return "down";
-		}
+		return &getL4FarmStatus( $farm_name );
 	}
 
 	open my $fd, '<', "$configdir/$farm_filename";
@@ -88,7 +83,7 @@ Parameters:
 		"family": write ipv4 or ipv6
 		"vip": write the virtual IP
 		"vipp": write the virtual port
-		"status": write the status and boot status
+		"status" or "bootstatus" : write the status and boot status
 		"mode": write the topology (or nat type)
 		"alg": write the algorithm
 		"proto": write the protocol
@@ -148,7 +143,7 @@ sub setL4FarmParam    # ($param, $value, $farm_name)
 		$srvparam = "protocol";
 		$addition = qq( , "vport" : "" ) if ( $value eq "all" );
 	}
-	elsif ( $param eq "status" )
+	elsif ( $param eq "status" || $param eq "bootstatus" )
 	{
 		$srvparam = "state";
 	}
@@ -291,6 +286,41 @@ sub _getL4ParseFarmConfig    # ($param, $value, $config)
 }
 
 =begin nd
+Function: getL4FarmStatus
+
+	Return current farm status
+
+Parameters:
+	farm_name - Farm name
+
+Returns:
+	String - "up" or "down"
+
+=cut
+
+sub getL4FarmStatus
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $farm_name = shift;
+
+	require Zevenet::Farm::L4xNAT::Action;
+
+	my $pidfile = &getL4FarmPidFile( $farm_name );
+	my $output  = "down";
+
+	my $nlbpid = &getNLBPid();
+	if ( $nlbpid eq "-1" )
+	{
+		return $output;
+	}
+
+	$output = "up" if ( -e "$pidfile" );
+
+	return $output;
+}
+
+=begin nd
 Function: getL4FarmStruct
 
 	Return a hash with all data about a l4 farm
@@ -316,20 +346,22 @@ sub getL4FarmStruct
 	require Zevenet::Farm::L4xNAT::Backend;
 
 	$farm{ filename } = &getFarmFile( $farm{ name } );
-	my $config = &getL4FarmPlainInfo( $farm{ name } );
+	require Zevenet::Farm::Config;
+	my $config = &getFarmPlainInfo( $farm{ name } );
 
-	$farm{ nattype } = &_getL4ParseFarmConfig( 'mode', undef, $config );
-	$farm{ mode }    = $farm{ nattype };
-	$farm{ lbalg }   = &_getL4ParseFarmConfig( 'alg', undef, $config );
-	$farm{ vip }     = &_getL4ParseFarmConfig( 'vip', undef, $config );
-	$farm{ vport }   = &_getL4ParseFarmConfig( 'vipp', undef, $config );
-	$farm{ vproto }  = &_getL4ParseFarmConfig( 'proto', undef, $config );
-	$farm{ persist } = &_getL4ParseFarmConfig( 'persist', undef, $config );
-	$farm{ ttl }     = &_getL4ParseFarmConfig( 'persisttm', undef, $config );
-	$farm{ proto }   = &getL4ProtocolTransportLayer( $farm{ vproto } );
-	$farm{ status }  = &_getL4ParseFarmConfig( 'status', undef, $config );
-	$farm{ logs }    = &_getL4ParseFarmConfig( 'logs', undef, $config );
-	$farm{ servers } = &_getL4FarmParseServers( $config );
+	$farm{ nattype }    = &_getL4ParseFarmConfig( 'mode', undef, $config );
+	$farm{ mode }       = $farm{ nattype };
+	$farm{ lbalg }      = &_getL4ParseFarmConfig( 'alg', undef, $config );
+	$farm{ vip }        = &_getL4ParseFarmConfig( 'vip', undef, $config );
+	$farm{ vport }      = &_getL4ParseFarmConfig( 'vipp', undef, $config );
+	$farm{ vproto }     = &_getL4ParseFarmConfig( 'proto', undef, $config );
+	$farm{ persist }    = &_getL4ParseFarmConfig( 'persist', undef, $config );
+	$farm{ ttl }        = &_getL4ParseFarmConfig( 'persisttm', undef, $config );
+	$farm{ proto }      = &getL4ProtocolTransportLayer( $farm{ vproto } );
+	$farm{ bootstatus } = &_getL4ParseFarmConfig( 'bootstatus', undef, $config );
+	$farm{ status }     = &getL4FarmStatus( $farm{ name } );
+	$farm{ logs }       = &_getL4ParseFarmConfig( 'logs', undef, $config );
+	$farm{ servers }    = &_getL4FarmParseServers( $config );
 
 	# replace port * for all the range
 	if ( $farm{ vport } eq '*' )
@@ -343,34 +375,6 @@ sub getL4FarmStruct
 	}
 
 	return \%farm;    # return a hash reference
-}
-
-=begin nd
-Function: getL4FarmPlainInfo
-
-	Return the L4 farm text configuration
-
-Parameters:
-	farm_name - farm name to get the status
-
-Returns:
-	Scalar - Reference of the file content in plain text
-
-=cut
-
-sub getL4FarmPlainInfo    # ($farm_name)
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my ( $farm_name ) = @_;
-
-	my $farm_filename = &getFarmFile( $farm_name );
-
-	open my $fd, '<', "$configdir/$farm_filename";
-	chomp ( my @content = <$fd> );
-	close $fd;
-
-	return \@content;
 }
 
 =begin nd

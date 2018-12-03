@@ -24,6 +24,8 @@ $basedir = "/usr/local/zevenet/www";
 $configdir = "/usr/local/zevenet/config";
 # Directory where is check script. In this directory you can save your own check scripts.
 $libexec_dir = "/usr/lib/nagios/plugins";
+# Directory where is the templates
+$templatedir = "/usr/local/zevenet/share";
 # Log directory
 $logdir = "/var/log";
 # piddir

@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 ###############################################################################
 #
 #    Zevenet Software License
@@ -22,32 +23,29 @@
 
 use strict;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+my $configdir = &getGlobalConfiguration( 'configdir' );
 
-# GET /ciphers
-sub ciphers_available # ( $json_obj, $farmname )
+=begin nd
+Function: loadL4FarmModules
+
+	Load L4farm system modules
+
+Parameters:
+	none
+
+Returns:
+	Integer - 0 on success or -1 on failure
+
+=cut
+
+sub loadL4FarmModules
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
-	my $desc = "Get the ciphers available";
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 
-	my @out = (
-				{ 'ciphers' => "all",            "description" => "All" },
-				{ 'ciphers' => "highsecurity",   "description" => "High security" },
-				{ 'ciphers' => "customsecurity", "description" => "Custom security" }
-	);
+	my $out = system ( '/sbin/modprobe nf_conntrack >/dev/null 2>&1' );
 
-	push( @out, &eload(
-		module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
-		func   => 'getExtraCipherProfiles',
-	) ) if ( $eload );
-
-	my $body = {
-				 description => $desc,
-				 params      => \@out,
-	};
-
-	&httpResponse({ code => 200, body => $body });
+	return $out;
 }
 
 1;
