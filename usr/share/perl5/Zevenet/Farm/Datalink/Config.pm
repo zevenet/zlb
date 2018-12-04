@@ -40,7 +40,8 @@ Returns:
 
 sub getDatalinkFarmAlgorithm    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
@@ -82,7 +83,8 @@ FIXME:
 
 sub setDatalinkFarmAlgorithm    # ($algorithm,$farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $algorithm, $farm_name ) = @_;
 
 	require Tie::File;
@@ -130,7 +132,8 @@ Returns:
 
 sub getDatalinkFarmBootStatus    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
@@ -155,6 +158,77 @@ sub getDatalinkFarmBootStatus    # ($farm_name)
 }
 
 =begin nd
+Function: setDatalinkFarmBootStatus
+
+	Write farm boot status
+
+Parameters:
+	farmname - Farm name
+	value -	"up" or "down"
+
+=cut
+
+sub setDatalinkFarmBootStatus    # ($farm_name, $value)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $value ) = @_;
+
+	require Tie::File;
+
+	my $farm_filename = &getFarmFile( $farm_name );
+	my $i             = 0;
+
+	tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
+
+	for my $line ( @configfile )
+	{
+		if ( $line =~ /^$farm_name\;/ )
+		{
+			my @args = split ( "\;", $line );
+			$line = "$args[0]\;$args[1]\;$args[2]\;$args[3]\;$value";
+			splice @configfile, $i, $line;
+		}
+		$i++;
+	}
+	untie @configfile;
+	return;
+}
+
+=begin nd
+Function: getDatalinkFarmStatus
+
+	Return the farm current status
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	string - return "up" if the farm is running or "down" if the farm is not running
+
+=cut
+
+sub getDatalinkFarmStatus    # ($farm_name)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name ) = @_;
+
+	my $piddir = &getGlobalConfiguration( 'piddir' );
+
+	if ( -e "$piddir\/$farm_name\_datalink.pid" )
+	{
+		$output = "up";
+	}
+	else
+	{
+		$output = "down";
+	}
+
+	return $output;
+}
+
+=begin nd
 Function: getDatalinkFarmInterface
 
 	 Get network physical interface used by the farm vip
@@ -169,13 +243,14 @@ Returns:
 
 sub getDatalinkFarmInterface    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $output = -1;
 
 	my $line;
-	my $first = "true";
+	my $first         = "true";
 	my $farm_filename = &getFarmFile( $farm_name );
 
 	open my $fd, '<', "$configdir/$farm_filename";
@@ -212,7 +287,8 @@ Returns:
 
 sub getDatalinkFarmVip    # ($info,$farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $info, $farm_name ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
@@ -228,8 +304,8 @@ sub getDatalinkFarmVip    # ($info,$farm_name)
 			$first = "false";
 			my @line_a = split ( "\;", $line );
 
-			if ( $info eq "vip" )   { $output = $line_a[1]; }
-			if ( $info eq "vipp" )  { $output = $line_a[2]; }
+			if ( $info eq "vip" )  { $output = $line_a[1]; }
+			if ( $info eq "vipp" ) { $output = $line_a[2]; }
 		}
 	}
 	close $fd;
@@ -254,7 +330,8 @@ Returns:
 
 sub setDatalinkFarmVirtualConf    # ($vip,$interface,$farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $vip, $interface, $farm_name ) = @_;
 
 	require Tie::File;

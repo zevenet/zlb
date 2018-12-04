@@ -55,18 +55,7 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf)
 
 	if ( $writeconf )
 	{
-		tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
-		my $first = 1;
-
-		foreach ( @configfile )
-		{
-			if ( $first eq 1 )
-			{
-				s/\;down/\;up/g;
-				$first = 0;
-			}
-		}
-		untie @configfile;
+		&setDatalinkFarmBootStatus( $farm_name, "up" );
 	}
 
 	# include cron task to check backends
@@ -194,18 +183,7 @@ sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
 
 	if ( $writeconf )
 	{
-		tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
-		my $first = 1;
-		foreach ( @configfile )
-		{
-			if ( $first == 1 )
-			{
-				s/\;up/\;down/g;
-				$status = $?;
-				$first  = 0;
-			}
-		}
-		untie @configfile;
+		&setDatalinkFarmBootStatus( $farm_name, "down" );
 	}
 
 	# delete cron task to check backends

@@ -61,7 +61,7 @@ sub startL4Farm    # ($farm_name,$writeconf)
 
 	if ( $writeconf )
 	{
-		&setL4FarmParam( 'status', "up", $farm_name );
+		&setL4FarmParam( 'bootstatus', "up", $farm_name );
 	}
 
 	# initialize a farm struct
@@ -228,7 +228,7 @@ sub stopL4Farm    # ($farm_name,$writeconf)
 
 	if ( $writeconf )
 	{
-		&setL4FarmParam( 'status', "down", $farm_name );
+		&setL4FarmParam( 'bootstatus', "down", $farm_name );
 	}
 
 	my $vip_if_name = &getInterfaceOfIp( $farm->{ vip } );

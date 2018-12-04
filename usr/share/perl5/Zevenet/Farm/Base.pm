@@ -25,9 +25,12 @@ use strict;
 use Zevenet::Config;
 use Zevenet::Farm::Core;
 
-my $configdir = &getGlobalConfiguration('configdir');
+my $configdir = &getGlobalConfiguration( 'configdir' );
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 =begin nd
 Function: getFarmVip
@@ -44,11 +47,12 @@ Returns:
 See Also:
 	setFarmVirtualConf
 =cut
+
 sub getFarmVip    # ($info,$farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $info, $farm_name ) = @_;
-
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $output    = -1;
@@ -95,34 +99,28 @@ NOTE:
 	Generic function
 
 =cut
+
 sub getFarmStatus    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $output = -1;
 	return $output if !defined ( $farm_name );    # farm name cannot be empty
 
 	my $farm_type = &getFarmType( $farm_name );
-	my $piddir = &getGlobalConfiguration('piddir');
+	my $piddir    = &getGlobalConfiguration( 'piddir' );
 
 	if ( $farm_type eq "l4xnat" )
 	{
-		require Zevenet::Farm::L4xNAT::Config;
-		$output = &getL4FarmParam( 'status', $farm_name );
+		return &getL4FarmStatus( $farm_name );
 	}
 	elsif ( $farm_type eq "datalink" )
 	{
-		# Only for datalink and l4xnat
-		if ( -e "$piddir\/$farm_name\_$farm_type.pid" )
-		{
-			$output = "up";
-		}
-		else
-		{
-			$output = "down";
-		}
+		return &getDatalinkFarmStatus( $farm_name );
 	}
+
 	# for every farm type but datalink or l4xnat
 	else
 	{
@@ -149,7 +147,6 @@ sub getFarmStatus    # ($farm_name)
 	return $output;
 }
 
-
 =begin nd
 Function: getFarmVipStatus
 
@@ -174,12 +171,14 @@ NOTE:
 	Generic function
 
 =cut
+
 sub getFarmVipStatus    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
-	my $output = -1;
+	my $output     = -1;
 	my $farmStatus = &getFarmStatus( $farm_name );
 	return $output if !defined ( $farm_name );    # farm name cannot be empty
 
@@ -203,18 +202,20 @@ sub getFarmVipStatus    # ($farm_name)
 	my $type = &getFarmType( $farm_name );
 
 	my $backends;
-	my $up_flag;			# almost one backend is not reachable
-	my $down_flag; 			# almost one backend is not reachable
-	my $maintenance_flag; 	# almost one backend is not reachable
+	my $up_flag;             # almost one backend is not reachable
+	my $down_flag;           # almost one backend is not reachable
+	my $maintenance_flag;    # almost one backend is not reachable
 
 	require Zevenet::Farm::Backend;
+
 	# HTTP, optimized for many services
 	if ( $type =~ /http/ )
 	{
 		require Zevenet::Farm::HTTP::Stats;
-		my $stats = &getHTTPFarmBackendsStats($farm_name);
+		my $stats = &getHTTPFarmBackendsStats( $farm_name );
 		$backends = $stats->{ backends };
 	}
+
 	# GSLB
 	elsif ( $type eq "gslb" && $eload )
 	{
@@ -233,9 +234,9 @@ sub getFarmVipStatus    # ($farm_name)
 	# checking status
 	foreach my $be ( @{ $backends } )
 	{
-		$up_flag = 1 if $be->{ 'status' } eq "up";
+		$up_flag          = 1 if $be->{ 'status' } eq "up";
 		$maintenance_flag = 1 if $be->{ 'status' } eq "maintenance";
-		$down_flag = 1 if $be->{ 'status' } eq "down";
+		$down_flag        = 1 if $be->{ 'status' } eq "down";
 
 		# if there is a backend up and another down, the status is 'problem'
 		last if ( $down_flag and $up_flag );
@@ -256,7 +257,7 @@ sub getFarmVipStatus    # ($farm_name)
 	}
 
 	# Decision logic
-	if( !$up_flag )
+	if ( !$up_flag )
 	{
 		$output = "critical";
 	}
@@ -288,9 +289,11 @@ Returns:
 	Integer - return pid of farm, '-' if pid not exist or -1 on failure
 
 =cut
+
 sub getFarmPid    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -324,9 +327,11 @@ Parameters:
 Returns:
 	scalar - return "down" if the farm not run at boot or "up" if the farm run at boot
 =cut
+
 sub getFarmBootStatus    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -376,9 +381,11 @@ BUG:
 FIXME:
 	Use getL4ProtocolTransportLayer to get l4xnat protocol
 =cut
+
 sub getFarmProto    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $farm_type     = &getFarmType( $farm_name );
@@ -413,17 +420,19 @@ Parameters:
 Returns:
 	integer- Number of farms
 =cut
+
 sub getNumberOfFarmTypeRunning
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
-	my $type    = shift;    # input value
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $type = shift;    # input value
 
-	my $counter = 0;        # return value
+	my $counter = 0;     # return value
 
 	foreach my $farm_name ( &getFarmNameList() )
 	{
 		# count if requested farm type and running
-		my $current_type = &getFarmType( $farm_name );
+		my $current_type   = &getFarmType( $farm_name );
 		my $current_status = &getFarmStatus( $farm_name );
 
 		if ( $current_type eq $type && $current_status eq 'up' )
@@ -437,22 +446,21 @@ sub getNumberOfFarmTypeRunning
 	return $counter;
 }
 
-
 sub getFarmListByVip
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $ip = shift;
 	my @out;
 
 	foreach my $farm ( &getFarmNameList() )
 	{
-		if ( &getFarmVip( 'vip',$farm ) eq $ip )
+		if ( &getFarmVip( 'vip', $farm ) eq $ip )
 		{
 			push @out, $farm;
 		}
 	}
 	return @out;
 }
-
 
 1;

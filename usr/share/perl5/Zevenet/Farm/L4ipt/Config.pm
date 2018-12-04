@@ -34,7 +34,8 @@ Parameters:
 	param - requested parameter. The options are:
 		"vip": get the virtual IP
 		"vipp": get the virtual port
-		"status": get the status and boot status
+		"status": get the current status
+		"bootstatus": get the boot status
 		"mode": get the topology (or nat type)
 		"alg": get the algorithm
 		"proto": get the protocol
@@ -61,6 +62,11 @@ sub getL4FarmParam    # ($param, $farm_name)
 	chomp ( my @content = <$fd> );
 	close $fd;
 
+	if ( $param eq "status" )
+	{
+		return &getL4FarmStatus( $farm_name );
+	}
+
 	$output = &_getL4ParseFarmConfig( $param, undef, \@content );
 
 	return $output;
@@ -76,7 +82,7 @@ Parameters:
 		"family": write ipv4 or ipv6
 		"vip": write the virtual IP
 		"vipp": write the virtual port
-		"status": write the status and boot status
+		"status": write the boot status
 		"mode": write the topology (or nat type)
 		"alg": write the algorithm
 		"proto": write the protocol
@@ -109,9 +115,9 @@ sub setL4FarmParam    # ($param, $value, $farm_name)
 	{
 		$output = &setL4FarmVirtualConf( undef, $value, $farm_name );
 	}
-	elsif ( $param eq "status" )
+	elsif ( $param eq "bootstatus" )
 	{
-		$output = &setL4FarmStatus( $value, $farm_name );
+		$output = &setL4FarmBootStatus( $value, $farm_name );
 	}
 	elsif ( $param eq "alg" )
 	{
@@ -229,7 +235,7 @@ sub _getL4ParseFarmConfig    # ($param, $value, $config)
 			last;
 		}
 
-		if ( $param eq 'status' )
+		if ( $param eq 'bootstatus' )
 		{
 			if ( $l[8] ne "up" )
 			{
@@ -535,7 +541,7 @@ sub setL4FarmAlgorithm    # ($algorithm,$farm_name)
 	return;
 }
 
-sub setL4FarmStatus    #( value, farm_name )
+sub setL4FarmBootStatus    #( value, farm_name )
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -926,6 +932,33 @@ sub getL4ProtocolTransportLayer
 }
 
 =begin nd
+Function: getL4FarmStatus
+
+	Return current farm status
+
+Parameters:
+	farm_name - Farm name
+
+Returns:
+	String - "up" or "down"
+
+=cut
+
+sub getL4FarmStatus
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $farm_name = shift;
+
+	my $piddir = &getGlobalConfiguration( 'piddir' );
+	open my $fi, '<', "$piddir\/$farm_name\_l4xnat.pid";
+	close $fi;
+
+	return "up" if ( $fi );
+	return "down";
+}
+
+=begin nd
 Function: getL4FarmStruct
 
 	Return a hash with all data about a l4 farm
@@ -953,18 +986,19 @@ sub getL4FarmStruct
 	$farm{ filename } = &getFarmFile( $farm{ name } );
 	my $config = &getL4FarmPlainInfo( $farm{ name } );
 
-	$farm{ nattype } = &_getL4ParseFarmConfig( 'mode', undef, $config );
-	$farm{ mode }    = $farm{ nattype };
-	$farm{ lbalg }   = &_getL4ParseFarmConfig( 'alg', undef, $config );
-	$farm{ vip }     = &_getL4ParseFarmConfig( 'vip', undef, $config );
-	$farm{ vport }   = &_getL4ParseFarmConfig( 'vipp', undef, $config );
-	$farm{ vproto }  = &_getL4ParseFarmConfig( 'proto', undef, $config );
-	$farm{ persist } = &_getL4ParseFarmConfig( 'persist', undef, $config );
-	$farm{ ttl }     = &_getL4ParseFarmConfig( 'persisttm', undef, $config );
-	$farm{ proto }   = &getL4ProtocolTransportLayer( $farm{ vproto } );
-	$farm{ status }  = &_getL4ParseFarmConfig( 'status', undef, $config );
-	$farm{ logs }    = &_getL4ParseFarmConfig( 'logs', undef, $config );
-	$farm{ servers } = &_getL4FarmParseServers( $config );
+	$farm{ nattype }    = &_getL4ParseFarmConfig( 'mode', undef, $config );
+	$farm{ mode }       = $farm{ nattype };
+	$farm{ lbalg }      = &_getL4ParseFarmConfig( 'alg', undef, $config );
+	$farm{ vip }        = &_getL4ParseFarmConfig( 'vip', undef, $config );
+	$farm{ vport }      = &_getL4ParseFarmConfig( 'vipp', undef, $config );
+	$farm{ vproto }     = &_getL4ParseFarmConfig( 'proto', undef, $config );
+	$farm{ persist }    = &_getL4ParseFarmConfig( 'persist', undef, $config );
+	$farm{ ttl }        = &_getL4ParseFarmConfig( 'persisttm', undef, $config );
+	$farm{ proto }      = &getL4ProtocolTransportLayer( $farm{ vproto } );
+	$farm{ bootstatus } = &_getL4ParseFarmConfig( 'bootstatus', undef, $config );
+	$farm{ status }     = &getL4FarmStatus( $farm{ name } );
+	$farm{ logs }       = &_getL4ParseFarmConfig( 'logs', undef, $config );
+	$farm{ servers }    = &_getL4FarmParseServers( $config );
 
 	# replace port * for all the range
 	if ( $farm{ vport } eq '*' )
