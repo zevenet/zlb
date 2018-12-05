@@ -183,7 +183,7 @@ sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
 
 	if ( $writeconf )
 	{
-		&setDatalinkFarmBootStatus( $farm_name, "down" );
+		$status = &setDatalinkFarmBootStatus( $farm_name, "down" );
 	}
 
 	# delete cron task to check backends
