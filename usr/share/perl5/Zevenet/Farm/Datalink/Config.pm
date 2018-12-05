@@ -173,7 +173,6 @@ sub setDatalinkFarmBootStatus    # ($farm_name, $value)
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $value ) = @_;
-	my $output=-1;
 
 	require Tie::File;
 
@@ -189,13 +188,11 @@ sub setDatalinkFarmBootStatus    # ($farm_name, $value)
 			my @args = split ( "\;", $line );
 			$line = "$args[0]\;$args[1]\;$args[2]\;$args[3]\;$value";
 			splice @configfile, $i, $line;
-			$output = 0;
-			last;
 		}
 		$i++;
 	}
 	untie @configfile;
-	return $output;
+	return;
 }
 
 =begin nd
