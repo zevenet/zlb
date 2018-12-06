@@ -122,28 +122,18 @@ sub getFarmStatus    # ($farm_name)
 		require Zevenet::Farm::Datalink::Config;
 		return &getDatalinkFarmStatus( $farm_name );
 	}
-
-	# for every farm type but datalink or l4xnat
-	else
+	elsif ( $farm_type =~ /http/ )
 	{
-		my $pid = &getFarmPid( $farm_name );
-		my $running_pid;
-		$running_pid = kill ( 0, $pid ) if $pid ne "-";
-
-		if ( $pid ne "-" && $running_pid )
-		{
-			$output = "up";
-		}
-		else
-		{
-			if ( $pid ne "-" && !$running_pid )
-			{
-				unlink &getGSLBFarmPidFile( $farm_name ) if ( $farm_type eq 'gslb' );
-				unlink "$piddir\/$farm_name\_pound.pid"  if ( $farm_type =~ /http/ );
-			}
-
-			$output = "down";
-		}
+		require Zevenet::Farm::HTTP::Config;
+		return &getHTTPFarmStatus( $farm_name );
+	}
+	elsif ( $farm_type eq "gslb" && $eload )
+	{
+		$output = &eload(
+						  module => 'Zevenet::Farm::GSLB::Config',
+						  func   => 'getGSLBFarmStatus',
+						  args   => [$farm_name],
+		);
 	}
 
 	return $output;
@@ -339,7 +329,7 @@ sub getFarmBootStatus    # ($farm_name)
 	my $farm_type = &getFarmType( $farm_name );
 	my $output    = "down";
 
-	if ( $farm_type eq "http" || $farm_type eq "https" )
+	if ( $farm_type =~ /http/ )
 	{
 		require Zevenet::Farm::HTTP::Config;
 		$output = &getHTTPFarmBootStatus( $farm_name );

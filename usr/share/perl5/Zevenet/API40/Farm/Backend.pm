@@ -77,11 +77,12 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		}
 
 		# validate PORT
-		unless (    &isValidPortNumber( $json_obj->{ port } ) eq 'true'
-				 || $json_obj->{ port } eq '' )
+		#~ unless ( &isValidPortNumber( $json_obj->{ port } ) eq 'true'
+		#~ || $json_obj->{ port } eq '' )
+		if ( $json_obj->{ port } )
 		{
-			my $msg = "Invalid IP address and port for a backend, it can't be blank.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			my $msg = "Not implemented yet.";
+			&httpErrorResponse( code => 406, desc => $desc, msg => $msg );
 		}
 
 		# validate PRIORITY
@@ -102,13 +103,12 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		}
 
 		# validate MAX_CONNS
-		$json_obj->{ max_conns } = 0 unless exists $json_obj->{ max_conns };
-
-		if ( $json_obj->{ max_conns } !~ /^[0-9]+$/ )    # (0 or higher)
+		#~ $json_obj->{ max_conns } = 0 unless exists $json_obj->{ max_conns };
+		#~ if ( $json_obj->{ max_conns } !~ /^[0-9]+$/ )    # (0 or higher)
+		if ( $json_obj->{ max_conns } )
 		{
-			my $msg =
-			  "Invalid backend connection limit value, accepted values are 0 or higher.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			my $msg = "Not implemented yet.";
+			&httpErrorResponse( code => 406, desc => $desc, msg => $msg );
 		}
 
 		# Create backend

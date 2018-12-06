@@ -23,13 +23,39 @@
 
 use strict;
 
-my $q = getCGI();
+my $configdir = &getGlobalConfiguration( 'configdir' );
 
-if ( $q->path_info =~ qr{/ciphers$} )
+=begin nd
+Function: loadL4FarmModules
+
+	Load L4farm system modules
+
+Parameters:
+	none
+
+Returns:
+	Integer - 0 on success or -1 on failure
+
+=cut
+
+sub loadL4FarmModules
 {
-	require Zevenet::API31::Certificate::Ciphers;
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 
-	GET qr{^/ciphers$} => \&ciphers_available;
+	my $recent_ip_list_tot = &getGlobalConfiguration( 'recent_ip_list_tot' );
+	my $recent_ip_list_hash_size =
+	  &getGlobalConfiguration( 'recent_ip_list_hash_size' );
+
+	my $out = system ( '/sbin/modprobe nf_conntrack >/dev/null 2>&1' );
+	$out |= system ( '/sbin/modprobe ip_conntrack >/dev/null 2>&1' );
+
+	$out |= system ( '/sbin/rmmod xt_recent >/dev/null 2>&1' );
+	$out |= system (
+		"/sbin/modprobe xt_recent ip_list_tot=$recent_ip_list_tot ip_list_hash_size=$recent_ip_list_hash_size >/dev/null 2>&1"
+	);
+
+	return $out;
 }
 
 1;

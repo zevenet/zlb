@@ -24,7 +24,10 @@
 use strict;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 =begin nd
 Function: setFarmBlacklistTime
@@ -46,7 +49,8 @@ See Also:
 
 sub setFarmBlacklistTime    # ($blacklist_time,$farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $blacklist_time, $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -80,7 +84,8 @@ See Also:
 
 sub getFarmBlacklistTime    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $farm_type      = &getFarmType( $farm_name );
@@ -114,7 +119,8 @@ See Also:
 
 sub setFarmSessionType    # ($session,$farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $session, $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -154,13 +160,15 @@ See Also:
 
 sub setFarmTimeout    # ($timeout,$farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $timeout, $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $output    = -1;
 
-	&zenlog( "setting 'Timeout $timeout' for $farm_name farm $farm_type", "info", "LSLB", "info", "LSLB" );
+	&zenlog( "setting 'Timeout $timeout' for $farm_name farm $farm_type",
+			 "info", "LSLB", "info", "LSLB" );
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
 	{
@@ -190,7 +198,8 @@ See Also:
 
 sub getFarmTimeout    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -232,13 +241,15 @@ See Also:
 
 sub setFarmAlgorithm    # ($algorithm,$farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $algorithm, $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $output    = -1;
 
-	&zenlog( "setting 'Algorithm $algorithm' for $farm_name farm $farm_type", "info", "FARMS" );
+	&zenlog( "setting 'Algorithm $algorithm' for $farm_name farm $farm_type",
+			 "info", "FARMS" );
 
 	if ( $farm_type eq "datalink" )
 	{
@@ -280,7 +291,8 @@ See Also:
 
 sub getFarmAlgorithm    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -300,7 +312,6 @@ sub getFarmAlgorithm    # ($farm_name)
 	return $algorithm;
 }
 
-
 =begin nd
 Function: setFarmMaxClientTime
 
@@ -316,14 +327,16 @@ Returns:
 
 sub setFarmMaxClientTime    # ($max_client_time,$track,$farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $max_client_time, $track, $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $output    = -1;
 
 	&zenlog(
-		"setting 'MaxClientTime $max_client_time $track' for $farm_name farm $farm_type", "info", "LSLB"
+		"setting 'MaxClientTime $max_client_time $track' for $farm_name farm $farm_type",
+		"info", "LSLB"
 	);
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
@@ -354,7 +367,8 @@ Returns:
 
 sub getFarmMaxClientTime    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -393,14 +407,15 @@ See Also:
 
 sub setFarmVirtualConf    # ($vip,$vip_port,$farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $vip, $vip_port, $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $stat      = -1;
 
-	&zenlog(
-			 "setting 'VirtualConf $vip $vip_port' for $farm_name farm $farm_type", "info", "FARMS" );
+	&zenlog( "setting 'VirtualConf $vip $vip_port' for $farm_name farm $farm_type",
+			 "info", "FARMS" );
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
 	{
@@ -453,7 +468,8 @@ Returns:
 
 sub setAllFarmByVip
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $vip      = shift;
 	my $farmList = shift;
 
@@ -497,7 +513,8 @@ NOTE:
 
 sub checkFarmnameOK    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	return ( $farm_name =~ /^[a-zA-Z0-9\-]+$/ )
@@ -521,7 +538,8 @@ Returns:
 
 sub getFarmVS    # ($farm_name, $service, $tag)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $service, $tag ) = @_;
 
 	my $output    = "";
@@ -544,7 +562,6 @@ sub getFarmVS    # ($farm_name, $service, $tag)
 	return $output;
 }
 
-
 =begin nd
 Function: setFarmVS
 
@@ -562,7 +579,8 @@ Returns:
 
 sub setFarmVS    # ($farm_name,$service,$tag,$string)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $service, $tag, $string ) = @_;
 
 	my $output    = "";
@@ -576,13 +594,101 @@ sub setFarmVS    # ($farm_name,$service,$tag,$string)
 	elsif ( $farm_type eq "gslb" )
 	{
 		$output = &eload(
-			module => 'Zevenet::Farm::GSLB::Service',
-			func   => 'setGSLBFarmVS',
-			args   => [$farm_name, $service, $tag, $string],
+						  module => 'Zevenet::Farm::GSLB::Service',
+						  func   => 'setGSLBFarmVS',
+						  args   => [$farm_name, $service, $tag, $string],
 		) if $eload;
 	}
 
 	return $output;
+}
+
+=begin nd
+Function: getFarmStruct
+
+	Generic subroutine for the struct retrieval
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	farm - reference of the farm hash
+=cut
+
+sub getFarmStruct
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	require Zevenet::Farm::Core;
+	my $farm;    # declare output hash
+	my $farmName = shift;                       # input: farm name
+	my $farmType = &getFarmType( $farmName );
+	return undef if ( $farmType eq 1 );
+
+	if ( $farmType =~ /http|https/ )
+	{
+		require Zevenet::Farm::HTTP::Config;
+		$farm = &getHTTPFarmStruct( $farmName, $farmType );
+	}
+	elsif ( $farmType =~ /l4xnat/ )
+	{
+		require Zevenet::Farm::L4xNAT::Config;
+		$farm = &getL4FarmStruct( $farmName );
+	}
+	elsif ( $farmType =~ /gslb/ )
+	{
+		require Zevenet::Farm::GSLB::Config;
+		$farm = &getGSLBFarmStruct( $farmName );
+	}
+
+	# elsif ( $farmType =~ /datalink/ )
+	# {
+	# 	require Zevenet::Farm::Datalink::Config;
+	# 	$farm = &getDatalinkFarmStruct ( $farmName );
+	# }
+	return $farm;    # return a hash reference
+}
+
+=begin nd
+
+Function: getFarmPlainInfo
+
+	Return the L4 farm text configuration
+
+Parameters:
+	farm_name - farm name to get the status
+
+Returns:
+	Scalar - Reference of the file content in plain text
+
+=cut
+
+sub getFarmPlainInfo    # ($farm_name)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $farm_name = shift;
+	my $file = shift // undef;
+	my @content;
+
+	my $configdir = &getGlobalConfiguration( 'configdir' );
+
+	my $farm_filename = &getFarmFile( $farm_name );
+
+	if ( $farm_filename =~ /(?:gslb)\.cfg$/ && $file != undef )
+	{
+		open my $fd, '<', "$configdir/$farm_filename/$file";
+		chomp ( @content = <$fd> );
+		close $fd;
+	}
+	else
+	{
+		open my $fd, '<', "$configdir/$farm_filename";
+		chomp ( @content = <$fd> );
+		close $fd;
+	}
+
+	return \@content;
 }
 
 1;

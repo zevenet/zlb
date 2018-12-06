@@ -951,11 +951,11 @@ sub getL4FarmStatus
 	my $farm_name = shift;
 
 	my $piddir = &getGlobalConfiguration( 'piddir' );
-	open my $fi, '<', "$piddir\/$farm_name\_l4xnat.pid";
-	close $fi;
+	my $output = "down";
 
-	return "up" if ( $fi );
-	return "down";
+	$output = "up" if ( -e "$piddir\/$farm_name\_l4xnat.pid" );
+
+	return $output;
 }
 
 =begin nd
@@ -984,7 +984,8 @@ sub getL4FarmStruct
 	require Zevenet::Farm::L4xNAT::Backend;
 
 	$farm{ filename } = &getFarmFile( $farm{ name } );
-	my $config = &getL4FarmPlainInfo( $farm{ name } );
+	require Zevenet::Farm::Config;
+	my $config = &getFarmPlainInfo( $farm{ name } );
 
 	$farm{ nattype }    = &_getL4ParseFarmConfig( 'mode', undef, $config );
 	$farm{ mode }       = $farm{ nattype };
@@ -1297,34 +1298,6 @@ sub reloadL4FarmLogsRule
 		}
 	}
 
-}
-
-=begin nd
-Function: getL4FarmPlainInfo
-
-	Return the L4 farm text configuration
-
-Parameters:
-	farm_name - farm name to get the status
-
-Returns:
-	Scalar - Reference of the file content in plain text
-
-=cut
-
-sub getL4FarmPlainInfo    # ($farm_name)
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my ( $farm_name ) = @_;
-
-	my $farm_filename = &getFarmFile( $farm_name );
-
-	open my $fd, '<', "$configdir/$farm_filename";
-	chomp ( my @content = <$fd> );
-	close $fd;
-
-	return \@content;
 }
 
 1;

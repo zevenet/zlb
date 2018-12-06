@@ -42,8 +42,8 @@ sub startL4Farm    # ($farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
+
 	my $farm_name = shift;
-	require Zevenet::Farm::Core;
 
 	&zlog( "Starting farm $farm_name" ) if &debug == 2;
 
@@ -57,13 +57,6 @@ sub startL4Farm    # ($farm_name)
 	{
 		return $status;
 	}
-
-  #	# prio only apply rules to one server
-  #	if ( $server_prio && $$farm{ lbalg } eq 'prio' )
-  #	{
-  #		system ( "echo 10 > /proc/sys/net/netfilter/nf_conntrack_udp_timeout_stream" );
-  #		system ( "echo 5 > /proc/sys/net/netfilter/nf_conntrack_udp_timeout" );
-  #	}
 
 	# Enable IP forwarding
 	&setIpForward( 'true' );
@@ -88,14 +81,15 @@ sub stopL4Farm    # ($farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name ) = @_;
+
+	my $farm_name = shift;
+	my $pidfile   = &getL4FarmPidFile( $farm_name );
 
 	require Zevenet::Farm::Core;
 
 	&zlog( "Stopping farm $farm_name" ) if &debug > 2;
 
-	my $farm_filename = &getFarmFile( $farm_name );
-	my $status;    # output
+	my $status;
 
 	# Disable active l4xnat file
 	my $pid = &getNLBPid();
@@ -105,6 +99,8 @@ sub stopL4Farm    # ($farm_name)
 	}
 
 	&stopNLBFarm( $farm_name );
+
+	unlink "$pidfile" if ( -e "$pidfile" );
 
 	# Reload conntrack modules
 	#	if ( $$farm{ vproto } =~ /sip|ftp/ )
@@ -164,10 +160,9 @@ sub startNLB    # ()
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $piddir     = &getGlobalConfiguration( 'piddir' );
 	my $nftlbd     = &getGlobalConfiguration( 'zbindir' ) . "/nftlbd";
 	my $pidof      = &getGlobalConfiguration( 'pidof' );
-	my $nlbpidfile = "$piddir/nftlb.pid";
+	my $nlbpidfile = &getNLBPidFile();
 	my $nlbpid     = &getNLBPid();
 
 	if ( $nlbpid eq "-1" )
@@ -209,10 +204,9 @@ sub stopNLB    # ()
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
-	my $piddir     = &getGlobalConfiguration( 'piddir' );
 	my $nftlbd     = &getGlobalConfiguration( 'zbindir' ) . "/nftlbd";
 	my $pidof      = &getGlobalConfiguration( 'pidof' );
-	my $nlbpidfile = "$piddir/nftlb.pid";
+	my $nlbpidfile = &getNLBPidFile();
 	my $nlbpid     = &getNLBPid();
 
 	if ( $nlbpid ne "-1" )
@@ -246,6 +240,7 @@ sub loadNLBFarm    # ($farm_name)
 	require Zevenet::Farm::L4xNAT::Config;
 
 	my $farmfile = &getFarmFile( $farm_name );
+	my $pidfile  = &getL4FarmPidFile( $farm_name );
 
 	return -1 if ( !-e "$configdir/$farmfile" );
 
@@ -258,6 +253,12 @@ sub loadNLBFarm    # ($farm_name)
 								 body       => qq(\@$configdir/$farmfile)
 							   }
 	);
+
+	if ( !-e "$pidfile" )
+	{
+		open my $fi, '>', "$pidfile";
+		close $fi;
+	}
 
 	return $out;
 }
@@ -281,7 +282,7 @@ sub startNLBFarm    # ($farm_name)
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
-	require Zevenet::Farm::Core;
+	#	require Zevenet::Farm::Core;
 	require Zevenet::Farm::L4xNAT::Config;
 
 	my $out = &loadNLBFarm( $farm_name );
@@ -340,10 +341,9 @@ sub getNLBPid
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name ) = @_;
-	my $piddir        = &getGlobalConfiguration( 'piddir' );
-	my $nlbpidfile    = "$piddir/nftlb.pid";
-	my $nlbpid        = -1;
+
+	my $nlbpidfile = &getNLBPidFile();
+	my $nlbpid     = -1;
 
 	if ( !-f "$nlbpidfile" )
 	{
@@ -360,6 +360,55 @@ sub getNLBPid
 	}
 
 	return $nlbpid;
+}
+
+=begin nd
+Function: getNLBPidFile
+
+	Return the nftlb pid file
+
+Parameters:
+	none
+
+Returns:
+	String - Pid file path or -1 on failure
+
+=cut
+
+sub getNLBPidFile
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my $piddir     = &getGlobalConfiguration( 'piddir' );
+	my $nlbpidfile = "$piddir/nftlb.pid";
+
+	return $nlbpidfile;
+}
+
+=begin nd
+Function: getL4FarmPidFile
+
+	Return the farm pid file
+
+Parameters:
+	farm_name - Name of the given farm
+
+Returns:
+	String - Pid file path or -1 on failure
+
+=cut
+
+sub getL4FarmPidFile
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name ) = @_;
+
+	my $piddir  = &getGlobalConfiguration( 'piddir' );
+	my $pidfile = "$piddir/$farm_name\_l4xnat.pid";
+
+	return $pidfile;
 }
 
 1;

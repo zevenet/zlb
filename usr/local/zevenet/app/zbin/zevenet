@@ -125,9 +125,8 @@ if ( $action eq "start" )
 	&printAndLog( "Starting Zevenet Load Balancer v$version" );
 
 	# Load required modules
-	system ( '/sbin/modprobe nf_conntrack >/dev/null 2>&1' );
-	system ( '/sbin/modprobe ip_conntrack >/dev/null 2>&1' );
-	system ( '/sbin/modprobe xt_recent >/dev/null 2>&1'   );
+	require Zevenet::Farm::L4xNAT::Service;
+	&loadL4FarmModules();
 
 	&zenlog("zevenet: Modules loaded");
 

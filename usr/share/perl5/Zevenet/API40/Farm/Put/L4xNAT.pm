@@ -143,7 +143,20 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		unless ( $json_obj->{ algorithm } =~ /^(leastconn|weight|prio)$/ )
+		if ( $json_obj->{ algorithm } =~ /^(leastconn)$/ )
+		{
+			my $msg = "Not implemented yet.";
+			&httpErrorResponse( code => 406, desc => $desc, msg => $msg );
+		}
+
+		if ( $json_obj->{ algorithm } =~ /^(prio)$/ )
+		{
+			my $msg = "Not supported anymore.";
+			&httpErrorResponse( code => 410, desc => $desc, msg => $msg );
+		}
+
+		unless ( $json_obj->{ algorithm } =~
+				 /^(weight|roundrobin|hash_srcip_srcport|hash_srcip|symhash)$/ )
 		{
 			my $msg = "Invalid algorithm.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -164,7 +177,13 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 	if ( exists ( $json_obj->{ persistence } ) )
 	{
 		require Zevenet::Farm::Config;
-		unless ( $json_obj->{ persistence } =~ /^(?:ip|)$/ )
+		if ( $json_obj->{ persistence } =~ /^(?:ip)$/ )
+		{
+			my $msg = "Not implemented yet.";
+			&httpErrorResponse( code => 406, desc => $desc, msg => $msg );
+		}
+
+		unless ( $json_obj->{ persistence } =~ /^$/ )
 		{
 			my $msg = "Invalid persistence.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -195,7 +214,8 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		unless ( $json_obj->{ protocol } =~ /^(all|tcp|udp|sip|ftp|tftp)$/ )
+		unless ( $json_obj->{ protocol } =~
+			/^(all|tcp|udp|sctp|sip|ftp|tftp|amanda|h323|irc|netbios-ns|pptp|sane|snmp)$/ )
 		{
 			my $msg = "Invalid protocol.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -220,7 +240,7 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		unless ( $json_obj->{ nattype } =~ /^(nat|dnat|dsr)$/ )
+		unless ( $json_obj->{ nattype } =~ /^(nat|dnat|dsr|stateless_dnat)$/ )
 		{
 			my $msg = "Invalid nattype.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -239,7 +259,7 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 		}
 	}
 
-	# Modify IP Adress Persistence Time To Limit
+	# Modify IP Address Persistence Time To Limit
 	if ( exists ( $json_obj->{ ttl } ) )
 	{
 		unless ( length $json_obj->{ ttl } )
@@ -248,10 +268,10 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		unless ( $json_obj->{ ttl } =~ /^\d+$/ )
+		if ( $json_obj->{ ttl } =~ /^\d+$/ )
 		{
-			my $msg = "Invalid ttl.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			my $msg = "Not implemented yet.";
+			&httpErrorResponse( code => 406, desc => $desc, msg => $msg );
 		}
 
 		require Zevenet::Farm::Config;

@@ -392,17 +392,11 @@ if ( $q->path_info =~ qr{^/system/(?:version|license|supportsave)} )
 	GET qr{^/system/license/($license_re)$} => \&get_license;
 }
 
-# Alias
-if ( $q->path_info =~ qr{^/aliases} )
+if ( $q->path_info =~ qr{/ciphers$} )
 {
-	require Zevenet::API40::Alias;
-	my $alias_re   = &getValidFormat( 'alias_id' );
-	my $alias_type = &getValidFormat( 'alias_type' );
+	require Zevenet::API40::Certificate;
 
-	# /aliases/(backend)s, not match the charater 's'
-	GET qr{^/aliases/($alias_type)s$}            => \&get_by_type;
-	PUT qr{^/aliases/($alias_type)s/([^/]+)$}    => \&set_alias;
-	DELETE qr{^/aliases/($alias_type)s/([^/]+)$} => \&delete_alias;
+	GET qr{^/ciphers$} => \&ciphers_available;
 }
 
 ##### Load modules dynamically #######################################
