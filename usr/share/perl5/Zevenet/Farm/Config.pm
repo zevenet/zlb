@@ -675,15 +675,15 @@ sub getFarmPlainInfo    # ($farm_name)
 
 	my $farm_filename = &getFarmFile( $farm_name );
 
-	if ( $farm_filename =~ /(?:gslb)\.cfg$/ && $file != undef )
+	if ( $farm_filename =~ /(?:gslb)\.cfg$/ && defined $file )
 	{
-		open my $fd, '<', "$configdir/$farm_filename/$file";
+		open my $fd, '<', "$configdir/$farm_filename/$file" or return undef;
 		chomp ( @content = <$fd> );
 		close $fd;
 	}
 	else
 	{
-		open my $fd, '<', "$configdir/$farm_filename";
+		open my $fd, '<', "$configdir/$farm_filename" or return undef;
 		chomp ( @content = <$fd> );
 		close $fd;
 	}
