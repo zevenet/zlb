@@ -73,6 +73,8 @@ my $q = &getCGI();
 require Zevenet::Config;
 require Zevenet::Validate;
 
+#### OPTIONS requests ################################################
+require Zevenet::API31::Routes::Options  if ( $ENV{ REQUEST_METHOD } eq 'OPTIONS' );
 
 ##### Authentication #################################################
 require Zevenet::API31::Auth;
