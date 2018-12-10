@@ -311,7 +311,7 @@ sub httpResponse    # ( \%hash ) hash_keys->( $code, %headers, $body )
 
 			push @headers,
 			  'Set-Cookie'                    => $session_cookie,
-			  'Access-Control-Expose-Headers' => 'Set-Cookie',
+			  'Access-Control-Expose-Headers' => 'Set-Cookie, Content-Disposition',
 			  ;
 		}
 	}

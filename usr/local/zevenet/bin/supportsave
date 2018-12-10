@@ -74,7 +74,7 @@ echo "- Partitions"
 /bin/df -h                              >> $backup_dir/partitions.txt 2>&1
 
 echo "- Time"
-${zbindir}/zenntp.pl                    >> $backup_dir/ntp_test.txt 2>&1
+${zbindir}/zenntp                    	>> $backup_dir/ntp_test.txt 2>&1
 
 echo "- Sessions Table"
 ${home_dir}/app/ssyncd/bin/ssyncdctl show http	>> $backup_dir/sessions_http.txt 2>&1

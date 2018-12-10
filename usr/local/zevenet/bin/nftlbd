@@ -1,0 +1,74 @@
+#!/bin/sh
+
+DESC="nftlb daemon service"
+NAME=nftlb
+DAEMON=/usr/local/sbin/nftlb
+DAEMON_ARGS="-l 9 -H 127.0.0.1 -k HoLa -P 27"
+NFTBIN=/usr/local/sbin/nft
+PIDFILE=/var/run/$NAME.pid
+SCRIPTNAME=/etc/init.d/$NAME
+
+[ -x "$DAEMON" ] || exit 0
+[ -r /etc/default/$NAME ] && . /etc/default/$NAME
+. /lib/init/vars.sh
+. /lib/lsb/init-functions
+
+do_start()
+{
+	`$NFTBIN flush ruleset`
+	start-stop-daemon --start --quiet --oknodo --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON -- $DAEMON_ARGS
+	[ "$?" -ne 0 ] && return 2
+}
+
+do_stop() {
+	`$NFTBIN flush ruleset`
+	start-stop-daemon --stop --signal 1 --quiet --remove-pidfile --pidfile $PIDFILE --name $NAME
+	[ -f $PIDFILE ] && rm -i $PIDFILE
+	[ "$?" -ne 0 ] && return 2
+}
+
+case "$1" in
+	start)
+		echo "Starting $DESC" "$NAME"
+		do_start
+		case "$?" in
+		0|1) return 0 ;;
+		2) return 1 ;;
+		esac
+		;;
+
+	stop)
+		echo "Stopping $DESC" "$NAME"
+		do_stop
+		case "$?" in
+		0|1) return 0 ;;
+		2) return 1 ;;
+		esac
+		;;
+
+	status)
+		status_of_proc "$DAEMON" "$NAME" && exit 0 || exit $?
+		;;
+
+	restart)
+		echo "Restarting $DESC" "$NAME"
+		do_stop
+		case "$?" in
+		0|1)
+			do_start
+			case "$?" in
+				0) return 0 ;;
+				1) return 1 ;;
+				*) return 1 ;;
+			esac
+			;;
+		*)
+			return 1	;;
+		esac
+		;;
+
+	*)
+		echo "Usage: $SCRIPTNAME {start|stop|status|restart}" >&2
+		exit 3
+	;;
+esac

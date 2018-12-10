@@ -21,48 +21,37 @@
 #
 ###############################################################################
 
-#this script run all pl files with -rrd.pl regexh in $rrdap_dir,
-#this -rrd.pl files will create the rrd graphs that zen load balancer gui
-#will paint in Monitoring section
-#USE:
-#you have to include in the cron user this next line for example:
-#execution over 2 minutes
-#*/2 * * * * /usr/local/zevenet/app/rrd/zenrrd.pl
-#Fell free to create next graphs, in files type
-#name-rrd.pl, the system going to include automatically to execute
-#and viewing in Zen load balancer GUI (Monitoring secction)
-
 use strict;
 use warnings;
+use Zevenet::Log;
 use Zevenet::Config;
 
-my $rrdap_dir = &getGlobalConfiguration('rrdap_dir');
-my $lockfile = "/tmp/rrd.lock";
+my $name   = $ARGV[0];
+my $action = $ARGV[1];
 
-if ( -e $lockfile )
+my $backupdir = &getGlobalConfiguration( 'backupdir' );
+my $tar       = &getGlobalConfiguration( 'tar' );
+
+if ( $action eq "-c" )
 {
-	print "RRD Locked by $lockfile, maybe other zenrrd in execution\n";
-	exit;
+	my $backupfor      = &getGlobalConfiguration( 'backupfor' );
+	my $version        = &getGlobalConfiguration( 'version' );
+	my $z_version_file = '/zevenet_version';
+	my $backup_file    = "$backupdir\/backup-$name.tar.gz";
+
+	open my $file, '>', $z_version_file;
+	print $file "$version";
+	close $file;
+
+	zenlog( "Creating backup $backup_file" );
+
+	my $cmd = "$tar -czf $backup_file $backupfor";
+	zenlog( `$cmd 2>&1` );
+
+	unlink $z_version_file;
 }
-else
+
+if ( $action eq "-d" )
 {
-	open my $lock, '>', $lockfile;
-	print $lock "lock rrd";
-	close $lock;
-}
-
-opendir ( my $dir, $rrdap_dir );
-my @rrd_scripts = grep ( /-rrd.pl$/, readdir ( $dir ) );
-closedir ( $dir );
-
-foreach my $script_rrd ( @rrd_scripts )
-{
-	print "Executing $script_rrd...\n";
-
-	system( "$rrdap_dir/$script_rrd" );
-}
-
-if ( -e $lockfile )
-{
-	unlink ( $lockfile );
+	my @eject = `$tar -xzf $backupdir\/backup-$name.tar.gz -C /`;
 }

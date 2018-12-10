@@ -40,7 +40,7 @@ my $tag       = '#update';
 
 unless ( -f $gc_fn )
 {
-	system( "cp $gc_tpl_fn $gc_fn" );
+	copy( $gc_tpl_fn, $gc_fn );
 	exit 0;
 }
 

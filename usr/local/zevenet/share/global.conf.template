@@ -1,206 +1,323 @@
 #::INI Global information
 
+
+## version ZEVENET
+$version=""
+
+
 ## Variables
+# debug level
+$debug="0";
+#ZAPI KEY
+$zapikey="";
+#proxy
+$http_proxy="";
+$https_proxy="";
+# connection logs for farms. If this parameter is "true" all traffic will be logged
+# else only the new connections will be logged
+$full_farm_logs = "false";
 
-# Version ZEVENET
-$version = "5.0.2"; #update
-
-# NTP server
-$ntp = "pool.ntp.org";
-# ZAPI Key
-$zapikey = "";
 
 ## Zevenet Paths
+#Zevenet root directory
+$zdir="/usr/local/zevenet";#update
+#Zevenet lib directory
+$zlibdir="/usr/share/perl5/Zevenet";#update
+#Zevenet bin directory
+$zbindir = "$zdir/bin";#update
+#Document Root for Web Aplication directory
+$basedir="$zdir/www";#update
+#configuration directory.In this section all config files are saved.
+$configdir="$zdir/config";#update
+#Directory where is check script. In this directory you can save your own check scripts.
+$libexec_dir="/usr/lib/nagios/plugins";
+#Zevenet bin directory
+$templatedir = "$zdir/share";#update
+#Save backups on
+$backupdir="$zdir/backups";#update
+#Log directory
+$logdir="/var/log";#update
+#piddir
+$piddir="/var/run";
 
-# Zevenet root directory
-$zdir = "/usr/local/zevenet";
-# Zevenet bin directory
-$zbindir = "/usr/local/zevenet/bin";
-# Zevenet lib directory
-$zlibdir = "/usr/share/perl5/Zevenet";
-# Document Root for Web Aplication directory
-$basedir = "/usr/local/zevenet/www";
-# Configuration directory. In this section all config files are saved.
-$configdir = "/usr/local/zevenet/config";
-# Directory where is check script. In this directory you can save your own check scripts.
-$libexec_dir = "/usr/lib/nagios/plugins";
-# Directory where is the templates
-$templatedir = "/usr/local/zevenet/share";
-# Log directory
-$logdir = "/var/log";
-# piddir
-$piddir = "/var/run";
 
-## Zevenet commands
-
-# FarmGuardian command, checks backend servers
-$farmguardian = "/usr/local/zevenet/bin/farmguardian";
-# Where is l4sd?
-$l4sd = "/usr/local/zevenet/bin/l4sd";
-
-## Zevenet Files
-
-# appliance version file
-$applianceVersionFile = "/etc/zevenet_version";
-# this file
-$globalcfg = "/usr/local/zevenet/config/global.conf";
-# File configuration GUI
-$confhttp = "/usr/local/zevenet/app/cherokee/etc/cherokee/cherokee.conf";
-
-# Zevenet license
-$licenseFileTxt = "/usr/local/zevenet/LICENSE.txt";
-# Zevenet license
-$licenseFileHtml = "/usr/local/zevenet/LICENSE.html";
-
-## System Files
-
-# HTPASSWD file
-$htpass = "/etc/passwd";
-# DNS servers file?
-$filedns = "/etc/resolv.conf";
+# System files
+#rt tables file
+$rttables = "/etc/iproute2/rt_tables";
+#HTPASSWD file
+$htpass="/etc/passwd";#update
+#shadow file
+$shadow_file="/etc/shadow";
+#dns file server?
+$filedns="/etc/resolv.conf";
 # apt sources configuration file
 $fileapt = "/etc/apt/sources.list";
-# SNMP Service
-$snmpdconfig_file = "/etc/snmp/snmpd.conf";
-# Where is temperature file?
-$temperatureFile = "/proc/acpi/thermal_zone/THRM/temperature";
+#SNMP Service
+$snmpdconfig_file="/etc/snmp/snmpd.conf";
 
-## Commands paths
 
-# cron service
-$cron_service = "/etc/init.d/cron";
-# Where is hostname binary?
-$hostname = "/bin/hostname";
-# Where is kill binary?
-$kill_bin = "/bin/kill";
-# Where is uname binary?
-$uname = "/bin/uname";
-# Where is tar binary?
-$tar = "/bin/tar";
-# Where is ifconfig binary?
-$ifconfig_bin = "/sbin/ifconfig";
-# Where is ip binary?
-$ip_bin = "/sbin/ip";
-# Where is wc binary?
-$wc_bin = "/usr/bin/wc";
-# Where is fdisk binary?
-$fdisk_bin = "/sbin/fdisk";
-# Where is df binary?
-$df_bin = "/bin/df";
-# Where is pidof binary?
-$pidof = "/bin/pidof";
-# Where is ps binary?
-$ps = "/bin/ps";
-# Where is tail binary?
-$tail = "/usr/bin/tail";
-# Where is zcat binary?
-$zcat = "/bin/zcat";
-# Where is ntpserver?
-$datentp = "/usr/sbin/ntpdate";
-# Where is arping?
-$arping_bin = "/usr/bin/arping";
-# Where is ping?
-$ping_bin = "/bin/ping";
-# Where is openssl?
-$openssl = "/usr/bin/openssl";
-# Where is unzip?
-$unzip = "/usr/bin/unzip";
-# Where is mv?
-$mv = "/bin/mv";
-# Where is mkdir?
-$mkdir = "/bin/mkdir";
-# Where is awk binary?
-$awk = "/usr/bin/awk";
-# Where is touch?
+## Zevenet Files
+#appliance version file
+$applianceVersionFile="/etc/zevenet_version";
+#this file
+$globalcfg = "$configdir/global.conf";#update
+# Zen license
+$licenseFileTxt="$zdir/license.txt";#update
+# Zen license
+$licenseFileHtml="$zdir/license.html";#update
+#File configuration Zen Cluster
+$filecluster="$configdir/cluster.conf";#update
+#File configuration GUI
+$confhttp="$zdir/app/cherokee/etc/cherokee/cherokee.conf";#update
+#Where is temperature file?
+$temperatureFile="/proc/acpi/thermal_zone/THRM/temperature";
+
+
+## binaries
+#Where is hostname binary?
+$hostname="/bin/hostname";
+#Where is kill binary?
+$kill_bin="/bin/kill";
+#Where is uname binary?
+$uname="/bin/uname";
+#Where is tar binary?
+$tar="/bin/tar";
+#where is ifconfig binary?
+$ifconfig_bin="/sbin/ifconfig";
+#Where is ip bynary?
+$ip_bin="/sbin/ip";
+#Where is wc binary?
+$wc_bin="/usr/bin/wc";
+#Where is fdisk binary?
+$fdisk_bin="/sbin/fdisk";
+#Where is df binary?
+$df_bin="/bin/df";
+#Where is ssh-keygen binary?
+$sshkeygen="/usr/bin/ssh-keygen";
+#Where is ssh client?
+$ssh="/usr/bin/ssh";
+#Where is scp binary?
+$scp="/usr/bin/scp";
+#Where is rsync binary?
+$rsync="/usr/bin/rsync";
+#Where is pidof binary?
+$pidof="/bin/pidof";
+#Where is ps binary?
+$ps="/bin/ps";
+#Where is tail binary?
+$tail="/usr/bin/tail";
+#Where is zcat binary?
+$zcat="/bin/zcat";
+#Where is ntpserver?
+$datentp="/usr/sbin/ntpdate";
+#Where is arping?
+$arping_bin="/usr/bin/arping";
+#Where is ping?
+$ping_bin="/bin/ping";
+#Where is openssl?
+$openssl="/usr/bin/openssl";
+#Where is unzip?
+$unzip="/usr/bin/unzip";
+#Where is mv?
+$mv="/bin/mv";
+#Where is mkdir?
+$mkdir="/bin/mkdir";
+#Where is awk binary?
+$awk="/usr/bin/awk";
+#Where is logger?
+$logger="/usr/bin/logger";
+#Where is sec?
+$sec="/usr/bin/sec";
+#Where is ipset?
+$ipset = "/sbin/ipset";
+#Where is touch?
 $touch = "/usr/bin/touch";
-# Where is ls?
-$ls = "/bin/ls";
-# Where is stat?
-$stat = "/usr/bin/stat";
-# Where is cp?
-$cp = "/bin/cp";
-# Where is rm?
-$rm = "/bin/rm";
-# Where is iptables?
-$iptables = "/sbin/iptables";
-# Where is ip6tables?
-$ip6tables = "/sbin/ip6tables";
-# Where is modprobe?
-$modprobe = "/sbin/modprobe";
-# Where is lsmod?
-$lsmod = "/sbin/lsmod";
-# Where is id binary?
-$bin_id = "/usr/bin/id";
-# Where is wget binary?
-$wget = "/usr/bin/wget";
-# Where is conntrack binary?
-$conntrack = "/usr/sbin/conntrack";
-# systemctl
-$systemctl = "/bin/systemctl";
-# Where is insserv?
-$insserv = "/sbin/insserv";
-# Where is update-rc.d?
-$updatercd = "/usr/sbin/update-rc.d";
+#Where is ls?
+$ls="/bin/ls";
+#Where is stat?
+$stat="/usr/bin/stat";
+#Where is cp?
+$cp="/bin/cp";
+#Where is rm?
+$rm="/bin/rm";
+#Where is iptables?
+$iptables="/sbin/iptables";
+#Where is ip6tables?
+$ip6tables="/sbin/ip6tables";
+#Where is modprobe?
+$modprobe="/sbin/modprobe";
+#Where is lsmod?
+$lsmod="/sbin/lsmod";
+#Where is gdnsd?
+$gdnsd="$zdir/app/gdnsd/sbin/gdnsd";#update
+#Where is l4sd?
+$l4sd="$zbindir/l4sd";#update
+#Where is id binary?
+$bin_id="/usr/bin/id";
+#Where is wget binary?
+$wget="/usr/bin/wget";
+#Where is conntrack binary?
+$conntrack="/usr/sbin/conntrack";
+#systemctl
+$systemctl="/bin/systemctl";
+#Where is insserv?
+$insserv="/sbin/insserv";
+#Where is update-rc.d?
+$updatercd="/usr/sbin/update-rc.d";
+#Where is packetbl?
+$packetbl_bin="/bin/packetbl";
+#Where is adduser?
+$adduser_bin="/usr/sbin/adduser";
+#Where is deluser?
+$deluser_bin="/usr/sbin/deluser";
+#Where is groupadd?
+$groupadd_bin="/usr/sbin/groupadd";
+#Where is groupdel?
+$groupdel_bin="/usr/sbin/groupdel";
+#Where is groups?
+$groups_bin="/usr/bin/groups";
+#Where is echo?
+$echo_bin="/bin/echo";
+#Where is nftlb?
+$nftlb_bin="/usr/local/sbin/nftlb";
+
+
+# Pound
+#where is pound binary?
+$base_pound="/usr";#update
+#where is pound binary?
+$pound="$base_pound/sbin/pound";#update
+#where is pound ctl?
+$poundctl="$base_pound/sbin/poundctl";#update
+#pound file configuration template?
+$poundtpl="$templatedir/pound.cfg.template";
+#maximum value of http body to pass to modsecurity
+$waf_body_size="";
+
+
+#Cipher PCI
+$cipher_pci="kEECDH+ECDSA+AES128:kEECDH+ECDSA+AES256:kEECDH+AES128:kEECDH+AES256:kEDH+AES128:kEDH+AES256:DES-CBC3-SHA:+SHA:!aNULL:!eNULL:!LOW:!kECDH:!DSS:!MD5:!EXP:!PSK:!SRP:!CAMELLIA:!SEED";#update
+#Cipher ssloffloading
+$cipher_ssloffloading="AES";
+#ntp server
+$ntp="pool.ntp.org";
+
 
 ## Network global configuration options ##
+$fwmarksconf = "$configdir/fwmarks.conf";
+#System Default Gateway
+$defaultgw="";
+#Interface Default Gateway
+$defaultgwif="";
+#System Default IPv6 Gateway
+$defaultgw6="";
+#Interface Default IPv6 Gateway
+$defaultgwif6="";
+#Number of gratuitous pings
+$pingc="1";
+#routing options
+$routeparams="";
+#IPv6
+$ipv6_enabled="false";
 
-$fwmarksconf = "/usr/local/zevenet/config/fwmarks.conf";
-$sys_net_dir="/sys/class/net";
-# rt tables file
-$rttables = "/etc/iproute2/rt_tables";
-# System Default Gateway
-$defaultgw = "";
-# Interface Default Gateway
-$defaultgwif = "";
-# System Default IPv6 Gateway
-$defaultgw6 = "";
-# Interface Default IPv6 Gateway
-$defaultgwif6 = "";
-# Number of gratuitous pings
-$pingc = "1";
-# routing options
-$routeparams = "";
-# IPv6
-$ipv6_enabled = "false";
 
-## HTTP Load balancing
-
-# where is pound binary?
-$pound = "/usr/sbin/pound";
-# where is poundctl?
-$poundctl = "/usr/sbin/poundctl";
-# pound file configuration template?
-$poundtpl = "/usr/local/zevenet/share/pound.cfg.template";
-# Cipher PCI
-$cipher_pci = "kEECDH+ECDSA+AES128:kEECDH+ECDSA+AES256:kEECDH+AES128:kEECDH+AES256:kEDH+AES128:kEDH+AES256:DES-CBC3-SHA:+SHA:!aNULL:!eNULL:!LOW:!kECDH:!DSS:!MD5:!EXP:!PSK:!SRP:!CAMELLIA:!SEED"; #update
-# Cipher ssloffloading
-$cipher_ssloffloading = "AES";
-
-## L4 Load balancing
-
+## L4xNat - netfilter
 # Maximum recent ip list
-$recent_ip_list_tot = "";
+$recent_ip_list_tot="";
 # Recent ip hash
-$recent_ip_list_hash_size = "";
+$recent_ip_list_hash_size="";
 # Iptables lock filename
 $iptlock = "/tmp/iptables.lock";
 
-## RRD
 
-# Where is ZenRRD Directory?. There is a perl script that create rrd database and images from Monitoring section
-$rrdap_dir = "/usr/local/zevenet/app/zenrrd";
-# Relative path in Web Root directory ($basedir) where is graphs from ZenRRD *no modify
-$img_dir = "/tmp";
-# Relative path where is rrd databases from ZenRRD * no modify
-$rrd_dir = "rrd";
+#FarmGuardian binary, create advanced check for backend servers
+$farmguardian="$zbindir/farmguardian";#update
 
-## Backup
 
-# Zen backup
-$zenbackup = "/usr/local/zevenet/bin/zenbackup.pl";
-# Save backups on
-$backupdir = "/usr/local/zevenet/backups";
-# Do backup to
-$backupfor = "/usr/local/zevenet/config /usr/local/zevenet/www/*.pem /usr/local/zevenet/app/cherokee/etc/cherokee/cherokee.conf /etc/iproute2/rt_tables /etc/ssh/sshd_config /etc/snmp/snmpd.conf /etc/hostname /etc/resolv.conf /etc/cron.d/zevenet /zevenet_version";
+#Where is ZenRRD Directory?. There is a perl script that create rrd database and images from Monitoring section
+$rrdap_dir="$zdir/app/zenrrd";#update
+#Relative path in Web Root directory ($basedir) where is graphs from ZenRRD *no modify
+$img_dir="/tmp";#update
+#Relative path where is rrd databases from ZenRRD * no modify
+$rrd_dir="rrd";#update
+
+
+#Service for configure Zen directory replication
+$zenino="$zbindir/enterprise.bin zeninotify";#update
+#Zen Inotify pid file
+$zeninopid="/var/run/zeninotify.pid";
+#Rsync replication parameters
+$zenrsync="-azvr --delete";#update
+#Arptables
+$arptables="/sbin/arptables";
+#ARP unsolicited
+$arp_unsolicited="";
+
+
+# cron service
+$cron_service = "/etc/init.d/cron";
+
+# keepalived configuration file
+$keepalived_conf="/etc/keepalived/keepalived.conf";
+# conntrackd configuration file
+$conntrackd_conf="/etc/conntrackd/conntrackd.conf";
+# cluster floating interfaces configuration file path
+$floatfile="$configdir/float.conf";#update
+# node_status file path
+$znode_status_file="$zdir/node_status";#update
+
+# zcluster-manager command path
+$zcluster_manager="$zbindir/zcluster-manager";#update
+# ssh-copy-id file path
+$ssh_copy_id="$zbindir/ssh-copy-id.sh";#update
+# primary-backup conntrackd script
+$primary_backup = "/usr/share/doc/conntrackd/examples/sync/primary-backup.sh";
+
+# sshd file
+$sshConf="/etc/ssh/sshd_config";
+# ssh service
+$sshService="/etc/init.d/ssh";
+# sshkey file path
+$key_path="/root/.ssh";
+# sshkey file path
+$key_id="id_rsa";
+# ssh keygen command
+$keygen_cmd="ssh-keygen -t rsa -f $key_path/$key_id -N '' -q";#update
+
+#Zen backup
+$zenbackup="$zbindir/zenbackup.pl";#update
+
+#Do backup to
+$backupfor="$configdir $basedir/*.pem $confhttp $rttables $sshConf $snmpdconfig_file /etc/hostname $filedns /etc/cron.d/zevenet $applianceVersionFile";#update
+
+#Bonding interfaces
+$bond_config_file="$configdir/bonding.conf";#update
+$sys_net_dir="/sys/class/net";
+$bonding_masters_filename="/sys/class/net/bonding_masters";
+$bonding_mode_filename="bonding/mode";
+$bonding_slaves_filename="bonding/slaves";
+$bonding_miimon_filename="bonding/miimon";
+
+#Notifications Module
+$notifConfDir = "$configdir/notifications";#update
+$secTemplate="$zdir/share/sec.rules";#update
+$syslogFile="/var/log/syslog";
+
+#IPDS Module
+$blacklistsPath = "$configdir/ipds/blacklists/lists";#update
+$blacklistsConf = "$configdir/ipds/blacklists/lists.conf";#update
+$blacklistsCronFile = "/etc/cron.d/blacklists";
+$dosConf = "$configdir/ipds/dos/dos.conf";#update
+$dosConfDir = "$configdir/ipds/dos";#update
+
+#Ssyncd
+$ssyncd_enabled="false";
+$ssyncd_bin     = "$zdir/app/ssyncd/bin/ssyncd";#update
+$ssyncdctl_bin  = "$zdir/app/ssyncd/bin/ssyncdctl";#update
+$ssyncd_port    = "9999";
+
+# time period to get the interface throughput stats
+$throughput_period = "5";
+$throughput_enabled = "false";
 
 #::END Global Section

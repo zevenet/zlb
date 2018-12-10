@@ -29,7 +29,7 @@ use Zevenet::Log;
 =begin nd
 Function: getGlobalConfiguration
 
-	Set the value of a configuration variable.
+	Get the value of a configuration variable. The global.conf is parsed only the first time
 
 Parameters:
 	parameter - Name of the global configuration variable. Optional.
@@ -44,54 +44,68 @@ See Also:
 
 sub getGlobalConfiguration
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $parameter = shift;
-
-	my $global_conf_filepath = "/usr/local/zevenet/config/global.conf";
-	my $global_conf;
-
-	open ( my $global_conf_file, '<', $global_conf_filepath );
-
-	if ( !$global_conf_file )
-	{
-		my $msg = "Could not open $global_conf_filepath: $!";
-
-		&zenlog( $msg, "error", "SYSTEM" );
-		die $msg;
-	}
-
-	while ( my $conf_line = <$global_conf_file> )
-	{
-		next if $conf_line !~ /^\$/;
-
-		# extract variable name and value
-		$conf_line =~ /\$(\w+)\s*=\s*(?:"(.*)"|\'(.*)\');\s*$/;
-		my $var_name  = $1;
-		my $var_value = $2;
-
-		# if the var value contains any variable
-		if ( $var_value =~ /\$/ )
-		{
-			# replace every variable used in the $var_value by its content
-			foreach my $var ( $var_value =~ /\$(\w+)/g )
-			{
-				$var_value =~ s/\$$var/$global_conf->{ $var }/;
-			}
-		}
-
-		# early finish if the requested paremeter is found
-		if ( $parameter && $parameter eq $var_name )
-		{
-			close $global_conf_file;
-			return $var_value;
-		}
-
-		$global_conf->{ $var_name } = $var_value;
-	}
-
-	close $global_conf_file;
+	state $global_conf = &parseGlobalConfiguration();
 
 	return eval { $global_conf->{ $parameter } } if $parameter;
+	return $global_conf;
+}
+
+=begin nd
+Function: parseGlobalConfiguration
+
+	Parse the global.conf file. It expands the variables too.
+
+Parameters:
+	none - .
+
+Returns:
+	scalar - Hash reference to all global configuration variables when no argument is passed.
+
+See Also:
+	Widely used.
+=cut
+
+sub parseGlobalConfiguration
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my $global_conf_filepath = "/usr/local/zevenet/config/global.conf";
+	state $global_conf;
+
+	open ( my $global_conf_file, '<', $global_conf_filepath ) or do
+	{
+		my $msg = "Could not open $global_conf_filepath: $!";
+		&zenlog( $msg, "error", "SYSTEM" );
+		die $msg;
+	};
+
+	# build globalconf struct
+	while ( my $conf_line = <$global_conf_file> )
+	{
+		# extract variable name and value
+		if ( $conf_line =~ /^\s*\$(\w+)\s*=\s*(?:"(.*)"|\'(.*)\');\s*$/ )
+		{
+			$global_conf->{ $1 } = $2;
+		}
+	}
+	close $global_conf_file;
+
+	# expand the variables
+	my $var;
+	my $value;
+	foreach my $param ( keys %{ $global_conf } )
+	{
+		# replace every variable used in the $var_value by its content
+		while ( $global_conf->{ $param } =~ /\$(\w+)/ )
+		{
+			$var = $1;
+			$value = $global_conf->{ $var } // '';
+			$global_conf->{ $param } =~ s/\$$var/$value/;
+		}
+	}
+
 	return $global_conf;
 }
 
@@ -116,7 +130,8 @@ See Also:
 
 sub setGlobalConfiguration    # ( parameter, value )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $param, $value ) = @_;
 
 	my $global_conf_file = &getGlobalConfiguration( 'globalcfg' );
@@ -154,7 +169,8 @@ Returns:
 
 sub setConfigStr2Arr
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $obj        = shift;
 	my $param_list = shift;
 
@@ -188,7 +204,8 @@ See Also:
 
 sub getTiny
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $file_path = shift;
 
 	if ( !-f $file_path )
@@ -235,7 +252,8 @@ Returns:
 
 sub setTinyObj
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $path, $object, $key, $value, $action ) = @_;
 
 	unless ( $object )
@@ -249,7 +267,7 @@ sub setTinyObj
 	require Zevenet::Lock;
 
 	my $lock_file = &getLockFile( $path );
-	my $lock_fd   = &openlock( $lock_file, 'w' );
+	my $lock_fd = &openlock( $lock_file, 'w' );
 
 	my $fileHandle = &getTiny( $path );
 
@@ -293,7 +311,7 @@ sub setTinyObj
 	close $lock_fd;
 	unlink $lock_file;
 
-	return ($success)? 0:1;
+	return ( $success ) ? 0 : 1;
 }
 
 =begin nd
@@ -312,7 +330,8 @@ Returns:
 
 sub delTinyObj
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $path   = shift;
 	my $object = shift;
 
@@ -321,7 +340,7 @@ sub delTinyObj
 	require Zevenet::Lock;
 
 	my $lock_file = &getLockFile( $path );
-	my $lock_fd   = &openlock( $lock_file, 'w' );
+	my $lock_fd = &openlock( $lock_file, 'w' );
 
 	my $fileHandle = Config::Tiny->read( $path );
 	delete $fileHandle->{ $object };
