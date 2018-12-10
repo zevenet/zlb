@@ -71,6 +71,9 @@ sub session_login
 	my ( undef, $session_cookie ) = split ( ': ', $header );
 
 	my $body = {};
+	$body->{ host } = &getHostname();
+	$body->{ user } = $username;
+		
 	if ( $eload )
 	{
 		my $key  = &keycert();
