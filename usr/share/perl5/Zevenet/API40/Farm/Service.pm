@@ -505,11 +505,6 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
 		}
-		else
-		{
-			my $msg = "Strict Transport Security feature not available.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
 	}
 
 	# no error found, return succesful response
