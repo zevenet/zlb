@@ -240,6 +240,7 @@ sub _getL4ParseFarmConfig    # ($param, $value, $config)
 		{
 			my @l = split /"/, $line;
 			$output = $l[3];
+			$output = "nat" if ( $output eq "snat" );
 		}
 
 		if ( $line =~ /\"protocol\"/ && $param eq 'proto' )
