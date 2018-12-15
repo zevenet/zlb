@@ -82,17 +82,10 @@ find . -name .keep -exec rm {} \;
 if [[ $devel == "false" ]]; then
 	msg "Removing warnings and profiling instrumentation..."
 	# Don't include API 3
-	#~ find -L usr/local/zevenet/bin \
-			#~ usr/local/zevenet/lib \
-			#~ usr/local/zevenet/www/zapi/v3.1 \
-			#~ usr/local/zevenet/www/zapi/v3.2 \
-			#~ usr/local/zevenet/app/libexec/check_uplink \
-			#~ -type f \
-			#~ -exec sed --follow-symlinks -i 's/^use warnings.*//' {} \; \
-			#~ -exec sed --follow-symlinks -i '/zenlog.*PROFILING/d' {} \;
-	find -L usr/local/zevenet/app/zbin \
+	find -L usr/local/zevenet/bin \
 			usr/share/perl5/Zevenet \
 			usr/local/zevenet/www/zapi/v3.1 \
+			usr/local/zevenet/www/zapi/v4.0 \
 			-type f \
 			-exec sed --follow-symlinks -i 's/^use warnings.*//' {} \; \
 			-exec sed --follow-symlinks -i '/zenlog.*PROFILING/d' {} \;

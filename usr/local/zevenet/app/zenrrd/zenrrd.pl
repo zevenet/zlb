@@ -1,1 +1,0 @@
-/usr/local/zevenet/bin/zenrrd.pl

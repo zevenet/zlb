@@ -654,6 +654,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 	elsif ( $type eq "datalink" )
 	{
 		require Zevenet::Farm::Datalink::Backend;
+		require Zevenet::Net::Interface;
 
 		my $be;
 		{
@@ -683,8 +684,6 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 
 		if ( exists ( $json_obj->{ interface } ) )
 		{
-			require Zevenet::Net::Interface;
-
 			my $valid_interface;
 
 			for my $iface ( @{ &getActiveInterfaceList() } )
@@ -742,10 +741,8 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 		  &setDatalinkFarmServer( $id_server,
 								  $be->{ ip },
 								  $be->{ interface },
-								  "",
 								  $be->{ weight },
-								  $be->{ priority },
-								  "", $farmname );
+								  $be->{ priority }, $farmname );
 
 		if ( $status == -1 )
 		{

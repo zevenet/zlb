@@ -1,1 +1,0 @@
-../zenrrd/temperature-rrd.pl

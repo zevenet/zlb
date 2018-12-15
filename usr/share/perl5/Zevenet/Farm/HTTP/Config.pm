@@ -29,6 +29,8 @@ if ( eval { require Zevenet::ELoad; } )
 	$eload = 1;
 }
 
+require Zevenet::Lock;
+
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
 =begin nd
@@ -54,7 +56,6 @@ sub setFarmClientTimeout    # ($client,$farm_name)
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
 
-	require Zevenet::Lock;
 	my $lock_file = &getLockFile( $farm_name );
 	my $lock_fh = &openlock( $lock_file, 'w' );
 
@@ -146,7 +147,6 @@ sub setHTTPFarmSessionType    # ($session,$farm_name)
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
 
-	require Zevenet::Lock;
 	my $lock_file = &getLockFile( $farm_name );
 	my $lock_fh = &openlock( $lock_file, 'w' );
 
@@ -247,7 +247,6 @@ sub setHTTPFarmBlacklistTime    # ($blacklist_time,$farm_name)
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
 
-	require Zevenet::Lock;
 	my $lock_file = &getLockFile( $farm_name );
 	my $lock_fh = &openlock( $lock_file, 'w' );
 
@@ -342,7 +341,6 @@ sub setFarmHttpVerb    # ($verb,$farm_name)
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
 
-	require Zevenet::Lock;
 	my $lock_file = &getLockFile( $farm_name );
 	my $lock_fh = &openlock( $lock_file, 'w' );
 
@@ -442,7 +440,6 @@ sub setFarmListen    # ( $farm_name, $farmlisten )
 	my $i_f           = -1;
 	my $found         = "false";
 
-	require Zevenet::Lock;
 	my $lock_file = &getLockFile( $farm_name );
 	my $lock_fh = &openlock( $lock_file, 'w' );
 
@@ -597,7 +594,6 @@ sub setFarmRewriteL    # ($farm_name,$rewritelocation)
 	&zenlog( "setting 'Rewrite Location' for $farm_name to $rewritelocation",
 			 "info", "LSLB" );
 
-	require Zevenet::Lock;
 	my $lock_file = &getLockFile( $farm_name );
 	my $lock_fh = &openlock( $lock_file, 'w' );
 
@@ -686,7 +682,6 @@ sub setFarmConnTO    # ($tout,$farm_name)
 	&zenlog( "Setting 'ConnTo timeout $tout' for $farm_name farm http",
 			 "info", "LSLB" );
 
-	require Zevenet::Lock;
 	my $lock_file = &getLockFile( $farm_name );
 	my $lock_fh = &openlock( $lock_file, 'w' );
 
@@ -774,7 +769,6 @@ sub setHTTPFarmTimeout    # ($timeout,$farm_name)
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
 
-	require Zevenet::Lock;
 	my $lock_file = &getLockFile( $farm_name );
 	my $lock_fh = &openlock( $lock_file, 'w' );
 
@@ -864,7 +858,6 @@ sub setHTTPFarmMaxClientTime    # ($track,$farm_name)
 	my $i_f           = -1;
 	my $found         = "false";
 
-	require Zevenet::Lock;
 	my $lock_file = &getLockFile( $farm_name );
 	my $lock_fh = &openlock( $lock_file, 'w' );
 
@@ -1096,7 +1089,7 @@ Function: setHTTPFarmBootStatus
 
 Parameters:
 	farmname - Farm name
-	value - Write the boot status "up" or "down" 
+	value - Write the boot status "up" or "down"
 
 Returns:
 	scalar - return "down" if the farm not run at boot or "up" if the farm run at boot
@@ -1113,7 +1106,6 @@ sub setHTTPFarmBootStatus    # ($farm_name, $value)
 	my $output        = "down";
 	my $lastline;
 
-	require Zevenet::Lock;
 	my $lock_file = &getLockFile( $farm_name );
 	my $lock_fh = &openlock( $lock_file, 'w' );
 
@@ -1338,7 +1330,6 @@ sub setHTTPFarmVirtualConf    # ($vip,$vip_port,$farm_name)
 	my $stat          = 0;
 	my $enter         = 2;
 
-	require Zevenet::Lock;
 	my $lock_file = &getLockFile( $farm_name );
 	my $lock_fh = &openlock( $lock_file, 'w' );
 
