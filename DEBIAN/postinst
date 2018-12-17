@@ -92,6 +92,10 @@ update-rc.d zevenet defaults
 # Setup motd.tail
 cp /etc/motd.tail /etc/motd
 
+# Set the cron service
+cp /usr/local/zevenet/share/zevenet.cron /etc/cron.d/zevenet
+/etc/init.d/cron reload
+
 # Change prompt color
 sed -i "s/1;30m/0;37m/g" /etc/bash.bashrc 2> /dev/null
 
