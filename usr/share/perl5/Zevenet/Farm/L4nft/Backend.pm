@@ -632,7 +632,8 @@ sub setL4FarmBackendMaintenance    # ( $farm_name, $backend )
 
 	if ( $mode eq "cut" )
 	{
-		&setL4FarmBackendsSessionsRemove( $farm_name, $backend );
+		# TODO: Remove persistence
+		#&setL4FarmBackendsSessionsRemove( $farm_name, $backend );
 
 		# remove conntrack
 		my $farm   = &getL4FarmStruct( $farm_name );
