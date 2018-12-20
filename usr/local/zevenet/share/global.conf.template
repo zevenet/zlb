@@ -2,7 +2,7 @@
 
 
 ## version ZEVENET
-$version="";
+$version="_VERSION_";#update
 
 
 ## Variables

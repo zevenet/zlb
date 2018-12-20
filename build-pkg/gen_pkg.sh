@@ -69,6 +69,11 @@ else
 	pkgname=${pkgname_prefix}_DEV_${distribution}_${DATE}.deb
 fi
 
+# set version in global.conf tpl
+globalconftpl='usr/local/zevenet/share/global.conf.template'
+version_string='$version="_VERSION_";#update'
+sed -i "s/$version_string/\$version=\"$version\";/" $globalconftpl
+
 
 #### Package preparation ####
 

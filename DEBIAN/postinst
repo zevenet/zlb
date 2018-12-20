@@ -31,13 +31,6 @@ GLOBALCFT="/usr/local/zevenet/share/global.conf.template"
 /usr/local/zevenet/bin/checkglobalconf
 
 
-# Update Zevenet version
-perl -E '
-require Zevenet::SystemInfo;
-&setZevenetVersion();
-'
-
-
 # Enable root access through SSH
 SSHDCONFIG="/etc/ssh/sshd_config"
 if [[ `grep -c "^PermitRootLogin.*yes" $SSHDCONFIG` == '0' ]]; then

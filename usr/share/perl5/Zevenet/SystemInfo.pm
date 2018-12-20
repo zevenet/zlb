@@ -358,19 +358,4 @@ sub getKernelVersion
 	return $version;
 }
 
-# Update Zevenet version
-sub setZevenetVersion
-{
-	require Zevenet::Config;
-	my @out = `dpkg -l zevenet`;
-	if ( $out[-1] =~ /\szevenet\s+([\.\w-]+)\s/ )
-	{
-		&setGlobalConfiguration( "version", $1 );
-	}
-	else
-	{
-		print "Error getting Zevenet version";
-	}
-}
-
 1;
