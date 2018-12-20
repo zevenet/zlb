@@ -72,7 +72,7 @@ sub parseGlobalConfiguration
 			 "debug", "PROFILING" );
 
 	my $global_conf_filepath = "/usr/local/zevenet/config/global.conf";
-	state $global_conf;
+	my $global_conf;
 
 	open ( my $global_conf_file, '<', $global_conf_filepath ) or do
 	{

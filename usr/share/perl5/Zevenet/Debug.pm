@@ -41,10 +41,11 @@ Bugs:
 See Also:
 	Widely used.
 =cut
-sub debug {
+
+sub debug
+{
 	require Zevenet::Config;
-	state $debug = &getGlobalConfiguration( 'debug' ) + 0;
-	return $debug;
+	return &getGlobalConfiguration( 'debug' ) + 0;
 }
 
 =begin nd
@@ -61,9 +62,11 @@ Returns:
 See Also:
 	Used in zapi.cgi
 =cut
+
 sub getMemoryUsage
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $mem_string = `grep RSS /proc/$$/status`;
 
 	chomp ( $mem_string );

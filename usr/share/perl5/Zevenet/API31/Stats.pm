@@ -26,12 +26,16 @@ use strict;
 use Zevenet::System;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 # Get all farm stats
 sub getAllFarmStats
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	require Zevenet::Farm::Core;
 	require Zevenet::Farm::Base;
 
@@ -42,10 +46,14 @@ sub getAllFarmStats
 
 	foreach my $name ( @farm_names )
 	{
-		my $type        = &getFarmType( $name );
-		my $status      = &getFarmVipStatus( $name );
-		my $vip         = &getFarmVip( 'vip', $name );
-		my $port        = &getFarmVip( 'vipp', $name );
+		my $type   = &getFarmType( $name );
+		my $status = &getFarmVipStatus( $name );
+
+		# datalink has not got stats
+		next if ( $type eq 'datalink' );
+
+		my $vip  = &getFarmVip( 'vip',  $name );
+		my $port = &getFarmVip( 'vipp', $name );
 		my $established = 0;
 		my $pending     = 0;
 
@@ -57,7 +65,7 @@ sub getAllFarmStats
 			my $netstat;
 			$netstat = &getConntrack( '', $vip, '', '', '' ) if $type !~ /^https?$/;
 
-			$pending     = &getFarmSYNConns( $name, $netstat );
+			$pending = &getFarmSYNConns( $name, $netstat );
 			$established = &getFarmEstConns( $name, $netstat );
 		}
 
@@ -77,12 +85,13 @@ sub getAllFarmStats
 }
 
 #Get Farm Stats
-sub farm_stats # ( $farmname )
+sub farm_stats    # ( $farmname )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farmname = shift;
-	if ( $farmname eq 'modules' ) {return;}
-	if ( $farmname eq 'total' ) {return;}
+	if ( $farmname eq 'modules' ) { return; }
+	if ( $farmname eq 'total' )   { return; }
 
 	require Zevenet::Farm::Core;
 
@@ -107,7 +116,7 @@ sub farm_stats # ( $farmname )
 					 sessions    => $stats->{ sessions },
 		};
 
-		&httpResponse({ code => 200, body => $body });
+		&httpResponse( { code => 200, body => $body } );
 	}
 
 	if ( $type eq "l4xnat" )
@@ -120,7 +129,7 @@ sub farm_stats # ( $farmname )
 					 backends    => $stats,
 		};
 
-		&httpResponse({ code => 200, body => $body });
+		&httpResponse( { code => 200, body => $body } );
 	}
 
 	if ( $type eq "gslb" && $eload )
@@ -140,27 +149,29 @@ sub farm_stats # ( $farmname )
 					 extended    => $gslb_stats->{ 'stats' },
 		};
 
-		&httpResponse({ code => 200, body => $body });
+		&httpResponse( { code => 200, body => $body } );
 	}
 }
 
 #Get Farm Stats
-sub all_farms_stats # ()
+sub all_farms_stats    # ()
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farms = &getAllFarmStats();
 	my $body = {
 				 description => "List all farms stats",
 				 farms       => $farms,
 	};
 
-	&httpResponse({ code => 200, body => $body });
+	&httpResponse( { code => 200, body => $body } );
 }
 
 #GET /stats
-sub stats # ()
+sub stats    # ()
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	require Zevenet::Stats;
 	require Zevenet::SystemInfo;
 
@@ -222,13 +233,14 @@ sub stats # ()
 				 params      => $out
 	};
 
-	&httpResponse({ code => 200, body => $body });
+	&httpResponse( { code => 200, body => $body } );
 }
 
 #GET /stats/network
-sub stats_network # ()
+sub stats_network    # ()
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	require Zevenet::Stats;
 	require Zevenet::SystemInfo;
 
@@ -243,7 +255,7 @@ sub stats_network # ()
 				 params      => $output
 	};
 
-	&httpResponse({ code => 200, body => $body });
+	&httpResponse( { code => 200, body => $body } );
 }
 
 1;

@@ -46,8 +46,12 @@ sub getAllFarmStats
 
 	foreach my $file ( @files )
 	{
-		my $name        = &getFarmName( $file );
-		my $type        = &getFarmType( $name );
+		my $name = &getFarmName( $file );
+		my $type = &getFarmType( $name );
+
+		# datalink has not got stats
+		next if ( $type eq 'datalink' );
+
 		my $status      = &getFarmVipStatus( $name );
 		my $vip         = &getFarmVip( 'vip', $name );
 		my $port        = &getFarmVip( 'vipp', $name );
