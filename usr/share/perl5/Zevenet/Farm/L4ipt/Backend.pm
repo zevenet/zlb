@@ -298,8 +298,8 @@ sub setL4FarmBackendsSessionsRemove
 
 	require Zevenet::Farm::L4xNAT::Config;
 
-	my %farm        = %{ &getL4FarmStruct( $farmname ) };
-	my %be          = %{ $farm{ servers }[$backend] };
+	my $farm        = &getL4FarmStruct( $farmname );
+	my %be          = %{ $farm->{ servers }[$backend] };
 	my $recent_file = "/proc/net/xt_recent/_${farmname}_$be{tag}_sessions";
 	my $output      = -1;
 
@@ -341,8 +341,6 @@ sub setL4FarmBackendStatus    # ($farm_name,$server_id,$status)
 	require Zevenet::FarmGuardian;
 	require Zevenet::Farm::L4xNAT::Config;
 
-	my %farm = %{ &getL4FarmStruct( $farm_name ) };
-
 	my $output   = 0;
 	my $line_num = 0;         # line index tracker
 	my $serverid = 0;         # server index tracker
@@ -373,7 +371,7 @@ sub setL4FarmBackendStatus    # ($farm_name,$server_id,$status)
 
 	# load farm configuration file
 	require Tie::File;
-	tie my @configfile, 'Tie::File', "$configdir\/$farm{filename}";
+	tie my @configfile, 'Tie::File', "$configdir\/$farm->{filename}";
 
 	# look for $server_id backend
 	foreach my $line ( @configfile )
@@ -393,20 +391,19 @@ sub setL4FarmBackendStatus    # ($farm_name,$server_id,$status)
 	}
 	untie @configfile;
 
-	$farm{ servers } = undef;
-
-	%farm = %{ &getL4FarmStruct( $farm_name ) };
-	my %server = %{ $farm{ servers }[$server_id] };
+	# reload the struct
+	$farm = &getL4FarmStruct( $farm_name );
+	my %server = %{ $farm->{ servers }[$server_id] };
 
 	# do no apply rules if the farm is not up
-	if ( $farm{ status } eq 'up' )
+	if ( $farm->{ status } eq 'up' )
 	{
-		$output |= &refreshL4FarmRules( \%farm );
+		$output |= &refreshL4FarmRules( $farm );
 
 		if (    $status eq 'fgDOWN'
-			 && $farm{ persist } eq 'ip' )
+			 && $farm->{ persist } eq 'ip' )
 		{
-			&setL4FarmBackendsSessionsRemove( $farm{ name }, $server_id );
+			&setL4FarmBackendsSessionsRemove( $farm->{ name }, $server_id );
 		}
 
 		if ( $fg_enabled eq 'true' && !$stopping_fg )
@@ -417,11 +414,6 @@ sub setL4FarmBackendStatus    # ($farm_name,$server_id,$status)
 			}
 		}
 	}
-
-	$farm{ servers } = undef;
-
-	$$farm{ servers } = undef;
-	$farm = undef;
 
 	return $output;
 }
@@ -609,11 +601,11 @@ sub _runL4ServerStart    # ($farm_name,$server_id)
 	}
 
 	# initialize a farm struct
-	my %farm   = %{ &getL4FarmStruct( $farm_name ) };
-	my %server = %{ $farm{ servers }[$server_id] };
+	my $farm   = &getL4FarmStruct( $farm_name );
+	my %server = %{ $farm->{ servers }[$server_id] };
 
 	## Applying all rules ##
-	$rules = &getL4ServerActionRules( \%farm, \%server, 'on' );
+	$rules = &getL4ServerActionRules( $farm, \%server, 'on' );
 
 	$status |= &applyIptRules( @{ $$rules{ t_mangle_p } } );
 	$status |= &applyIptRules( @{ $$rules{ t_mangle } } );

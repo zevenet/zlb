@@ -75,6 +75,16 @@ sub farms_name_l4    # ( $farmname )
 	# Backends
 	$out_b = &getL4FarmServers( $farmname );
 
+	# Delete not visible params
+	my $validParamsre = qr/(alias)|(^id$)|(weight)|(^ip$)|(priority)|(status)/;
+	foreach my $backend ( @{ $out_b } )
+	{
+		foreach my $param ( keys ( %{ $backend } ) )
+		{
+			delete $backend->{ $param } if ( !( $param =~ $validParamsre ) );
+		}
+	}
+
 	my $body = {
 				 description => "List farm $farmname",
 				 params      => $out_p,
