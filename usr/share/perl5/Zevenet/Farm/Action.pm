@@ -101,6 +101,8 @@ sub _runFarmStart    # ($farm_name, $writeconf)
 		);
 	}
 
+	&setFarmNoRestart( $farm_name );
+
 	return $status;
 }
 
@@ -260,6 +262,8 @@ sub _runFarmStop    # ($farm_name, $writeconf)
 						  args   => [$farm_name, $writeconf],
 		);
 	}
+
+	&setFarmNoRestart( $farm_name );
 
 	return $status;
 }

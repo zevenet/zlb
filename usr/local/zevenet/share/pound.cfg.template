@@ -11,6 +11,7 @@ Group		"root"
 ##	3	Apache-style (common log format)
 #LogFacility	local5
 LogLevel 	0
+Daemon		1
 ## check timeouts:
 Timeout		45
 ConnTO		20

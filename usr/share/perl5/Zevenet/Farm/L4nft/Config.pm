@@ -141,25 +141,28 @@ sub setL4FarmParam    # ($param, $value, $farm_name)
 	elsif ( $param eq "proto" )
 	{
 		$srvparam = "protocol";
-		$addition = qq( , "vport" : "" ) if ( $value eq "all" );
 
 		if ( $value =~ /ftp|irc|pptp/ )
 		{
 			$addition = $addition . qq( , "helper" : "$value" );
 			$value    = "tcp";
 		}
-
-		if ( $value =~ /tftp|sane/ )
+		elsif ( $value =~ /tftp|sane/ )
 		{
 			$addition = $addition . qq( , "helper" : "$value" );
 			$value    = "udp";
 		}
-
-		if ( $value =~ /sip|amanda|h323|netbios-ns|sane|snmp/ )
+		elsif ( $value =~ /sip|amanda|h323|netbios-ns|sane|snmp/ )
 		{
 			$addition = $addition . qq( , "helper" : "$value" );
 			$value    = "all";
 		}
+		else
+		{
+			$addition = $addition . qq( , "helper" : "none" );
+		}
+
+		$addition = $addition . qq( , "vport" : "" ) if ( $value eq "all" );
 	}
 	elsif ( $param eq "status" || $param eq "bootstatus" )
 	{
