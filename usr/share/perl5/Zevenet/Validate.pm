@@ -118,7 +118,7 @@ my %format_re = (
 	'ciphers' => qr/(?:all|highsecurity|customsecurity|ssloffloading)/,
 
 	# backup
-	'backup'        => qr/[\w]+/,
+	'backup'        => qr/[\w-]+/,
 	'backup_action' => qr/apply/,
 
 	# graphs

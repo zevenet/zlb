@@ -834,6 +834,8 @@ sub setL4FarmBackendMaintenance    # ( $farm_name, $backend )
 			 "debug", "PROFILING" );
 	my ( $farm_name, $backend, $mode ) = @_;
 
+	my $output = &setL4FarmBackendStatus( $farm_name, $backend, 'maintenance' );
+
 	if ( $mode eq "cut" )
 	{
 		&setL4FarmBackendsSessionsRemove( $farm_name, $backend );
@@ -844,7 +846,7 @@ sub setL4FarmBackendMaintenance    # ( $farm_name, $backend )
 		&resetL4FarmBackendConntrackMark( $server );
 	}
 
-	return &setL4FarmBackendStatus( $farm_name, $backend, 'maintenance' );
+	return $output;
 }
 
 =begin nd

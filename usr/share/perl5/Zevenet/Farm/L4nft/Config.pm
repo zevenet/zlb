@@ -147,7 +147,7 @@ sub setL4FarmParam    # ($param, $value, $farm_name)
 			$addition = $addition . qq( , "helper" : "$value" );
 			$value    = "tcp";
 		}
-		elsif ( $value =~ /tftp|sane/ )
+		elsif ( $value =~ /tftp/ )
 		{
 			$addition = $addition . qq( , "helper" : "$value" );
 			$value    = "udp";

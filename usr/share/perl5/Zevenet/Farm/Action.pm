@@ -52,6 +52,9 @@ sub _runFarmStart    # ($farm_name, $writeconf)
 			 "debug", "PROFILING" );
 	my ( $farm_name, $writeconf ) = @_;
 
+	# The parameter expect "undef" to not write it
+	$writeconf = undef if ( $writeconf eq 'false' );
+
 	require Zevenet::Farm::Base;
 
 	my $status = -1;
@@ -220,6 +223,9 @@ sub _runFarmStop    # ($farm_name, $writeconf)
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $writeconf ) = @_;
+
+	# The parameter expect "undef" to not write it
+	$writeconf = undef if ( $writeconf eq 'false' );
 
 	require Zevenet::Farm::Base;
 	my $status = &getFarmStatus( $farm_name );
