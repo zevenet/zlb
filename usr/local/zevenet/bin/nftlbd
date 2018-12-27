@@ -3,8 +3,8 @@
 DEBUG=""
 GLOBALCONF="/usr/local/zevenet/config/global.conf"
 if [ -f "$GLOBALCONF" ]; then
-	LEVEL=`grep debug= "$GLOBALCONF" | awk -F'"' '{ printf $2 }' 2> /dev/null`
-	if [ ! -z $LEVEL ]; then
+	LEVEL=`grep ^.debug= "$GLOBALCONF" | awk -F'"' '{ printf $2 }' 2> /dev/null`
+	if [ ! -z $LEVEL -a "$LEVEL" != "0" ]; then
 		DEBUG="-l $LEVEL"
 	fi
 fi
