@@ -71,6 +71,8 @@ $filecluster="$configdir/cluster.conf";#update
 $confhttp="$zdir/app/cherokee/etc/cherokee/cherokee.conf";#update
 #Where is temperature file?
 $temperatureFile="/proc/acpi/thermal_zone/THRM/temperature";
+# network files
+$sys_net_dir="/sys/class/net";
 
 
 ## binaries
@@ -192,7 +194,6 @@ $poundctl="$base_pound/sbin/poundctl";#update
 #pound file configuration template?
 $poundtpl="$templatedir/pound.cfg.template";
 #maximum value of http body to pass to modsecurity
-$waf_body_size="";
 
 
 #Cipher PCI
@@ -223,9 +224,7 @@ $ipv6_enabled="false";
 
 ## L4xNat - netfilter
 # Maximum recent ip list
-$recent_ip_list_tot="";
 # Recent ip hash
-$recent_ip_list_hash_size="";
 # Iptables lock filename
 $iptlock = "/tmp/iptables.lock";
 
@@ -267,9 +266,7 @@ $floatfile="$configdir/float.conf";#update
 $znode_status_file="$zdir/node_status";#update
 
 # zcluster-manager command path
-$zcluster_manager="$zbindir/zcluster-manager";#update
 # ssh-copy-id file path
-$ssh_copy_id="$zbindir/ssh-copy-id.sh";#update
 # primary-backup conntrackd script
 $primary_backup = "/usr/share/doc/conntrackd/examples/sync/primary-backup.sh";
 
@@ -291,33 +288,15 @@ $zenbackup="$zbindir/zenbackup.pl";#update
 $backupfor="$configdir $basedir/*.pem $confhttp $rttables $sshConf $snmpdconfig_file /etc/hostname $filedns /etc/cron.d/zevenet $applianceVersionFile";#update
 
 #Bonding interfaces
-$bond_config_file="$configdir/bonding.conf";#update
-$sys_net_dir="/sys/class/net";
-$bonding_masters_filename="/sys/class/net/bonding_masters";
-$bonding_mode_filename="bonding/mode";
-$bonding_slaves_filename="bonding/slaves";
-$bonding_miimon_filename="bonding/miimon";
 
 #Notifications Module
-$notifConfDir = "$configdir/notifications";#update
-$secTemplate="$zdir/share/sec.rules";#update
-$syslogFile="/var/log/syslog";
 
 #IPDS Module
-$blacklistsPath = "$configdir/ipds/blacklists/lists";#update
-$blacklistsConf = "$configdir/ipds/blacklists/lists.conf";#update
-$blacklistsCronFile = "/etc/cron.d/blacklists";
-$dosConf = "$configdir/ipds/dos/dos.conf";#update
-$dosConfDir = "$configdir/ipds/dos";#update
 
 #Ssyncd
-$ssyncd_enabled="false";
-$ssyncd_bin     = "$zdir/app/ssyncd/bin/ssyncd";#update
-$ssyncdctl_bin  = "$zdir/app/ssyncd/bin/ssyncdctl";#update
-$ssyncd_port    = "9999";
 
 # time period to get the interface throughput stats
-$throughput_period = "5";
-$throughput_enabled = "false";
+
+$doc_v4_0="https://www.zevenet.com/zapidoc_ce_v4.0/";
 
 #::END Global Section

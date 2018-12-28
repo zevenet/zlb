@@ -113,10 +113,9 @@ sub setFarmServer # $output ($ids,$rip,$port|$iface,$max,$weight,$priority,$time
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my (
-		 $ids,      $rip,     $port,      $max, $weight,
-		 $priority, $timeout, $farm_name, $service
-	) = @_;
+	my ( $ids, $rip, $port, $max, $weight,
+		 $priority, $timeout, $farm_name, $service )
+	  = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $output    = -1;
@@ -142,7 +141,7 @@ sub setFarmServer # $output ($ids,$rip,$port|$iface,$max,$weight,$priority,$time
 	{
 		require Zevenet::Farm::HTTP::Backend;
 		$output =
-		  &setHTTPFarmServer( $ids, $rip, $port, $priority, $timeout, $farm_name,
+		  &setHTTPFarmServer( $ids, $rip, $port, $weight, $timeout, $farm_name,
 							  $service, );
 	}
 

@@ -387,13 +387,13 @@ sub getL4FarmBackendsStats
 	require Zevenet::Farm::L4xNAT::Config;
 
 	# Get list of backend hashes and add stats
-	my %farm_st = &getL4FarmStruct( $farmname );
+	my $farm_st = &getL4FarmStruct( $farmname );
 
-	my $backends = $farm_st{ servers };
+	my $backends = $farm_st->{ servers };
 
 	foreach my $be ( @{ $backends } )
 	{
-		my $netstat = &getConntrack( "", $farm_st{ vip }, $be->{ 'ip' }, "", "" );
+		my $netstat = &getConntrack( "", $farm_st->{ vip }, $be->{ 'ip' }, "", "" );
 
 		# Established
 		$be->{ 'established' } =
@@ -402,7 +402,7 @@ sub getL4FarmBackendsStats
 		# Pending
 		$be->{ 'pending' } = 0;
 
-		if ( $farm_st{ proto } ne "udp" )
+		if ( $farm_st->{ proto } ne "udp" )
 		{
 			$be->{ 'pending' } =
 			  &getL4BackendSYNConns( $farmname, $be->{ 'ip' }, $be->{ 'port' }, $netstat );

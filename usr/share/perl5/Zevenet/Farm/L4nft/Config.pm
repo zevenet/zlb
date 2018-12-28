@@ -69,6 +69,12 @@ sub getL4FarmParam    # ($param, $farm_name)
 
 	$output = &_getL4ParseFarmConfig( $param, undef, \@content );
 
+	if ( $param eq "proto" )
+	{
+		my $helper = &_getL4ParseFarmConfig( "helper", undef, \@content );
+		return $helper if ( $helper ne "none" );
+	}
+
 	return $output;
 }
 
@@ -123,7 +129,8 @@ sub setL4FarmParam    # ($param, $value, $farm_name)
 	elsif ( $param eq "mode" )
 	{
 		$srvparam = $param;
-		$value = "snat" if ( $value eq "nat" );
+		$value    = "snat" if ( $value eq "nat" );
+		$value    = "stlsdnat" if ( $value eq "stateless_dnat" );
 	}
 	elsif ( $param eq "vip" )
 	{
@@ -262,9 +269,16 @@ sub _getL4ParseFarmConfig    # ($param, $value, $config)
 			my @l = split /"/, $line;
 			$output = $l[3];
 			$output = "nat" if ( $output eq "snat" );
+			$output = "stateless_dnat" if ( $output eq "stlsdnat" );
 		}
 
 		if ( $line =~ /\"protocol\"/ && $param eq 'proto' )
+		{
+			my @l = split /"/, $line;
+			$output = $l[3];
+		}
+
+		if ( $line =~ /\"helper\"/ && $param eq 'helper' )
 		{
 			my @l = split /"/, $line;
 			$output = $l[3];

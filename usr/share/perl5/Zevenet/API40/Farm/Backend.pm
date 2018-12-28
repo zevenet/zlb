@@ -112,9 +112,7 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		}
 
 		# Create backend
-		my $status = &setL4FarmServer(
-									   $farmname,
-									   $id,
+		my $status = &setL4FarmServer( $farmname, $id,
 									   $json_obj->{ ip },
 									   $json_obj->{ port },
 									   $json_obj->{ weight },
@@ -215,14 +213,11 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		}
 
 		# Create backend
-		my $status = &setDatalinkFarmServer(
-											 $id,
+		my $status = &setDatalinkFarmServer( $id,
 											 $json_obj->{ ip },
 											 $json_obj->{ interface },
 											 $json_obj->{ weight },
-											 $json_obj->{ priority },
-											 $farmname,
-		);
+											 $json_obj->{ priority }, $farmname, );
 
 		# check error adding a new backend
 		if ( $status == -1 )
@@ -382,15 +377,12 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 	my $id = &getHTTPFarmBackendAvailableID( $farmname, $service );
 
 # First param ($id) is an empty string to let function autogenerate the id for the new backend
-	my $status = &setHTTPFarmServer(
-									 "",
+	my $status = &setHTTPFarmServer( "",
 									 $json_obj->{ ip },
 									 $json_obj->{ port },
 									 $json_obj->{ weight },
 									 $json_obj->{ timeout },
-									 $farmname,
-									 $service,
-	);
+									 $farmname, $service, );
 
 	# check if there was an error adding a new backend
 	if ( $status == -1 )
@@ -635,8 +627,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 			$backend->{ max_conns } = $json_obj->{ max_conns };
 		}
 
-		my $status = &setL4FarmServer(
-									   $farmname,
+		my $status = &setL4FarmServer( $farmname,
 									   $backend->{ id },
 									   $backend->{ vip },
 									   $backend->{ vport },
@@ -875,7 +866,7 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		$be->{ priority } = $json_obj->{ weight };
+		$be->{ weight } = $json_obj->{ weight };
 	}
 
 	# validate BACKEND timeout
@@ -895,7 +886,7 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 	my $status = &setHTTPFarmServer( $id_server,
 									 $be->{ ip },
 									 $be->{ port },
-									 $be->{ priority },
+									 $be->{ weight },
 									 $be->{ timeout },
 									 $farmname, $service );
 

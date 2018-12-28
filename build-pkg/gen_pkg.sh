@@ -71,7 +71,7 @@ fi
 
 # set version in global.conf tpl
 globalconftpl='usr/local/zevenet/share/global.conf.template'
-version_string='$version="_VERSION_";#update'
+version_string='$version="_VERSION_";'
 sed -i "s/$version_string/\$version=\"$version\";/" $globalconftpl
 
 
