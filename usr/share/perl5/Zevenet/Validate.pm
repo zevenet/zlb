@@ -505,7 +505,7 @@ Function: checkZAPIParams
 	- All required parameters must exist
 	- All required parameters are correct
 
-	Also, it checks: getValidFormat funcion, if black is allowed, intervals, aditionals regex and excepts regex
+	Also, it checks: getValidFormat funcion, if black is allowed, intervals, aditionals regex, excepts regex and a list with the possbile values
 
 	It is possible add a error message with the correct format. For example: $parameter . "must have letters and digits"
 
@@ -524,6 +524,7 @@ Parameters:
 										# ",10" indicates that the value has to be less than 10 but without low limit
 										# "10," indicates that the value has to be more than 10 but without high limit
 			"exceptions"	: [ "zapi", "webgui", "root" ],	# The parameter can't have got any of the listed values
+			"values" : ["priority", "weight"],		# list of possible values for a parameter
 			"regex"	: "/\w+,\d+/",		# regex format
 			"valid_format"	: "farmname",		# regex stored in Validate.pm file, it checks with the function getValidFormat
 			"format_msg"	: "must have letters and digits",	# used message when a value is not correct
@@ -548,13 +549,16 @@ sub checkZAPIParams
 	my $json_obj  = shift;
 	my $param_obj = shift;
 
+	my @rec_keys      = keys %{ $json_obj };
+	my @expect_params = keys %{ $param_obj };
+
 	# Almost 1 parameter
 	return "At least a parameters is expected." if ( !keys %{ $json_obj } );
 
 	# All required parameters must exist
 	my @miss_params;
 
-	foreach my $param ( keys %{ $param_obj } )
+	foreach my $param ( @expect_params )
 	{
 		next if ( !exists $param_obj->{ $param }->{ 'required' } );
 		if ( $param_obj->{ $param }->{ 'required' } eq 'true' )
@@ -569,18 +573,35 @@ sub checkZAPIParams
 
 	# All sent parameters are correct
 	my @non_valid;
-	foreach my $param ( keys %{ $json_obj } )
+	foreach my $param ( @rec_keys )
 	{
 		push @non_valid, $param if ( !grep ( /^$param$/, keys %{ $param_obj } ) );
 	}
 	return
 	  &putArrayAsText( \@non_valid,
-		  "The parameter<sp>s</sp> <pl> <bs>is<|>are</bp> not correct for this call." )
+		"The parameter<sp>s</sp> <pl> <bs>is<|>are</bp> not correct for this call. Please, try with: "
+		  . join ( ', ', @expect_params ) )
 	  if ( @non_valid );
 
 	# check for each parameter
-	foreach my $param ( keys %{ $json_obj } )
+	foreach my $param ( @rec_keys )
 	{
+		# if blank value is allowed
+		if ( $param_obj->{ $param }->{ 'non_blank' } eq 'true' )
+		{
+			return "The parameter $param can't be in blank."
+			  if ( $json_obj->{ $param } eq '' );
+		}
+
+		if ( exists $param_obj->{ $param }->{ 'values' } )
+		{
+			return "The parameter $param expects once of the following values: "
+			  . join ( ', ', @{ $param_obj->{ $param }->{ 'values' } } )
+			  if (
+				  !grep ( /^$json_obj->{ $param }$/, @{ $param_obj->{ $param }->{ 'values' } } )
+			  );
+		}
+
 		# getValidFormat funcion:
 		if ( exists $param_obj->{ $param }->{ 'valid_format' } )
 		{
@@ -601,13 +622,6 @@ sub checkZAPIParams
 					return "The parameter $param has not a valid value.";
 				}
 			}
-		}
-
-		# if blank value is allowed
-		if ( $param_obj->{ $param }->{ 'non_blank' } eq 'true' )
-		{
-			return "The parameter $param can't be in blank."
-			  if ( $json_obj->{ $param } eq '' );
 		}
 
 		# intervals

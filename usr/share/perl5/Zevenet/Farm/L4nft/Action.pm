@@ -44,6 +44,7 @@ sub startL4Farm    # ($farm_name)
 			 "debug", "PROFILING" );
 
 	my $farm_name = shift;
+	my $writeconf = shift;
 
 	&zlog( "Starting farm $farm_name" ) if &debug == 2;
 
@@ -52,12 +53,13 @@ sub startL4Farm    # ($farm_name)
 	&zenlog( "startL4Farm << farm_name:$farm_name" )
 	  if &debug;
 
-	$status = &startNLBFarm( $farm_name );
-	if ( $status <= 0 )
+	$status = &startNLBFarm( $farm_name, $writeconf );
+	if ( $status != 0 )
 	{
 		return $status;
 	}
 
+	require Zevenet::Net::Util;
 	# Enable IP forwarding
 	&setIpForward( 'true' );
 
@@ -83,6 +85,7 @@ sub stopL4Farm    # ($farm_name)
 			 "debug", "PROFILING" );
 
 	my $farm_name = shift;
+	my $writeconf = shift;
 	my $pidfile   = &getL4FarmPidFile( $farm_name );
 
 	require Zevenet::Farm::Core;
@@ -98,7 +101,7 @@ sub stopL4Farm    # ($farm_name)
 		return 0;
 	}
 
-	&stopNLBFarm( $farm_name );
+	&stopNLBFarm( $farm_name, $writeconf );
 
 	unlink "$pidfile" if ( -e "$pidfile" );
 
@@ -280,7 +283,7 @@ sub startNLBFarm    # ($farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name ) = @_;
+	my ( $farm_name, $writeconf ) = @_;
 
 	#	require Zevenet::Farm::Core;
 	require Zevenet::Farm::L4xNAT::Config;
@@ -291,7 +294,7 @@ sub startNLBFarm    # ($farm_name)
 		return $out;
 	}
 
-	&setL4FarmParam( 'status', "up", $farm_name );
+	&setL4FarmParam( ( $writeconf ) ? 'bootstatus' : 'status', "up", $farm_name );
 
 	return $out;
 }
@@ -313,13 +316,14 @@ sub stopNLBFarm    # ($farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name ) = @_;
+	my ( $farm_name, $writeconf ) = @_;
 
 	require Zevenet::Farm::Core;
 
 	my $farmfile = &getFarmFile( $farm_name );
 
-	my $out = &setL4FarmParam( 'status', "down", $farm_name );
+	my $out = &setL4FarmParam( ( $writeconf eq 'true' ) ? 'bootstatus' : 'status',
+							   "down", $farm_name );
 
 	return $out;
 }

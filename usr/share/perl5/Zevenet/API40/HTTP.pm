@@ -426,6 +426,9 @@ sub httpErrorResponse
 				 message     => $args->{ msg },
 	};
 
+	my $doc_url = &getGlobalConfiguration( 'doc_v4_0' );
+	$body->{ documentation } = $doc_url if $doc_url;
+
 	&zenlog( "$args->{ desc }: $args->{ msg }", "error", $LOG_TAG );
 	&zenlog( $args->{ log_msg }, "info", $LOG_TAG ) if exists $args->{ log_msg };
 

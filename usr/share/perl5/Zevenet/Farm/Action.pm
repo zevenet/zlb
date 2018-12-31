@@ -59,7 +59,7 @@ sub _runFarmStart    # ($farm_name, $writeconf)
 
 	my $status = -1;
 
-	# finish the function if the tarm is already up
+	# finish the function if the farm is already up
 	if ( &getFarmStatus( $farm_name ) eq "up" )
 	{
 		zenlog( "Farm $farm_name already up", "info", "FARMS" );
