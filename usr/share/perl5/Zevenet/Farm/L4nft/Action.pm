@@ -60,6 +60,7 @@ sub startL4Farm    # ($farm_name)
 	}
 
 	require Zevenet::Net::Util;
+
 	# Enable IP forwarding
 	&setIpForward( 'true' );
 
@@ -243,7 +244,6 @@ sub loadNLBFarm    # ($farm_name)
 	require Zevenet::Farm::L4xNAT::Config;
 
 	my $farmfile = &getFarmFile( $farm_name );
-	my $pidfile  = &getL4FarmPidFile( $farm_name );
 
 	return -1 if ( !-e "$configdir/$farmfile" );
 
@@ -256,12 +256,6 @@ sub loadNLBFarm    # ($farm_name)
 								 body       => qq(\@$configdir/$farmfile)
 							   }
 	);
-
-	if ( !-e "$pidfile" )
-	{
-		open my $fi, '>', "$pidfile";
-		close $fi;
-	}
 
 	return $out;
 }
@@ -295,6 +289,14 @@ sub startNLBFarm    # ($farm_name)
 	}
 
 	&setL4FarmParam( ( $writeconf ) ? 'bootstatus' : 'status', "up", $farm_name );
+
+	my $pidfile = &getL4FarmPidFile( $farm_name );
+
+	if ( !-e "$pidfile" )
+	{
+		open my $fi, '>', "$pidfile";
+		close $fi;
+	}
 
 	return $out;
 }
