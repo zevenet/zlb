@@ -148,6 +148,10 @@ my $filepid = "/var/run/$pidfile";
 	close $fo;
 }
 
+# get farm port to use it if a backend has not defined the port field
+require Zevenet::Farm::Config;
+my $farm_st = &getFarmStruct($farmname);
+
 #Ask for the farm type
 $type = 'http' if $type eq 'https';
 
@@ -226,8 +230,9 @@ while ( 1 )
 		{
 			$backendid[$i]   = $l_serv->{ id };
 			$backendserv[$i] = $l_serv->{ ip };
-			$backendport[$i] = $l_serv->{ port };
+			$backendport[$i] = $l_serv->{ port } // $farm_st->{vport}; # use farm port if backend port is not defined
 			$backendstatus[$i] = $l_serv->{ status };
+			$i++;
 		}
 	}
 

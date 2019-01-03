@@ -25,6 +25,8 @@ use strict;
 
 use Fcntl ':flock';    #use of lock functions
 
+require Zevenet::Log;
+
 # generate a lock file based on a input path
 sub getLockFile
 {

@@ -527,6 +527,7 @@ Parameters:
 			"values" : ["priority", "weight"],		# list of possible values for a parameter
 			"regex"	: "/\w+,\d+/",		# regex format
 			"valid_format"	: "farmname",		# regex stored in Validate.pm file, it checks with the function getValidFormat
+			"function" : \&func,		# function of validating, the input parameter is the value of the argument. The function has to return 0 or 'false' when a error exists
 			"format_msg"	: "must have letters and digits",	# used message when a value is not correct
 		}
 		param2 :
@@ -631,9 +632,25 @@ sub checkZAPIParams
 			{
 				my ( $low_limit, $high_limit ) =
 				  split ( ',', $param_obj->{ $param }->{ 'interval' } );
-				return "The parameter $param has not a valid value."
-				  if (    ( $json_obj->{ $param } < $low_limit )
+				my $low_str =
+				  ( $low_limit ) ? "$param has to be greater than or equal to $low_limit" : "";
+				my $high_str =
+				  ( $high_limit ) ? "$param has to be lower than or equal to $high_limit" : "";
+				my $msg = $low_str if $low_str;
+
+				if ( $high_str )
+				{
+					$msg .= ". " if $msg;
+					$msg .= $high_str;
+				}
+				return $msg
+				  if (    ( $json_obj->{ $param } !~ /^\d*$/ )
+					   || ( $json_obj->{ $param } > $high_limit )
 					   || ( $json_obj->{ $param } > $high_limit ) );
+			}
+			else
+			{
+				die "Expected a interval string, got: $param_obj->{ $param }->{ 'interval' }";
 			}
 		}
 
@@ -650,7 +667,28 @@ sub checkZAPIParams
 		# aditionals
 
 		# regex
+		if ( exists $param_obj->{ $param }->{ 'regex' } )
+		{
+			return "The value $json_obj->{ $param } is not valid for the parameter $param."
+			  if ( $json_obj->{ $param } !~ /$param_obj->{ $param }->{ 'regex' }/ );
+		}
 
+		if ( exists $param_obj->{ $param }->{ 'function' } )
+		{
+			my $result =
+			  &{ $param_obj->{ $param }->{ 'function' } }( $json_obj->{ $param } );
+			if ( !$result or $result eq 'false' )
+			{
+				if ( exists $param_obj->{ $param }->{ format_msg } )
+				{
+					return "$param $param_obj->{ $param }->{ format_msg }";
+				}
+				else
+				{
+					return "The parameter $param has not a valid value.";
+				}
+			}
+		}
 	}
 
 	return;

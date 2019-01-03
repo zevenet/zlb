@@ -532,7 +532,10 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 	my ( $json_obj, $farmname, $id_server ) = @_;
 
 	my $desc = "Modify backend";
-	my $zapierror;
+	my $error;
+
+	require Zevenet::Farm::Backend;
+	require Zevenet::Net::Validate;
 
 	# Check that the farm exists
 	if ( !&getFarmExists( $farmname ) )
@@ -541,138 +544,80 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
-	my $error;
 	my $type = &getFarmType( $farmname );
-
-	if ( $type eq "l4xnat" )
+	if ( $type ne 'datalink' and $type ne 'l4xnat' )
 	{
-		require Zevenet::Farm::L4xNAT::Config;
+		my $msg = "The $type farm profile has backends only in services.";
+		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+	}
 
-		# Params
-		my $l4_farm = &getL4FarmStruct( $farmname );
-		my $backend;
+	# get backends
+	my $backend = &getFarmServers( $farmname )->[$id_server];
+	if ( !$backend || ref ( $backend ) ne "HASH" )
+	{
+		my $msg = "Could not find a backend with such id.";
+		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+	}
 
-		for my $be ( @{ $l4_farm->{ 'servers' } } )
+	my $params = {
+				   "priority" => {
+								   'interval' => '1,9',
+				   },
+				   "weight" => {
+								 'interval' => '1,9',
+				   },
+				   "ip" => {
+							 'valid_format' => 'ip_addr',
+							 'non_blank'    => 'true',
+							 'format_msg'   => 'expects an IP'
+				   },
+	};
+
+	if ( $type eq 'l4xnat' )
+	{
+		$params->{ "port" } = {
+								'function'   => \&isValidPortNumber,
+								'format_msg' => 'expects an port or port range'
+		};
+		$params->{ "max_conns" } = {
+									 'valid_format' => 'natural_num',
+									 'format_msg'   => 'expects a natural number'
+		};
+	}
+	else
+	{
+		$params->{ "interface" } = { 'non_black' => 'true', };
+	}
+
+	# Disabled temporality
+	foreach my $pa ( 'port', 'max_conns' )
+	{
+		if ( exists $json_obj->{ $pa } )
 		{
-			if ( $be->{ 'id' } eq $id_server )
-			{
-				$backend = $be;
-			}
-		}
-
-		if ( !$backend || ref ( $backend ) ne "HASH" )
-		{
-			my $msg = "Could not find a backend with such id.";
-			&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
-		}
-
-		if ( exists ( $json_obj->{ ip } ) )
-		{
-			unless (    $json_obj->{ ip }
-					 && &getValidFormat( 'ip_addr', $json_obj->{ ip } ) )
-			{
-				my $msg = "Invalid IP.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
-			$backend->{ vip } = $json_obj->{ ip };
-		}
-
-		if ( exists ( $json_obj->{ port } ) )
-		{
-			unless (    &isValidPortNumber( $json_obj->{ port } ) eq 'true'
-					 || $json_obj->{ port } == undef )
-			{
-				my $msg = "Invalid port number.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
-			$backend->{ vport } = $json_obj->{ port };
-		}
-
-		if ( exists ( $json_obj->{ weight } ) )
-		{
-			unless (    $json_obj->{ weight } =~ /^[1-9]$/
-					 || $json_obj->{ weight } == undef )    # 1 or higher
-			{
-				my $msg = "Invalid backend weight value, please insert a value form 1 to 9.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
-			$backend->{ weight } = $json_obj->{ weight };
-		}
-
-		if ( exists ( $json_obj->{ priority } ) )
-		{
-			unless (    $json_obj->{ priority } =~ /^\d$/
-					 || $json_obj->{ priority } == undef )    # (0-9)
-			{
-				my $msg =
-				  "Error, trying to modify the backends in the farm $farmname, invalid priority. The higher value is 9.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
-			$backend->{ priority } = $json_obj->{ priority };
-		}
-
-		if ( exists ( $json_obj->{ max_conns } ) )
-		{
-			unless ( $json_obj->{ max_conns } =~ /^\d+$/ )    # (0 or higher)
-			{
-				my $msg =
-				  "Error, trying to modify the connection limit in the farm $farmname, invalid value.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
-			$backend->{ max_conns } = $json_obj->{ max_conns };
-		}
-
-		my $status = &setL4FarmServer( $farmname,
-									   $backend->{ id },
-									   $backend->{ vip },
-									   $backend->{ vport },
-									   $backend->{ weight },
-									   $backend->{ priority },
-									   $backend->{ max_conns },
-		);
-
-		if ( $status == -1 )
-		{
-			my $msg = "It's not possible to modify the backend with ip $json_obj->{ip}.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			my $msg = "$pa is not implemented yet.";
+			&httpErrorResponse( code => 406, desc => $desc, msg => $msg );
 		}
 	}
-	elsif ( $type eq "datalink" )
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
+
+	$backend->{ vip } = $json_obj->{ ip } if exists $json_obj->{ ip };
+	$backend->{ vport } = $json_obj->{ port }
+	  if exists $json_obj->{ port };    # l4xnat
+	$backend->{ weight } = $json_obj->{ weight } if exists $json_obj->{ weight };
+	$backend->{ priority } = $json_obj->{ priority }
+	  if exists $json_obj->{ priority };
+	$backend->{ max_conns } = $json_obj->{ max_conns }
+	  if exists $json_obj->{ max_conns };    # l4xnat
+	$backend->{ interface } = $json_obj->{ interface }
+	  if exists $json_obj->{ interface };    # datalink
+
+	if ( $type eq 'datalink' )
 	{
-		require Zevenet::Farm::Datalink::Backend;
 		require Zevenet::Net::Interface;
-
-		my $be;
-		{
-			my $b_ref = &getDatalinkFarmBackends( $farmname );
-			$be = @{ $b_ref }[$id_server];
-		}
-
-		if ( !$be || ref ( $be ) ne "HASH" )
-		{
-			my $msg = "Could not find a backend with such id.";
-			&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
-		}
-
-		# Functions
-		if ( exists ( $json_obj->{ ip } ) )
-		{
-			if ( $json_obj->{ ip } && &getValidFormat( 'IPv4_addr', $json_obj->{ ip } ) )
-			{
-				$be->{ ip } = $json_obj->{ ip };
-			}
-			else
-			{
-				my $msg = "Invalid IP.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-		}
-
 		if ( exists ( $json_obj->{ interface } ) )
 		{
 			my $valid_interface;
@@ -685,6 +630,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 				if ( $iface->{ name } eq $json_obj->{ interface } )
 				{
 					$valid_interface = 'true';
+					last;
 				}
 			}
 
@@ -693,59 +639,25 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 				my $msg = "Invalid interface.";
 				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
-
-			$be->{ interface } = $json_obj->{ interface };
 		}
 
 		# check that IP is in network than interface
-		my $iface_ref = &getInterfaceConfig( $be->{ interface } );
+		my $iface_ref = &getInterfaceConfig( $backend->{ interface } );
 		if (
-			 !&getNetValidate( $iface_ref->{ addr }, $iface_ref->{ mask }, $be->{ ip } ) )
+			 !&getNetValidate( $iface_ref->{ addr }, $iface_ref->{ mask }, $backend->{ ip }
+			 )
+		  )
 		{
 			my $msg = "The IP must be in the same network than the local interface.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-
-		if ( exists ( $json_obj->{ weight } ) )
-		{
-			if ( !&getValidFormat( 'natural_num', $json_obj->{ weight } ) )    # 1 or higher
-			{
-				my $msg = "Invalid weight.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
-			$be->{ weight } = $json_obj->{ weight };
-		}
-
-		if ( exists ( $json_obj->{ priority } ) )
-		{
-			if ( $json_obj->{ priority } !~ /^[1-9]$/ )                        # (1-9)
-			{
-				my $msg = "Invalid priority.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
-			$be->{ priority } = $json_obj->{ priority };
-		}
-
-		my $status =
-		  &setDatalinkFarmServer( $id_server,
-								  $be->{ ip },
-								  $be->{ interface },
-								  $be->{ weight },
-								  $be->{ priority }, $farmname );
-
-		if ( $status == -1 )
-		{
-			my $msg =
-			  "It's not possible to modify the backend with IP $json_obj->{ip} and interface $json_obj->{interface}.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
 	}
-	else
+
+	$error = &setFarmServer( $farmname, undef, $id_server, $backend );
+	if ( $error )
 	{
-		my $msg = "The $type farm profile has backends only in services.";
-		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+		my $msg = "Error trying to modify the backend $id_server.";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
 	&zenlog(
@@ -857,7 +769,7 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 		$be->{ port } = $json_obj->{ port };
 	}
 
-	# validate BACKEND weigh
+	# validate BACKEND weight
 	if ( exists ( $json_obj->{ weight } ) )
 	{
 		unless ( $json_obj->{ weight } =~ /^[1-9]$/ )

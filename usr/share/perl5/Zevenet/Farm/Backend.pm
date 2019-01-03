@@ -90,38 +90,28 @@ Function: setFarmServer
 	Add a new Backend
 
 Parameters:
-	id - Backend id, if this id doesn't exist, it will create a new backend
-	ip - Real server ip
-	port | iface - Real server port or interface if the farm is datalink
-	max - parameter for l4xnat farm
-	weight - The higher the weight, the more request will go to this backend.
-	priority -  The lower the priority, the most preferred is the backend.
-	timeout - HTTP farm parameter
 	farmname - Farm name
 	service - service name. For HTTP farms
+	id - Backend id, if this id doesn't exist, it will create a new backend
+	backend - hash with backend configuration. Depend on the type of farms, the backend can have the following keys:
+		ip, port, weight, priority, timeout, max_conns or interface
 
 Returns:
 	Scalar - Error code: undef on success or -1 on error
 
-FIXME:
-	Use a hash
-	max parameter is only used by tcp farms
-
 =cut
 
-sub setFarmServer # $output ($ids,$rip,$port|$iface,$max,$weight,$priority,$timeout,$farm_name,$service)
+sub setFarmServer    # $output ($farm_name,$service,$bk_id,$bk_params)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $ids, $rip, $port, $max, $weight,
-		 $priority, $timeout, $farm_name, $service )
-	  = @_;
+	my ( $farm_name, $service, $ids, $bk ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $output    = -1;
 
 	&zenlog(
-		"setting 'Server $ids $rip $port max $max weight $weight prio $priority timeout $timeout' for $farm_name farm $farm_type",
+		"setting 'Server $ids ip:$bk->{ip} port:$bk->{port} max:$bk->{max_conns} weight:$bk->{weight} prio:$bk->{priority} timeout:$bk->{timeout}' for $farm_name farm, $service service of type $farm_type",
 		"info", "FARMS"
 	);
 
@@ -129,20 +119,33 @@ sub setFarmServer # $output ($ids,$rip,$port|$iface,$max,$weight,$priority,$time
 	{
 		require Zevenet::Farm::Datalink::Backend;
 		$output =
-		  &setDatalinkFarmServer( $ids, $rip, $port, $weight, $priority, $farm_name );
+		  &setDatalinkFarmServer( $ids,
+								  $bk->{ ip },
+								  $bk->{ interface },
+								  $bk->{ weight },
+								  $bk->{ priority }, $farm_name );
 	}
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Backend;
 		$output =
-		  &setL4FarmServer( $farm_name, $ids, $rip, $port, $weight, $priority, $max );
+		  &setL4FarmServer( $farm_name, $ids,
+							$bk->{ ip },
+							$bk->{ port },
+							$bk->{ weight },
+							$bk->{ priority },
+							$bk->{ max_conns } );
 	}
 	elsif ( $farm_type eq "http" || $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Backend;
 		$output =
-		  &setHTTPFarmServer( $ids, $rip, $port, $weight, $timeout, $farm_name,
-							  $service, );
+		  &setHTTPFarmServer( $ids,
+							  $bk->{ ip },
+							  $bk->{ port },
+							  $bk->{ weight },
+							  $bk->{ timeout },
+							  $farm_name, $service );
 	}
 
 	# FIXME: include setGSLBFarmNewBackend

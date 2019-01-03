@@ -136,12 +136,14 @@ sub farm_stats    # ( $farmname )
 
 		require Zevenet::Farm::L4xNAT::Stats;
 
-		my $validStatsre = qr/(alias)|(^id$)|(weight)|(^ip$)|(priority)|(status)|(established)|(pending)/;
-		my $stats    = &getL4FarmBackendsStats( $farmname );
+		my $validStatsre =
+		  qr/(alias)|(^id$)|(weight)|(^ip$)|(priority)|(status)|(established)|(pending)/;
+		my $stats = &getL4FarmBackendsStats( $farmname );
 
 		# Deleting not visible params
 		foreach my $be ( @{ $stats } )
 		{
+			$be->{ status } = "down" if ( $be->{ status } =~ /fgdown/i );
 			foreach my $param ( keys ( %{ $be } ) )
 			{
 				delete $be->{ $param } if ( !( $param =~ $validStatsre ) );

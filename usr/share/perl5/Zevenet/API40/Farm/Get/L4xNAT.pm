@@ -79,6 +79,7 @@ sub farms_name_l4    # ( $farmname )
 	my $validParamsre = qr/(alias)|(^id$)|(weight)|(^ip$)|(priority)|(status)/;
 	foreach my $backend ( @{ $out_b } )
 	{
+		$backend->{ status } = "down" if ( $backend->{ status } =~ /fgdown/i );
 		foreach my $param ( keys ( %{ $backend } ) )
 		{
 			delete $backend->{ $param } if ( !( $param =~ $validParamsre ) );
