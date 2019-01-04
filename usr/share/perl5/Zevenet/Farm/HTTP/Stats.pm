@@ -233,7 +233,7 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 
 	require Zevenet::Farm::Base;
 	require Zevenet::Farm::HTTP::Config;
-
+	require Zevenet::Validate;
 	my $stats = {
 				  sessions => [],
 				  backends => [],
