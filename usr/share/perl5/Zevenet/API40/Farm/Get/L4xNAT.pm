@@ -23,7 +23,7 @@
 use strict;
 use Zevenet::FarmGuardian;
 use Zevenet::Farm::Config;
-use Zevenet::Farm::L4xNAT::Backend;
+use Zevenet::Farm::Backend;
 use Zevenet::Farm::L4xNAT::Config;
 
 my $eload;
@@ -68,23 +68,17 @@ sub farms_name_l4    # ( $farmname )
 			   protocol     => &getL4FarmParam( 'proto', $farmname ),
 			   ttl          => $timetolimit,
 			   farmguardian => &getFGFarm( $farmname ),
-			   logs         => &getL4FarmParam( 'logs', $farmname ),
 			   listener     => 'l4xnat',
 	};
 
-	# Backends
-	$out_b = &getL4FarmServers( $farmname );
-
-	# Delete not visible params
-	my $validParamsre = qr/(alias)|(^id$)|(weight)|(^ip$)|(priority)|(status)/;
-	foreach my $backend ( @{ $out_b } )
+	if ( $eload )
 	{
-		$backend->{ status } = "down" if ( $backend->{ status } =~ /fgdown/i );
-		foreach my $param ( keys ( %{ $backend } ) )
-		{
-			delete $backend->{ $param } if ( !( $param =~ $validParamsre ) );
-		}
+	 $out_p->{ logs } = &getL4FarmParam( 'logs', $farmname ),
 	}
+
+	# Backends
+	my $out_b = &getFarmServers( $farmname );
+	&getAPIFarmBackends( $out_b, 'l4xnat' );
 
 	my $body = {
 				 description => "List farm $farmname",

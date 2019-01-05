@@ -244,4 +244,39 @@ sub farms_name    # ( $farmname )
 	}
 }
 
+# function to standarizate the backend output
+sub getAPIFarmBackends
+{
+	my $out_b        = shift;
+	my $type         = shift;
+	my $add_api_keys = shift // [];
+	my $translate    = shift // {};
+	my @api_keys     = @{ $add_api_keys };
+
+	require Zevenet::Farm::Backend;
+
+	# Backends
+	die "Waiting a hash input" if ( !ref $out_b );
+
+	# filters:
+	if ( $type eq 'l4xnat' )
+	{
+		push @api_keys, qw(id weight ip priority status);
+	}
+	elsif ( $type eq 'datalink' )
+	{
+		push @api_keys, qw(id weight ip priority status interface);
+	}
+
+	if ( $eload )
+	{
+		push @api_keys, "alias";
+	}
+
+	# add static translations
+	$translate->{ status } = { "opt" => "fgdown", "rep" => "down" };
+
+	return &buildAPIParams( $out_b, \@api_keys, $translate );
+}
+
 1;

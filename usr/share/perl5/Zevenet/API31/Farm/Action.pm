@@ -318,7 +318,8 @@ sub backend_maintenance    # ( $json_obj, $farmname, $backend_id )
 	# validate BACKEND
 	require Zevenet::Farm::L4xNAT::Backend;
 
-	my $exists = defined ( @{ &getL4FarmServers( $farmname ) }[$backend_id] );
+	my $backends = &getL4FarmServers( $farmname );
+	my $exists = &getFarmBackendExists( $backends, $backend_id );
 
 	if ( !$exists )
 	{

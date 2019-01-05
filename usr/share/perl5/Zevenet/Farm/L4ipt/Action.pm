@@ -25,6 +25,13 @@ use strict;
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
+
+
 =begin nd
 Function: startL4Farm
 
@@ -146,9 +153,13 @@ sub startL4Farm    # ($farm_name,$writeconf)
 	}
 
 	#enable log rule
-	if ( &getL4FarmParam( 'logs', $farm_name ) eq "true" )
+	if ( &getL4FarmParam( 'logs', $farm_name ) eq "true" && $eload )
 	{
-		&reloadL4FarmLogsRule( $farm_name, "true" );
+		&eload(
+								module   => 'Zevenet::Farm::L4xNAT::Config::Ext',
+								func     => 'reloadL4FarmLogsRule',
+								args     => [$farm_name, "false"],
+		);
 	}
 
 	return $status;
@@ -181,7 +192,14 @@ sub stopL4Farm    # ($farm_name,$writeconf)
 	my $status;
 
 	# Remove log rules
-	&reloadL4FarmLogsRule( $farm_name, "false" );
+	if ( $eload )
+	{
+		&eload(
+								module   => 'Zevenet::Farm::L4xNAT::Config::Ext',
+								func     => 'reloadL4FarmLogsRule',
+								args     => [$farm_name, "false"],
+			);
+	}
 
 	## lock iptables use ##
 	my $iptlock = &getGlobalConfiguration( 'iptlock' );

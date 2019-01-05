@@ -46,7 +46,7 @@ fi
 
 # Configure packages repository
 cat > /etc/apt/sources.list.d/zevenet.list <<EOF
-deb http://repo.zevenet.com/ce/v6/ buster main
+deb http://repo.zevenet.com/ce/v5/ buster main
 EOF
 
 echo -n "* Fetching Zevenet gpg key: "

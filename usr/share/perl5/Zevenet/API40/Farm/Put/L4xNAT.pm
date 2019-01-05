@@ -359,27 +359,26 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 	}
 
 	# Modify logs
-	if ( $eload )
+	if ( exists ( $json_obj->{ logs } ) )
 	{
-		if ( exists ( $json_obj->{ logs } ) )
+		if ( $eload )
 		{
 			#require Zevenet::Farm::Config;
-			my $err;
-			if ( $json_obj->{ logs } =~ /(?:true|false)/ )
+			my $msg = &eload(
+									module   => 'Zevenet::Farm::L4xNAT::Config::Ext',
+									func     => 'modifyLogsParam',
+									args     => [$farmname, $json_obj->{ logs }],
+									just_ret => 1,
+				);
+			if ( defined $msg && length $msg )
 			{
-				$err = &setL4FarmParam( 'logs', $json_obj->{ logs }, $farmname );
+				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
-			else
-			{
-				my $msg = "Invalid value for logs parameter.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
-			if ( $err )
-			{
-				my $msg = "Error modifying the parameter logs.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
+		}
+		else
+		{
+			my $msg = "Logs feature not available.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}
 

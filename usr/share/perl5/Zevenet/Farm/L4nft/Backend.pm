@@ -98,6 +98,8 @@ sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
 		}
 	);
 
+	&setL4BackendRule( "add", $f_ref, $mark );
+
 	return $output;
 }
 
@@ -140,15 +142,6 @@ sub runL4FarmServerDelete    # ($ids,$farm_name)
 		}
 	}
 
-	foreach my $server ( @{ $f_ref->{ servers } } )
-	{
-		if ( $server->{ id } eq $ids )
-		{
-			$mark = $server->{ tag };
-			last;
-		}
-	}
-
 	$output = &httpNLBRequest(
 							   {
 								 farm       => $farm_name,
@@ -159,6 +152,16 @@ sub runL4FarmServerDelete    # ($ids,$farm_name)
 							   }
 	);
 
+	foreach my $server ( @{ $f_ref->{ servers } } )
+	{
+		if ( $server->{ id } eq $ids )
+		{
+			$mark = $server->{ tag };
+			last;
+		}
+	}
+
+	&setL4BackendRule( "del", $f_ref, $mark );
 	&delMarks( "", $mark );
 
 	return $output;
@@ -303,7 +306,7 @@ sub _getL4FarmParseServers
 			$index =~ s/bck//;
 			$server->{ id }        = $index + 0;
 			$server->{ port }      = undef;
-			$server->{ tag }       = 400;
+			$server->{ tag }       = "0x0";
 			$server->{ max_conns } = 0;
 		}
 
@@ -549,25 +552,54 @@ sub getL4FarmBackendAvailableID
 			 "debug", "PROFILING" );
 	my $farmname = shift;
 
+	require Zevenet::Farm::Backend;
+
 	my $backends  = &getL4FarmServers( $farmname );
 	my $nbackends = $#{ $backends } + 1;
 
 	for ( my $id = 0 ; $id < $nbackends ; $id++ )
 	{
-		my $noexist = 1;
-		foreach my $backend ( @{ $backends } )
-		{
-			if ( $backend->{ id } == $id )
-			{
-				$noexist = 0;
-				last;
-			}
-		}
-
-		return $id if ( $noexist );
+		my $exists = &getFarmBackendExists( $backends, $id );
+		return $id if ( !$exists );
 	}
 
 	return $nbackends;
+}
+
+=begin nd
+Function: setL4BackendRule
+
+	Add or delete the route rule according to the backend mark.
+
+Parameters:
+	action - "add" to create the mark or "del" to remove it.
+	farm_ref - farm reference.
+	mark - backend mark to apply in the rule.
+
+Returns:
+	integer - 0 if successful, otherwise error.
+
+=cut
+
+sub setL4BackendRule
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $action   = shift;
+	my $farm_ref = shift;
+	my $mark     = shift;
+
+	return -1 if ( $action != /add|del/ || !defined $farm_ref || $mark eq "" );
+
+	require Zevenet::Net::Util;
+	require Zevenet::Net::Route;
+
+	my $vip_if_name = &getInterfaceOfIp( $farm_ref->{ vip } );
+	my $vip_if      = &getInterfaceConfig( $vip_if_name );
+	my $table_if =
+	  ( $vip_if->{ type } eq 'virtual' ) ? $vip_if->{ parent } : $vip_if->{ name };
+
+	return &setRule( $action, $vip_if, $table_if, "", $mark );
 }
 
 1;

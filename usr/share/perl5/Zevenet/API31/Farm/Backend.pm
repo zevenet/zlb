@@ -113,7 +113,9 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		}
 
 		# Create backend
-		my $status = &setL4FarmServer( $farmname, $id,
+		my $status = &setL4FarmServer(
+									   $farmname,
+									   $id,
 									   $json_obj->{ ip },
 									   $json_obj->{ port },
 									   $json_obj->{ weight },
@@ -218,11 +220,14 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		}
 
 		# Create backend
-		my $status = &setDatalinkFarmServer( $id,
+		my $status = &setDatalinkFarmServer(
+											 $id,
 											 $json_obj->{ ip },
 											 $json_obj->{ interface },
 											 $json_obj->{ weight },
-											 $json_obj->{ priority }, $farmname, );
+											 $json_obj->{ priority },
+											 $farmname,
+		);
 
 		# check error adding a new backend
 		if ( $status == -1 )
@@ -375,12 +380,15 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 	}
 
 # First param ($id) is an empty string to let function autogenerate the id for the new backend
-	my $status = &setHTTPFarmServer( "",
+	my $status = &setHTTPFarmServer(
+									 "",
 									 $json_obj->{ ip },
 									 $json_obj->{ port },
 									 $json_obj->{ weight },
 									 $json_obj->{ timeout },
-									 $farmname, $service, );
+									 $farmname,
+									 $service,
+	);
 
 	# check if there was an error adding a new backend
 	if ( $status == -1 )
@@ -633,7 +641,8 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 			$backend->{ max_conns } = $json_obj->{ max_conns };
 		}
 
-		my $status = &setL4FarmServer( $farmname,
+		my $status = &setL4FarmServer(
+									   $farmname,
 									   $backend->{ id },
 									   $backend->{ vip },
 									   $backend->{ vport },
@@ -963,20 +972,10 @@ sub delete_backend    # ( $farmname, $id_server )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	my $exists = 0;
-
 	require Zevenet::Farm::Backend;
-	if ( $type eq 'l4xnat' )
-	{
-		my $servers  = &getFarmServers( $farmname );
-		my $nservers = @{ $servers };
-		$exists = ( $nservers ) ? 1 : 0;
-	}
-	else
-	{
-		my $backends = &getFarmServers( $farmname );
-		my $exists   = @{ $backends }[$id_server];
-	}
+
+	my $backends = &getFarmServers( $farmname );
+	my $exists = &getFarmBackendExists( $backends, $id_server );
 
 	if ( !$exists )
 	{

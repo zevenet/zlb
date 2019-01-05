@@ -25,6 +25,12 @@ use strict;
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
+
 =begin nd
 Function: getL4FarmParam
 
@@ -88,7 +94,6 @@ Parameters:
 		"proto": write the protocol
 		"persist": write persistence
 		"persisttm": write client persistence timeout
-		"logs": write the logs option
 	value - the new value of the given parameter of a certain farm
 	farmname - Farm name
 
@@ -139,10 +144,6 @@ sub setL4FarmParam    # ($param, $value, $farm_name)
 	{
 		$output = &setL4FarmMaxClientTime( $value, $farm_name );
 	}
-	elsif ( $param eq "logs" )
-	{
-		$output = &setL4FarmLogs( $farm_name, $value );
-	}
 	else
 	{
 		return -1;
@@ -157,7 +158,7 @@ Function: _getL4ParseFarmConfig
 	Parse the farm file configuration and read/write a certain parameter
 
 Parameters:
-	param - requested parameter. The options are "family", "vip", "vipp", "status", "mode", "alg", "proto", "persist", "presisttm", "logs"
+	param - requested parameter. The options are "family", "vip", "vipp", "status", "mode", "alg", "proto", "persist", "presisttm"
 	value - value to be changed in case of write operation, undef for read only cases
 	config - reference of an array with the full configuration file
 
@@ -998,7 +999,7 @@ sub getL4FarmStruct
 	$farm{ proto }      = &getL4ProtocolTransportLayer( $farm{ vproto } );
 	$farm{ bootstatus } = &_getL4ParseFarmConfig( 'bootstatus', undef, $config );
 	$farm{ status }     = &getL4FarmStatus( $farm{ name } );
-	$farm{ logs }       = &_getL4ParseFarmConfig( 'logs', undef, $config );
+	$farm{ logs }       = &_getL4ParseFarmConfig( 'logs', undef, $config ) if ( $eload );
 	$farm{ servers }    = &_getL4FarmParseServers( $config );
 
 	# replace port * for all the range
@@ -1144,7 +1145,14 @@ sub refreshL4FarmRules    # AlgorithmRules
 	## unlock iptables use ##
 	close $ipt_lockfile;
 
-	&reloadL4FarmLogsRule( $$farm{ name } );
+	if ( $eload )
+	{
+		&eload(
+								module   => 'Zevenet::Farm::L4xNAT::Config::Ext',
+								func     => 'reloadL4FarmLogsRule',
+								args     => [$$farm{ name }],
+			);
+	}
 
 	# apply new rules
 	return $return_code;
@@ -1192,112 +1200,6 @@ sub reloadL4FarmsSNAT
 			}
 		}
 	}
-}
-
-sub setL4FarmLogs
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my $farmname = shift;
-	my $action   = shift;    # true or false
-	my $out;
-
-	# execute action
-	&reloadL4FarmLogsRule( $farmname, $action );
-
-	# write configuration
-	require Tie::File;
-	my $farm_filename = &getFarmFile( $farmname );
-	tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
-
-	my $i = 0;
-	for my $line ( @configfile )
-	{
-		if ( $line =~ /^$farmname\;/ )
-		{
-			my @args = split ( "\;", $line );
-			$line =
-			  "$args[0]\;$args[1]\;$args[2]\;$args[3]\;$args[4]\;$args[5]\;$args[6]\;$args[7]\;$args[8]\;$action";
-			splice @configfile, $i, $line;
-		}
-		$i++;
-	}
-	untie @configfile;
-
-	return $out;
-}
-
-# if action is false, the rule won't be started
-# if farm is in down status, the farm won't be started
-
-sub reloadL4FarmLogsRule
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my ( $farmname, $action ) = @_;
-
-	require Zevenet::Netfilter;
-
-	my $error;
-	my $table     = "mangle";
-	my $ipt_hook  = "FORWARD";
-	my $log_chain = "LOG_CONNS";
-	my $bin       = &getBinVersion( $farmname );
-	my $farm      = &getL4FarmStruct( $farmname );
-
-	my $comment = "conns,$farmname";
-
-	# delete current rules
-	&runIptDeleteByComment( $comment, $log_chain, $table );
-
-	# delete chain if it was the last rule
-	my @ipt_list = `$bin -S $log_chain -t $table 2>/dev/null`;
-	my $err      = $?;
-
-	# If the CHAIN is created, has a rule: -N LOG_CONNS
-	if ( scalar @ipt_list <= 1 and !$err )
-	{
-		&iptSystem( "$bin -D $ipt_hook -t $table -j $log_chain" );
-		&iptSystem( "$bin -X $log_chain -t $table" );
-	}
-
-	# not to apply rules if:
-	return if ( $action eq 'false' );
-	return
-	  if ( &getL4FarmParam( 'logs', $farmname ) ne "true" and $action ne "true" );
-	return if ( &getL4FarmParam( 'status', $farmname ) ne 'up' );
-
-	my $comment_tag = "-m comment --comment \"$comment\"";
-	my $log_tag     = "-j LOG --log-prefix \"l4: $farmname \" --log-level 4";
-
-	# create chain if it does not exist
-	if ( &iptSystem( "$bin -S $log_chain -t $table" ) )
-	{
-		$error = &iptSystem( "$bin -N $log_chain -t $table" );
-		$error = &iptSystem( "$bin -A $ipt_hook -t $table -j $log_chain" );
-	}
-
-	my %farm_st = %{ &getL4FarmStruct( $farmname ) };
-	foreach my $bk ( @{ $farm_st{ servers } } )
-	{
-		my $mark = "-m mark --mark $bk->{tag}";
-
-		# log only the new connections
-		if ( &getGlobalConfiguration( 'full_farm_logs' ) ne 'true' )
-		{
-			$error |= &iptSystem(
-				 "$bin -A $log_chain -t $table -m state --state NEW $mark $log_tag $comment_tag"
-			);
-		}
-
-		# log all trace
-		else
-		{
-			$error |=
-			  &iptSystem( "$bin -A $log_chain -t $table $mark $log_tag $comment_tag" );
-		}
-	}
-
 }
 
 1;

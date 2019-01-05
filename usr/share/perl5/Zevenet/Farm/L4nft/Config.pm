@@ -25,6 +25,12 @@ use strict;
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
+
 =begin nd
 Function: getL4FarmParam
 
@@ -41,7 +47,6 @@ Parameters:
 		"proto": get the protocol
 		"persist": get persistence
 		"persisttm": get client persistence timeout
-		"logs": write the logs option
 	farmname - Farm name
 
 Returns:
@@ -89,7 +94,6 @@ Parameters:
 		"proto": write the protocol
 		"persist": write persistence
 		"persisttm": write client persistence timeout
-		"logs": write the logs option
 	value - the new value of the given parameter of a certain farm
 	farmname - Farm name
 
@@ -104,6 +108,7 @@ sub setL4FarmParam    # ($param, $value, $farm_name)
 			 "debug", "PROFILING" );
 	my ( $param, $value, $farm_name ) = @_;
 
+	require Zevenet::Farm::Core;
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
 	my $srvparam      = "";
@@ -187,12 +192,6 @@ sub setL4FarmParam    # ($param, $value, $farm_name)
 	{
 		return 0;    # TODO
 	}
-	elsif ( $param eq "logs" )
-	{
-		$srvparam = "log";
-		$value    = "input" if ( $value eq "true" );
-		$value    = "none" if ( $value eq "false" );
-	}
 	else
 	{
 		return -1;
@@ -229,7 +228,7 @@ Function: _getL4ParseFarmConfig
 	Parse the farm file configuration and read/write a certain parameter
 
 Parameters:
-	param - requested parameter. The options are "family", "vip", "vipp", "status", "mode", "alg", "proto", "persist", "presisttm", "logs"
+	param - requested parameter. The options are "family", "vip", "vipp", "status", "mode", "alg", "proto", "persist", "presisttm"
 	value - value to be changed in case of write operation, undef for read only cases
 	config - reference of an array with the full configuration file
 
@@ -428,7 +427,7 @@ sub getL4FarmStruct
 	$farm{ proto }      = &getL4ProtocolTransportLayer( $farm{ vproto } );
 	$farm{ bootstatus } = &_getL4ParseFarmConfig( 'bootstatus', undef, $config );
 	$farm{ status }     = &getL4FarmStatus( $farm{ name } );
-	$farm{ logs }       = &_getL4ParseFarmConfig( 'logs', undef, $config );
+	$farm{ logs }       = &_getL4ParseFarmConfig( 'logs', undef, $config ) if ( $eload );
 	$farm{ servers }    = &_getL4FarmParseServers( $config );
 
 	# replace port * for all the range

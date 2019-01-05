@@ -538,4 +538,38 @@ sub httpDownloadResponse
 	&httpResponse( { code => 200, headers => $headers, body => $body } );
 }
 
+sub buildAPIParams
+{
+	my $out_b     = shift;
+	my $api_keys  = shift;
+	my $translate = shift;
+
+	# Delete not visible params
+	foreach my $backend ( @{ $out_b } )
+	{
+		my @bk_keys = keys ( %{ $backend } );
+
+		foreach my $param ( keys %{ $translate } )
+		{
+			$backend->{ $param } =~
+			  s/$translate->{$param}->{opt}/$translate->{$param}->{rep}/i;
+		}
+
+		foreach my $param ( @bk_keys )
+		{
+			delete $backend->{ $param } if ( !grep ( /^$param$/, @{ $api_keys } ) );
+		}
+		if ( &debug() )
+		{
+			foreach my $param ( @{ $api_keys } )
+			{
+				&zenlog( "API parameter $param is missing", 'error', 'API' )
+				  if ( !grep ( /^$param$/, @bk_keys ) );
+			}
+		}
+	}
+
+	return $out_b;
+}
+
 1;

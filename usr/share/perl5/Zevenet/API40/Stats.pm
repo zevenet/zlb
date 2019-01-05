@@ -133,22 +133,9 @@ sub farm_stats    # ( $farmname )
 
 	if ( $type eq "l4xnat" )
 	{
-
 		require Zevenet::Farm::L4xNAT::Stats;
-
-		my $validStatsre =
-		  qr/(alias)|(^id$)|(weight)|(^ip$)|(priority)|(status)|(established)|(pending)/;
 		my $stats = &getL4FarmBackendsStats( $farmname );
-
-		# Deleting not visible params
-		foreach my $be ( @{ $stats } )
-		{
-			$be->{ status } = "down" if ( $be->{ status } =~ /fgdown/i );
-			foreach my $param ( keys ( %{ $be } ) )
-			{
-				delete $be->{ $param } if ( !( $param =~ $validStatsre ) );
-			}
-		}
+		&getAPIFarmBackends( $stats, $type, ['established', 'pending'] );
 
 		my $sessions = &getL4FarmSessions( $farmname );
 		my $body = {

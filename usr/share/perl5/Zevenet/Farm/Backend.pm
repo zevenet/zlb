@@ -207,4 +207,73 @@ sub runFarmServerDelete    # ($ids,$farm_name,$service)
 	return $output;
 }
 
+=begin nd
+Function: getFarmBackendAvailableID
+
+	Get next available backend ID
+
+Parameters:
+	farmname - farm name
+
+Returns:
+	integer - .
+
+=cut
+
+sub getFarmBackendAvailableID
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $farmname = shift;
+	my $nbackends;
+
+	if ( &getFarmType( $farmname ) eq 'l4xnat' )
+	{
+		require Zevenet::Farm::L4xNAT::Backend;
+		$nbackends = &getL4FarmBackendAvailableID( $farmname );
+	}
+	else
+	{
+		my $backends = &getFarmServers( $farmname );
+		$nbackends = $#{ $backends } + 1;
+	}
+
+	return $nbackends;
+}
+
+=begin nd
+Function: getFarmBackendExists
+
+	Search for a certain backend ID
+
+Parameters:
+	bcks_ref - reference to the backends structure.
+	id - backend identifier to be search.
+
+Returns:
+	integer - 0 if not found, 1 if found.
+
+=cut
+
+sub getFarmBackendExists
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $bcks_ref = shift;
+	my $id       = shift;
+
+	my $exists = 0;
+
+	foreach my $backend ( @{ $bcks_ref } )
+	{
+		if ( $backend->{ id } == $id )
+		{
+			$exists = 1;
+			last;
+		}
+	}
+
+	return $exists;
+}
+
 1;
