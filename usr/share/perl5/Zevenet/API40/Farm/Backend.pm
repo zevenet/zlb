@@ -135,16 +135,13 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 
 	# Backend retrieval
 	my $serversArray = &getFarmServers( $farmname );
-	my $server = &getFarmServer( $serversArray, $id );
+	my $out_b = &getFarmServer( $serversArray, $id );
 
-	if ( !$server )
+	if ( !$out_b )
 	{
 		my $msg = "Error when retrieving the backend created";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
-
-	# httpResponse require an array ref
-	my $out_b = [$server];
 
 	&getAPIFarmBackends( $out_b, $type );
 

@@ -545,31 +545,46 @@ sub buildAPIParams
 	my $translate = shift;
 
 	# Delete not visible params
-	foreach my $backend ( @{ $out_b } )
+	if ( ref $out_b eq "ARRAY" )
 	{
-		my @bk_keys = keys ( %{ $backend } );
-
-		foreach my $param ( keys %{ $translate } )
+		foreach my $backend ( @{ $out_b } )
 		{
-			$backend->{ $param } =~
-			  s/$translate->{$param}->{opt}/$translate->{$param}->{rep}/i;
+			&buildBackendAPIParams( $backend, $api_keys, $translate );
 		}
-
-		foreach my $param ( @bk_keys )
-		{
-			delete $backend->{ $param } if ( !grep ( /^$param$/, @{ $api_keys } ) );
-		}
-		if ( &debug() )
-		{
-			foreach my $param ( @{ $api_keys } )
-			{
-				&zenlog( "API parameter $param is missing", 'error', 'API' )
-				  if ( !grep ( /^$param$/, @bk_keys ) );
-			}
-		}
+	}
+	elsif ( ref $out_b eq "HASH" )
+	{
+		&buildBackendAPIParams( $out_b, $api_keys, $translate );
 	}
 
 	return $out_b;
 }
 
+sub buildBackendAPIParams
+{
+	my $out_b     = shift;
+	my $api_keys  = shift;
+	my $translate = shift;
+
+	my @bk_keys = keys ( %{ $out_b } );
+
+	foreach my $param ( keys %{ $translate } )
+	{
+		$out_b->{ $param } =~
+		  s/$translate->{$param}->{opt}/$translate->{$param}->{rep}/i;
+	}
+
+	foreach my $param ( @bk_keys )
+	{
+		delete $out_b->{ $param } if ( !grep ( /^$param$/, @{ $api_keys } ) );
+	}
+	if ( &debug() )
+	{
+		foreach my $param ( @{ $api_keys } )
+		{
+			&zenlog( "API parameter $param is missing", 'error', 'API' )
+			  if ( !grep ( /^$param$/, @bk_keys ) );
+		}
+	}
+}
 1;
