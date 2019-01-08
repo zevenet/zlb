@@ -435,7 +435,8 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 	}
 
 	# get backends
-	my $backend = &getFarmServers( $farmname )->[$id_server];
+	my $backend = &getFarmServer( $farmname, undef, $id_server );
+
 	if ( !$backend || ref ( $backend ) ne "HASH" )
 	{
 		my $msg = "Could not find a backend with such id.";
