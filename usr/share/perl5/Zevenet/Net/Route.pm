@@ -197,11 +197,11 @@ sub isRule
 	my $fwmark = shift;
 	my $iplist = shift;
 
-	$table  = "lookup $table"  if ( defined $table  && $table ne "" );
-	$from   = "from $from"     if ( defined $from   && $from ne "" );
-	$fwmark = "fwmark $fwmark" if ( defined $fwmark && $fwmark ne "" );
+	$table  = "lookup $table"   if ( defined $table  && $table ne "" );
+	$from   = "from $from "     if ( defined $from   && $from ne "" );
+	$fwmark = "fwmark $fwmark " if ( defined $fwmark && $fwmark ne "" );
 
-	my $exist = grep /$from.*$fwmark.*$table/, @{ $iplist };
+	my $exist = grep /$from$fwmark$table/, @{ $iplist };
 
 	return $exist;
 }
@@ -299,9 +299,9 @@ sub setRule
 	else
 	{
 		$isrule =
-		  &isRule( $table, "$if_ref->{ net }/$if_ref->{ mask }", $fwmark, @iplist )
+		  &isRule( $table, "$if_ref->{ net }/$if_ref->{ mask }", $fwmark, \@iplist )
 		  || &isRule( $table, NetAddr::IP->new( $if_ref->{ net }, $if_ref->{ mask } ),
-					  $fwmark, @iplist );
+					  $fwmark, \@iplist );
 	}
 
 	if (    ( $action eq "add" && $isrule == 0 )
