@@ -133,8 +133,18 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 	&zenlog( "New backend created in farm $farmname with IP $json_obj->{ip}.",
 			 "info", "FARMS", "info", "FARMS" );
 
-	# Backends
-	my $out_b = &getFarmServers( $farmname );
+	# Backend retrieval
+	my $server = &getFarmServer( $farmname, undef, $id );
+
+	if ( !$server )
+	{
+		my $msg = "Error when retrieving the backend created";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+
+	# httpResponse require an array ref
+	my $out_b = [$server];
+
 	&getAPIFarmBackends( $out_b, $type );
 
 	my $message = "Backend added";

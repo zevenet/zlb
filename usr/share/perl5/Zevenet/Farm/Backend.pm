@@ -85,6 +85,41 @@ sub getFarmServers    # ($farm_name, $service)
 }
 
 =begin nd
+Function: getFarmServer
+
+	Return the farm backend with the specified ID and its configuration
+
+Parameters:
+	farmname - Farm name
+	service - service backends related (optional)
+	id - Backend ID to retrieve
+
+Returns:
+	hash ref - bachend hash reference
+
+=cut
+
+sub getFarmServer    # ($farm_name, $service)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $service, $id ) = @_;
+
+	my $serversArray = &getFarmServers( $farm_name, $service );
+
+	if ( defined $serversArray )
+	{
+		foreach my $server ( @{ $serversArray } )
+		{
+			return $server if ( $server->{ id } eq "$id" );
+		}
+	}
+
+	# Error, not found so return undef
+	return undef;
+}
+
+=begin nd
 Function: setFarmServer
 
 	Add a new Backend
