@@ -477,7 +477,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
-	$backend->{ vip } = $json_obj->{ ip } if exists $json_obj->{ ip };
+	$backend->{ ip } = $json_obj->{ ip } if exists $json_obj->{ ip };
 	$backend->{ vport } = $json_obj->{ port }
 	  if exists $json_obj->{ port };    # l4xnat
 	$backend->{ weight } = $json_obj->{ weight } if exists $json_obj->{ weight };
