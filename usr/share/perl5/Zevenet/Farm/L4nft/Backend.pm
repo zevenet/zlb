@@ -559,7 +559,7 @@ sub getL4FarmBackendAvailableID
 
 	for ( my $id = 0 ; $id < $nbackends ; $id++ )
 	{
-		my $exists = &getFarmBackendExists( $backends, $id );
+		my $exists = &getFarmServer( $backends, $id );
 		return $id if ( !$exists );
 	}
 

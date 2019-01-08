@@ -95,7 +95,7 @@ Parameters:
 	id - Backend ID to retrieve
 
 Returns:
-	hash ref - bachend hash reference
+	hash ref - bachend hash reference or undef if not exists
 
 =cut
 
@@ -103,16 +103,12 @@ sub getFarmServer    # ($farm_name, $service)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name, $service, $id ) = @_;
+	my $bcks_ref = shift;
+	my $id       = shift;
 
-	my $serversArray = &getFarmServers( $farm_name, $service );
-
-	if ( defined $serversArray )
+	foreach my $server ( @{ $bcks_ref } )
 	{
-		foreach my $server ( @{ $serversArray } )
-		{
-			return $server if ( $server->{ id } eq "$id" );
-		}
+		return $server if ( $server->{ id } eq "$id" );
 	}
 
 	# Error, not found so return undef
@@ -274,41 +270,6 @@ sub getFarmBackendAvailableID
 	}
 
 	return $nbackends;
-}
-
-=begin nd
-Function: getFarmBackendExists
-
-	Search for a certain backend ID
-
-Parameters:
-	bcks_ref - reference to the backends structure.
-	id - backend identifier to be search.
-
-Returns:
-	integer - 0 if not found, 1 if found.
-
-=cut
-
-sub getFarmBackendExists
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my $bcks_ref = shift;
-	my $id       = shift;
-
-	my $exists = 0;
-
-	foreach my $backend ( @{ $bcks_ref } )
-	{
-		if ( $backend->{ id } == $id )
-		{
-			$exists = 1;
-			last;
-		}
-	}
-
-	return $exists;
 }
 
 1;

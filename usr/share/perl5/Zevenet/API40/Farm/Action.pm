@@ -332,7 +332,7 @@ sub backend_maintenance    # ( $json_obj, $farmname, $backend_id )
 	require Zevenet::Farm::L4xNAT::Backend;
 
 	my $backends = &getL4FarmServers( $farmname );
-	my $exists = &getFarmBackendExists( $backends, $backend_id );
+	my $exists = &getFarmServer( $backends, $backend_id );
 
 	if ( !$exists )
 	{

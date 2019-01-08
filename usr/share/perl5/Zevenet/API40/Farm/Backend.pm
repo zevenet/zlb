@@ -134,7 +134,8 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 			 "info", "FARMS", "info", "FARMS" );
 
 	# Backend retrieval
-	my $server = &getFarmServer( $farmname, undef, $id );
+	my $serversArray = &getFarmServers( $farmname );
+	my $server = &getFarmServer( $serversArray, $id );
 
 	if ( !$server )
 	{
@@ -435,7 +436,8 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 	}
 
 	# get backends
-	my $backend = &getFarmServer( $farmname, undef, $id_server );
+	my $serversArray = &getFarmServers( $farmname );
+	my $backend = &getFarmServer( $serversArray, $id_server );
 
 	if ( !$backend || ref ( $backend ) ne "HASH" )
 	{
@@ -721,7 +723,7 @@ sub delete_backend    # ( $farmname, $id_server )
 	}
 
 	my $backends = &getFarmServers( $farmname );
-	my $exists = &getFarmBackendExists( $backends, $id_server );
+	my $exists = &getFarmServer( $backends, $id_server );
 
 	if ( !$exists )
 	{
