@@ -31,7 +31,8 @@ Function: startL4Farm
 	Run a l4xnat farm
 
 Parameters:
-	farmname - Farm name
+	farm_name - Farm name
+	writeconf - write this change in configuration status "writeconf" for true or omit it for false
 
 Returns:
 	Integer - return 0 on success or different of 0 on failure
@@ -78,7 +79,8 @@ Function: stopL4Farm
 	Stop a l4xnat farm
 
 Parameters:
-	farmname - Farm name
+	farm_name - Farm name
+	writeconf - write this change in configuration status "writeconf" for true or omit it for false
 
 Returns:
 	Integer - return 0 on success or other value on failure
@@ -240,7 +242,7 @@ sub loadNLBFarm    # ($farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name ) = @_;
+	my $farm_name = shift;
 
 	require Zevenet::Farm::Core;
 	require Zevenet::Farm::L4xNAT::Config;
@@ -269,6 +271,7 @@ Function: startNLBFarm
 
 Parameters:
 	farm_name - farm name to be started
+	writeconf - write this change in configuration status "writeconf" for true or omit it for false
 
 Returns:
 	Integer - 0 on success or -1 on failure
@@ -279,7 +282,8 @@ sub startNLBFarm    # ($farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name, $writeconf ) = @_;
+	my $farm_name = shift;
+	my $writeconf = shift;
 
 	#	require Zevenet::Farm::Core;
 	require Zevenet::Farm::L4xNAT::Config;
@@ -306,10 +310,11 @@ sub startNLBFarm    # ($farm_name)
 =begin nd
 Function: stopNLBFarm
 
-	Start a new farm in nftlb
+	Stop an existing farm in nftlb
 
 Parameters:
 	farm_name - farm name to be started
+	writeconf - write this change in configuration status "writeconf" for true or omit it for false
 
 Returns:
 	Integer - 0 on success or -1 on failure
@@ -320,13 +325,14 @@ sub stopNLBFarm    # ($farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name, $writeconf ) = @_;
+	my $farm_name = shift;
+	my $writeconf = shift;
 
 	require Zevenet::Farm::Core;
 
 	my $farmfile = &getFarmFile( $farm_name );
 
-	my $out = &setL4FarmParam( ( $writeconf eq 'true' ) ? 'bootstatus' : 'status',
+	my $out = &setL4FarmParam( ( $writeconf ) ? 'bootstatus' : 'status',
 							   "down", $farm_name );
 
 	return $out;

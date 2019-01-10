@@ -56,7 +56,6 @@ sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
 	#	require Zevenet::FarmGuardian;
 	require Zevenet::Farm::L4xNAT::Config;
 	require Zevenet::Farm::L4xNAT::Action;
-	require Zevenet::Farm::Backend;
 	require Zevenet::Netfilter;
 
 	&zenlog(
@@ -65,7 +64,7 @@ sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $mark          = &getNewMark( $farm_name );
-	my $output        = 0;                                     # output: error code
+	my $output        = 0;
 
 	if ( $weight == 0 )
 	{
@@ -86,14 +85,6 @@ sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
 		{
 			return $out;
 		}
-	}
-
-	my $exists = &getFarmServer( $f_ref->{ servers }, $ids );
-
-	# It's a backend modification
-	if ( $exists )
-	{
-		$mark = $exists->{ tag };
 	}
 
 	$output = &httpNLBRequest(
@@ -568,7 +559,7 @@ sub getL4FarmBackendAvailableID
 
 	for ( my $id = 0 ; $id < $nbackends ; $id++ )
 	{
-		my $exists = &getFarmServer( $backends, $id );
+		my $exists = &getFarmBackendExists( $backends, $id );
 		return $id if ( !$exists );
 	}
 
@@ -598,7 +589,11 @@ sub setL4BackendRule
 	my $farm_ref = shift;
 	my $mark     = shift;
 
-	return -1 if ( $action != /add|del/ || !defined $farm_ref || $mark eq "" );
+	return -1
+	  if (    $action != /add|del/
+		   || !defined $farm_ref
+		   || $mark eq ""
+		   || $mark eq "0x0" );
 
 	require Zevenet::Net::Util;
 	require Zevenet::Net::Route;
@@ -608,7 +603,7 @@ sub setL4BackendRule
 	my $table_if =
 	  ( $vip_if->{ type } eq 'virtual' ) ? $vip_if->{ parent } : $vip_if->{ name };
 
-	return &setRule( $action, $vip_if, $table_if, "", $mark );
+	return &setRule( $action, $vip_if, $table_if, "", "$mark/0x7fffffff" );
 }
 
 1;

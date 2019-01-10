@@ -285,7 +285,7 @@ sub setRule
 	$ipv = $if_ref->{ ip_v } if ( defined $if_ref );
 
 	return -1 if ( $action != /add|del/ );
-	return -1 if ( defined $fwmark && $fwmark eq "0x0" );
+	return -1 if ( defined $fwmark && $fwmark =~ /^0x0$/ );
 
 	$ifname = $if_ref->{ name } if ( !defined $ifname );
 	$table  = "table_$ifname"   if ( $ifname ne "" );
