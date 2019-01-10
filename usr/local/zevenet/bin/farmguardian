@@ -335,7 +335,7 @@ while ( 1 )
 			}
 			elsif ( $type eq 'l4xnat' )
 			{
-				&setL4FarmBackendStatus( $farmname, $j, 'up' );
+				&setL4FarmBackendStatus( $farmname, $backendid[$j], 'up' );
 				$auxLog = " in farm: '$farmname'";
 
 				system ( "$zcluster_send_action farm restart $farmname &" ) if -f $zcluster_send_action;
@@ -369,9 +369,9 @@ while ( 1 )
 			}
 			elsif ( $type eq 'l4xnat' )
 			{
-				&setL4FarmBackendStatus( $farmname, $j, 'fgDOWN' );
+				&setL4FarmBackendStatus( $farmname, $backendid[$j], 'fgDOWN' );
 				$auxLog = " in farm: '$farmname'";
-				&setL4FarmBackendsSessionsRemove( $farmname, $j ) if ( $cutConns eq 'true' );
+				&setL4FarmBackendsSessionsRemove( $farmname, $backendid[$j] ) if ( $cutConns eq 'true' );
 
 				system ( "$zcluster_send_action farm restart $farmname &" ) if -f $zcluster_send_action;
 			}

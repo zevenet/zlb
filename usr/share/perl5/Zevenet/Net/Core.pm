@@ -309,6 +309,7 @@ sub stopIf    # ($if_ref)
 
 		if ( $ip =~ /\./ )
 		{
+			use Net::IPv4Addr qw(ipv4_network);
 			my ( $net, $mask ) = ipv4_network( "$ip / $$if_ref{mask}" );
 			my $cmd = "$ip_bin addr del $ip/$mask brd + dev $ifphysic[0] label $if";
 
