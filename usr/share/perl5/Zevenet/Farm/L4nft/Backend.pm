@@ -56,6 +56,7 @@ sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
 	#	require Zevenet::FarmGuardian;
 	require Zevenet::Farm::L4xNAT::Config;
 	require Zevenet::Farm::L4xNAT::Action;
+	require Zevenet::Farm::Backend;
 	require Zevenet::Netfilter;
 
 	&zenlog(
@@ -64,7 +65,7 @@ sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $mark          = &getNewMark( $farm_name );
-	my $output        = 0;                            # output: error code
+	my $output        = 0;                                     # output: error code
 
 	if ( $weight == 0 )
 	{
@@ -85,6 +86,14 @@ sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
 		{
 			return $out;
 		}
+	}
+
+	my $exists = &getFarmServer( $f_ref->{ servers }, $ids );
+
+	# It's a backend modification
+	if ( $exists )
+	{
+		$mark = $exists->{ tag };
 	}
 
 	$output = &httpNLBRequest(
