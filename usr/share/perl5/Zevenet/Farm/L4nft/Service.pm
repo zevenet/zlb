@@ -28,7 +28,7 @@ my $configdir = &getGlobalConfiguration( 'configdir' );
 =begin nd
 Function: loadL4FarmModules
 
-	Load L4farm system modules
+	Load L4farm system modules and conntrack using nft
 
 Parameters:
 	none
@@ -44,6 +44,13 @@ sub loadL4FarmModules
 			 "debug", "PROFILING" );
 
 	my $out = system ( '/sbin/modprobe nf_conntrack >/dev/null 2>&1' );
+
+	# Initialize conntrack
+	my $nftCmd =
+	  "nft add table ip dummyTable; nft add chain ip dummyTable dummyChain { type nat hook input priority 0 \\; }; nft add rule ip dummyTable dummyChain ct state established accept";
+
+	$out += system ( "$nftCmd" )
+	  if ( system ( "nft list table dummyTable >/dev/null 2>&1" ) );
 
 	return $out;
 }
