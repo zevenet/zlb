@@ -40,11 +40,11 @@ Parameters:
 	maxconn - Maximum connections for the given backend
 
 Returns:
-	Integer - return 0 on success or -1 on failure
+	Integer - return 0 on success, -1 on NFTLB failure or -2 on IP duplicated.
 
 Returns:
 	Scalar - 0 on success or other value on failure
-
+	FIXME: Stop returning -2 when IP duplicated, nftlb should do this
 =cut
 
 sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
@@ -95,6 +95,9 @@ sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
 	{
 		$mark = $exists->{ tag };
 	}
+
+	$exists = &getFarmServer( $f_ref->{ servers }, $rip, "rip" );
+	return -2 if ( $exists && ( $exists->{ id } ne $ids ) );
 
 	$output = &httpNLBRequest(
 		{

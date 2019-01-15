@@ -129,6 +129,11 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		my $msg = "It was not possible to create the backend";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
+	if ( $status == -2 )
+	{
+		my $msg = "The IP $json_obj->{ip} is already set in farm $farmname";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
 
 	&zenlog( "New backend created in farm $farmname with IP $json_obj->{ip}.",
 			 "info", "FARMS", "info", "FARMS" );
@@ -270,15 +275,12 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 	my $id = &getHTTPFarmBackendAvailableID( $farmname, $service );
 
 # First param ($id) is an empty string to let function autogenerate the id for the new backend
-	my $status = &setHTTPFarmServer(
-									 "",
+	my $status = &setHTTPFarmServer( "",
 									 $json_obj->{ ip },
 									 $json_obj->{ port },
 									 $json_obj->{ weight },
 									 $json_obj->{ timeout },
-									 $farmname,
-									 $service,
-	);
+									 $farmname, $service, );
 
 	# check if there was an error adding a new backend
 	if ( $status == -1 )
@@ -508,6 +510,11 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 	}
 
 	my $error = &setFarmServer( $farmname, undef, $id_server, $backend );
+	if ( $error == -2 )
+	{
+		my $msg = "The IP $json_obj->{ip} is already set in farm $farmname";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
 	if ( $error )
 	{
 		my $msg = "Error trying to modify the backend $id_server.";
@@ -870,8 +877,8 @@ sub validateDatalinkBackendIface
 		$msg = "It is not possible to configure vlan interface for datalink backends";
 	}
 	elsif (
-		  !&getNetValidate( $iface_ref->{ addr }, $iface_ref->{ mask }, $backend->{ ip }
-		  )
+			!&getNetValidate( $iface_ref->{ addr }, $iface_ref->{ mask }, $backend->{ ip }
+			)
 	  )
 	{
 		$msg =

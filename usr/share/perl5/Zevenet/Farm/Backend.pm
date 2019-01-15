@@ -104,11 +104,12 @@ sub getFarmServer    # ($farm_name, $service)
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $bcks_ref = shift;
-	my $id       = shift;
+	my $value    = shift;
+	my $param    = shift // "id";
 
 	foreach my $server ( @{ $bcks_ref } )
 	{
-		return $server if ( $server->{ id } eq "$id" );
+		return $server if ( $server->{ $param } eq "$value" );
 	}
 
 	# Error, not found so return undef
