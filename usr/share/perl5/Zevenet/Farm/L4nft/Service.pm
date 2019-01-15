@@ -46,11 +46,17 @@ sub loadL4FarmModules
 	my $out = system ( '/sbin/modprobe nf_conntrack >/dev/null 2>&1' );
 
 	# Initialize conntrack
+	my $nftbin = `which nft`;
+	chomp $nftbin;
+
+	# Flush nft tables
+	system ( "$nftbin flush ruleset" );
+
 	my $nftCmd =
-	  "nft add table ip dummyTable; nft add chain ip dummyTable dummyChain { type nat hook input priority 0 \\; }; nft add rule ip dummyTable dummyChain ct state established accept";
+	  "$nftbin add table ip dummyTable; $nftbin add chain ip dummyTable dummyChain { type nat hook input priority 0 \\; }; $nftbin add rule ip dummyTable dummyChain ct state established accept";
 
 	$out += system ( "$nftCmd" )
-	  if ( system ( "nft list table dummyTable >/dev/null 2>&1" ) );
+	  if ( system ( "$nftbin list table dummyTable >/dev/null 2>&1" ) );
 
 	return $out;
 }

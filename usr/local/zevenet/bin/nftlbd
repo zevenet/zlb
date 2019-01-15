@@ -24,7 +24,6 @@ SCRIPTNAME=/etc/init.d/$NAME
 
 do_start()
 {
-	`$NFTBIN flush ruleset`
 	start-stop-daemon --start --quiet --oknodo --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON -- $DAEMON_ARGS
 	[ "$?" -ne 0 ] && return 2
 }
