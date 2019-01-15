@@ -26,19 +26,24 @@ use Zevenet::Farm::Config;
 use Zevenet::Farm::L4xNAT::Backend;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 # GET /farms/<farmname> Request info of a l4xnat Farm
-sub farms_name_l4 # ( $farmname )
+sub farms_name_l4    # ( $farmname )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farmname = shift;
 
 	my $out_p;
 	my $out_b;
 
 	require Zevenet::Farm::L4xNAT::Config;
-#	$output = &getL4FarmParam( $info, $farm_name );
+
+	#	$output = &getL4FarmParam( $info, $farm_name );
 
 	my $vip   = &getL4FarmParam( "vip",  $farmname );
 	my $vport = &getL4FarmParam( "vipp", $farmname );
@@ -59,9 +64,9 @@ sub farms_name_l4 # ( $farmname )
 	my $fglog       = $fgconfig[4];
 
 	if ( !$fgtimecheck ) { $fgtimecheck = 5; }
-    if ( !$fguse ) { $fguse = "false"; }
-    if ( !$fglog  ) { $fglog = "false"; }
-    if ( !$fgcommand ) { $fgcommand = ""; }
+	if ( !$fguse )       { $fguse       = "false"; }
+	if ( !$fglog )       { $fglog       = "false"; }
+	if ( !$fgcommand )   { $fgcommand   = ""; }
 
 	my $status = &getFarmVipStatus( $farmname );
 
@@ -86,6 +91,7 @@ sub farms_name_l4 # ( $farmname )
 
 	# Backends
 	$out_b = &getL4FarmServers( $farmname );
+	&getAPIFarmBackends( $out_b, 'l4xnat' );
 
 	my $body = {
 				 description => "List farm $farmname",
@@ -94,12 +100,12 @@ sub farms_name_l4 # ( $farmname )
 	};
 
 	$body->{ ipds } = &eload(
-			module => 'Zevenet::IPDS::Core',
-			func   => 'getIPDSfarmsRules',
-			args   => [$farmname],
+							  module => 'Zevenet::IPDS::Core',
+							  func   => 'getIPDSfarmsRules',
+							  args   => [$farmname],
 	) if ( $eload );
 
-	&httpResponse({ code => 200, body => $body });
+	&httpResponse( { code => 200, body => $body } );
 }
 
 1;

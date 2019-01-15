@@ -23,6 +23,7 @@
 
 use strict;
 use Zevenet::Farm::Core;
+use Zevenet::API31::Farm::Get;
 
 my $eload;
 if ( eval { require Zevenet::ELoad; } )
@@ -113,7 +114,9 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		}
 
 		# Create backend
-		my $status = &setL4FarmServer( $farmname, $id,
+		my $status = &setL4FarmServer(
+									   $farmname,
+									   $id,
 									   $json_obj->{ ip },
 									   $json_obj->{ port },
 									   $json_obj->{ weight },
@@ -223,11 +226,14 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		}
 
 		# Create backend
-		my $status = &setDatalinkFarmServer( $id,
+		my $status = &setDatalinkFarmServer(
+											 $id,
 											 $json_obj->{ ip },
 											 $json_obj->{ interface },
 											 $json_obj->{ weight },
-											 $json_obj->{ priority }, $farmname, );
+											 $json_obj->{ priority },
+											 $farmname,
+		);
 
 		# check error adding a new backend
 		if ( $status == -1 )
@@ -380,12 +386,15 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 	}
 
 # First param ($id) is an empty string to let function autogenerate the id for the new backend
-	my $status = &setHTTPFarmServer( "",
+	my $status = &setHTTPFarmServer(
+									 "",
 									 $json_obj->{ ip },
 									 $json_obj->{ port },
 									 $json_obj->{ weight },
 									 $json_obj->{ timeout },
-									 $farmname, $service, );
+									 $farmname,
+									 $service,
+	);
 
 	# check if there was an error adding a new backend
 	if ( $status == -1 )
@@ -451,6 +460,7 @@ sub backends
 	{
 		require Zevenet::Farm::L4xNAT::Backend;
 		my $backends = &getL4FarmServers( $farmname );
+		&getAPIFarmBackends( $backends, $type );
 
 		my $body = {
 					 description => $desc,
@@ -638,7 +648,8 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 			$backend->{ max_conns } = $json_obj->{ max_conns };
 		}
 
-		my $status = &setL4FarmServer( $farmname,
+		my $status = &setL4FarmServer(
+									   $farmname,
 									   $backend->{ id },
 									   $backend->{ vip },
 									   $backend->{ vport },

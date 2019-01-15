@@ -49,7 +49,8 @@ my %http_status_codes = (
 
 sub GET
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $path, $code, $mod ) = @_;
 
 	return
@@ -73,7 +74,8 @@ sub GET
 
 sub POST
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $path, $code, $mod ) = @_;
 
 	return unless $ENV{ REQUEST_METHOD } eq 'POST';
@@ -136,7 +138,8 @@ sub POST
 
 sub PUT
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $path, $code, $mod ) = @_;
 
 	return unless $ENV{ REQUEST_METHOD } eq 'PUT';
@@ -199,7 +202,8 @@ sub PUT
 
 sub DELETE
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $path, $code, $mod ) = @_;
 
 	return unless $ENV{ REQUEST_METHOD } eq 'DELETE';
@@ -221,7 +225,8 @@ sub DELETE
 
 sub OPTIONS
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $path, $code ) = @_;
 
 	return unless $ENV{ REQUEST_METHOD } eq 'OPTIONS';
@@ -254,7 +259,8 @@ sub OPTIONS
 
 sub httpResponse    # ( \%hash ) hash_keys->( $code, %headers, $body )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $self = shift;
 
 	return $self unless exists $ENV{ GATEWAY_INTERFACE };
@@ -379,7 +385,8 @@ sub httpResponse    # ( \%hash ) hash_keys->( $code, %headers, $body )
 
 sub httpErrorResponse
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $args;
 
 	eval { $args = @_ == 1 ? shift @_ : { @_ }; };
@@ -430,7 +437,8 @@ sub httpErrorResponse
 # WARNING: Function unfinished.
 sub httpSuccessResponse
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $args ) = @_;
 
 	unless ( ref ( $args ) eq 'HASH' )
@@ -460,7 +468,8 @@ sub httpSuccessResponse
 
 sub httpDownloadResponse
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $args;
 
 	eval { $args = @_ == 1 ? shift @_ : { @_ }; };
@@ -517,6 +526,56 @@ sub httpDownloadResponse
 	&zenlog( "[Download] $args->{ desc }: $path", "info", "ZAPI" );
 
 	&httpResponse( { code => 200, headers => $headers, body => $body } );
+}
+
+sub buildAPIParams
+{
+	my $out_b     = shift;
+	my $api_keys  = shift;
+	my $translate = shift;
+
+	# Delete not visible params
+	if ( ref $out_b eq "ARRAY" )
+	{
+		foreach my $backend ( @{ $out_b } )
+		{
+			&buildBackendAPIParams( $backend, $api_keys, $translate );
+		}
+	}
+	elsif ( ref $out_b eq "HASH" )
+	{
+		&buildBackendAPIParams( $out_b, $api_keys, $translate );
+	}
+
+	return $out_b;
+}
+
+sub buildBackendAPIParams
+{
+	my $out_b     = shift;
+	my $api_keys  = shift;
+	my $translate = shift;
+
+	my @bk_keys = keys ( %{ $out_b } );
+
+	foreach my $param ( keys %{ $translate } )
+	{
+		$out_b->{ $param } =~
+		  s/$translate->{$param}->{opt}/$translate->{$param}->{rep}/i;
+	}
+
+	foreach my $param ( @bk_keys )
+	{
+		delete $out_b->{ $param } if ( !grep ( /^$param$/, @{ $api_keys } ) );
+	}
+	if ( &debug() )
+	{
+		foreach my $param ( @{ $api_keys } )
+		{
+			&zenlog( "API parameter $param is missing", 'error', 'API' )
+			  if ( !grep ( /^$param$/, @bk_keys ) );
+		}
+	}
 }
 
 1;
