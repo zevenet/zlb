@@ -1,0 +1,402 @@
+#!/usr/bin/perl
+###############################################################################
+#
+#    Zevenet Software License
+#    This file is part of the Zevenet Load Balancer software package.
+#
+#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###############################################################################
+
+## l4sd 1.0
+# This application is a connection monitor scheduler in order to be used for layer 4
+# farms algorithms through heuristic methods.
+# Parameters:
+#	-g <timeout>		timeout for config refresh in milliseconds, default: 3000
+#	-n <timeout>		timeout for connection parsing in milliseconds, default: 200
+#	-l <timeout>		timeout to calculate the logic and to establish the conditions in milliseconds, default: 200
+#	-a <algorithm>		algorithm needed to calculate the logic and conditions, default: globalleast
+#	-d 			enable debug mode
+#	-h			print help
+
+# debug
+#~ use strict;
+#~ use warnings;
+#~ #use Data::Dumper qw(Dumper);
+#~ #open STDERR, '>>', "/usr/local/zevenet/logs/zenloadbalancer.log";
+#~ require "/usr/local/zevenet/config/global.conf";
+# end debug
+
+use strict;
+use warnings;
+use Time::HiRes qw(ualarm usleep clock_gettime CLOCK_REALTIME);
+use Zevenet::Log;
+use Zevenet::Config;
+use Zevenet::Farm::Core;
+use Zevenet::Farm::Base;
+use Zevenet::Farm::Config;
+use Zevenet::Farm::Backend;
+
+my $conntrack = &getGlobalConfiguration('conntrack');
+my $fcondition = "/proc/net/nf_condition";
+my $pidfile    = "/var/run/l4sd.pid";
+my $algorithm  = "leastconn";
+
+my $g_param = 60000 * 1000;
+my $n_param = 250 * 1000;
+my $l_param = 250 * 1000;
+
+my $pid = $$;
+
+my $debug = 0;
+my $init  = 1;
+
+my $argvi = 0;
+my $argvc = @ARGV;
+
+# Check input parameters
+while ( $argvi < $argvc )
+{
+	if ( $ARGV[$argvi] eq "-h" )
+	{
+		print "L4SD Layer 4 load balancing Scheduler daemon for Zen Load Balancer \n
+	-g <timeout>		timeout for config refresh in milliseconds, default: 3000
+	-n <timeout>		timeout for connection parsing in milliseconds, default: 200
+	-l <timeout>		timeout to calculate the logic and to establish the conditions in milliseconds, default: 200
+	-a <algorithm>		algorithm needed to calculate the logic and conditions, default: globalleast
+	-d 			enable debug mode
+	-h			print help\n";
+		$argvi++;
+		exit;
+	}
+	if ( $ARGV[$argvi] eq "-g" )
+	{
+		$argvi++;
+		$g_param = $ARGV[$argvi] * 1000;
+		$argvi++;
+		next;
+	}
+	if ( $ARGV[$argvi] eq "-n" )
+	{
+		$argvi++;
+		$n_param = $ARGV[$argvi] * 1000;
+		$argvi++;
+		next;
+	}
+	if ( $ARGV[$argvi] eq "-l" )
+	{
+		$argvi++;
+		$l_param = $ARGV[$argvi] * 1000;
+		$argvi++;
+		next;
+	}
+	if ( $ARGV[$argvi] eq "-a" )
+	{
+		$argvi++;
+		$algorithm = $ARGV[$argvi];
+		$argvi++;
+		next;
+	}
+	if ( $ARGV[$argvi] eq "-d" )
+	{
+		print ( "DETECTED DEBUG ENABLED\n" );
+		$argvi++;
+		$debug = 1;
+		next;
+	}
+}
+
+if ( -e "$pidfile" )
+{
+	open my $file, '<', "$pidfile";
+	my $pidffile = <$file>;
+	close $file;
+
+	my $pidexist = kill 0, $pidffile;
+
+	if ( $pidexist )
+	{
+		&zenlog( "l4sd: Already launched. Exiting..." );
+		exit 0;
+	}
+	else
+	{
+		unlink ( $pidfile );
+	}
+}
+
+if ( !-e "$pidfile" )
+{
+	open my $file, '>', "$pidfile";
+	print $file "$pid";
+	close $file;
+
+	&zenlog(
+		"l4sd: Daemon launched with pid $pid -g $g_param -n $n_param -l $l_param -a $algorithm"
+	);
+}
+
+sub min    #($value1,$value2,$value3)
+{
+	my ( $x, $y, $z ) = @_;
+
+	my $min = $x;
+
+	if ( $y < $min )
+	{
+		$min = $y;
+	}
+
+	if ( $z < $min )
+	{
+		$min = $z;
+	}
+
+	return $min;
+}
+
+sub sigUSR1Handler
+{
+	&zenlog( "l4sd: Signal sigUSR1 received..." );
+	$init = 1;
+	kill ALRM => $pid;
+	return;
+}
+
+sub sigTERMHandler
+{
+	&zenlog( "l4sd: Signal sigTERM/sigINT received..." );
+	unlink $pidfile;
+	exit;
+}
+
+local $SIG{ "USR1" } = \&sigUSR1Handler;
+local $SIG{ "TERM" } = \&sigTERMHandler;
+local $SIG{ "INT" }  = \&sigTERMHandler;
+
+my $counter_g = $g_param;
+my $counter_n = $n_param;
+my $counter_l = $l_param;
+
+my %farms;
+my %connsperfarm;
+my %markperbck;
+
+while ()
+{
+	my $min;
+
+	local $SIG{ ALRM } = sub { };
+
+	if ( $init == 0 )
+	{
+		$min = &min( $counter_g, $counter_n, $counter_l );
+
+		if ( $debug )
+		{
+			printf "Min: $min\n";
+			printf "Time: " . clock_gettime( CLOCK_REALTIME ) . "\n";
+		}
+
+		eval {
+			local $SIG{ ALRM } = sub { die "alarm\n" };    # NB: \n required
+			ualarm( $min );
+
+			sleep;
+			ualarm( 0 );
+		};
+	}
+
+	# TODO: Read l4 configuration, backends
+	if ( $min == $counter_g || $init == 1 )
+	{
+		if ( $debug ) { printf "Executing G()\n"; }
+
+		%farms      = ();
+		%markperbck = ();
+		my @files = &getFarmList();
+
+		if ( scalar ( @files ) > -1 )
+		{
+			foreach my $file ( @files )
+			{
+				my $fname  = &getFarmName( $file );
+				my $ftype  = &getFarmType( $fname );
+				my $falg   = &getFarmAlgorithm( $fname );
+				my $fstate = &getFarmStatus( $fname );
+
+				if ( $ftype eq 'l4xnat' && $falg eq $algorithm && $fstate eq 'up' )
+				{
+					my $backends = &getFarmServers( $fname );
+
+					foreach my $l_serv ( @{ $backends } )
+					{
+						my $server = $l_serv->{ ip };
+						my $mark   = $l_serv->{ tag };
+						my $status = $l_serv->{ status };
+
+						if ( $status eq "up" )
+						{
+							$farms{ $fname }{ $server } = $mark;
+						}
+						if ( $status eq "maintenance" || $status eq 'fgDOWN' )
+						{
+								# Write condition 0
+								&zenlog( "l4sd: Disabling backend $server in $fcondition/\_$fname\_$mark\_ due to $status mode \n" );
+								open my $fo, '>', "$fcondition/\_$fname\_$mark\_";
+								print $fo '0';
+								close $fo;
+						}
+					}
+				}
+			}
+		}
+
+		#print "--------------\n";
+		#print Dumper \%farms;
+		#print "--------------\n";
+
+		# Print
+		if ( $debug )
+		{
+			for my $farm ( keys %farms )
+			{
+				for my $backend ( keys %{ $farms{ $farm } } )
+				{
+					print "$farm, $backend: $farms{$farm}{$backend}\n";
+				}
+			}
+		}
+	}
+
+	# TODO: Parse connections
+	if ( $min == $counter_n || $init == 1 )
+	{
+		if ( $debug ) { printf "Executing N()\n"; }
+
+		%connsperfarm = ();
+		my $num_farms = scalar ( keys %farms );
+
+		if ( $num_farms > 0 )
+		{
+			for my $farm ( keys %farms )
+			{
+				foreach my $back ( keys %{ $farms{ $farm } } )
+				{
+					next if ( defined $connsperfarm{ $back } );
+
+					my @cmd_output = `$conntrack -L -m $farms{ $farm }{ $back } 2>&1 >/dev/null`;
+					my $nestab = ( split ( ' ', $cmd_output[-1] ) )[3];
+
+					# common
+					@cmd_output = ();
+					$connsperfarm{ $back } = $nestab;
+				}
+			}
+		}
+
+		# Print
+		if ( $debug )
+		{
+			for my $back ( keys %connsperfarm )
+			{
+				print "$back: $connsperfarm{$back}\n";
+			}
+		}
+	}
+
+	# TODO: algorithm logic and set the condition
+	if ( $min == $counter_l || $init == 1 )
+	{
+		my $num_farms = scalar ( keys %farms );
+
+		if ( $debug )
+		{
+			printf "Executing L()\n";
+			printf "Farms: $num_farms\n";
+		}
+
+		if ( $num_farms > 0 )
+		{
+			# for every farm check the least connection backend
+			foreach my $fname ( keys %farms )
+			{
+				my $leastip   = '';
+				my $leastmask = '';
+
+				# pick the backend with less connections
+				foreach my $bck ( keys %{ $farms{ $fname } } )
+				{
+					if ( $leastip eq '' )
+					{
+						$leastip   = $bck;
+						$leastmask = $farms{ $fname }{ $bck };
+					}
+					else
+					{
+						if ( $connsperfarm{ $bck } < $connsperfarm{ $leastip } )
+						{
+							$leastip   = $bck;
+							$leastmask = $farms{ $fname }{ $bck };
+						}
+					}
+				}
+
+				if ( $debug ) { printf "Least $fname: $leastip $leastmask\n"; }
+
+				# set the condition value for very backend
+				# enable the backend with less connections first to avoid closing connections
+				if ( $leastmask ne '' )
+				{
+					# Write condition 1
+					open my $fo, '>', "$fcondition/\_$fname\_$leastmask\_";
+					print $fo '1';
+					close $fo;
+				}
+
+				# set the condition value for very backend
+				# disable the rest of backends
+				foreach my $bck ( keys %{ $farms{ $fname } } )
+				{
+					if ( $debug )
+					{
+						printf "Setting condition: $fcondition/\_$fname\_$farms{$fname}{$bck}\_ \n";
+					}
+
+					if ( $leastmask ne $farms{ $fname }{ $bck } )
+					{
+						# Write condition 0
+						open my $fo, '>', "$fcondition/\_$fname\_$farms{$fname}{$bck}\_";
+						print $fo '0';
+						close $fo;
+					}
+				}
+			}
+		}
+	}
+
+	# Counters update
+	if   ( $counter_g != $min ) { $counter_g = $counter_g - $min }
+	else                        { $counter_g = $g_param; }
+	if   ( $counter_n != $min ) { $counter_n = $counter_n - $min }
+	else                        { $counter_n = $n_param; }
+	if   ( $counter_l != $min ) { $counter_l = $counter_l - $min }
+	else                        { $counter_l = $l_param; }
+
+	if ( $debug ) { printf ( "Counters: $counter_g $counter_n $counter_l\n" ); }
+
+	$init = 0;
+}

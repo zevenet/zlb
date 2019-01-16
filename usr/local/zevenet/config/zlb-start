@@ -1,0 +1,3 @@
+#make your own script in your favorite language, it will be called
+#at the end of the procedure /etc/init.d/zenloadbalacer start
+#and replicated to the other node if zen cluster is running.

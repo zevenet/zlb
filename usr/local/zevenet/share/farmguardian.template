@@ -1,0 +1,116 @@
+[check_tcp]
+description=Send TCP connection to backend
+command=check_tcp -p PORT -H HOST
+farms=
+log=false
+interval=15
+cut_conns=false
+template=true
+
+[check_http]
+description=Send HTTP request to backend and expect a 200 OK response with a timeout of 5 secs.
+command=check_http -I HOST -p PORT -e 200 -t 5
+farms=
+log=false
+interval=15
+cut_conns=false
+template=true
+
+[check_https]
+description=Send HTTPS request to backend and expect a 200 OK response with a timeout of 5 secs.
+command=check_http -I HOST -p PORT -e 200 -S -t 5
+farms=
+log=false
+interval=15
+cut_conns=false
+template=true
+
+[check_http_response_string]
+description=Send HTTP request to backend, expect a 200 OK response and a given string in the HTML with a timeout of 5 secs. Change string by value to find in the response.
+command=check_http -I HOST -p PORT -e 200 -s 'string'
+farms=
+log=false
+interval=15
+cut_conns=false
+template=true
+
+[check_https_response_string]
+description=Send HTTP request to backend and expect response of 200 OK and a given string in the HTML with a timeout of 5 secs. Change string by value to find in the response.
+command=check_http -I HOST -p PORT -S -e 200 -s 'string' -t 5
+farms=
+log=false
+interval=15
+cut_conns=false
+template=true
+
+[check_ldap]
+description=Send LDAP query to backend and expect LDAP bind with a timeout of 5 secs. Change -b (base search), -D (user to bind), -P (user password)
+command=check_ldap -H HOST -p PORT -b 'dc=company,dc=com' -D 'cn=my-user,ou=Company,dc=company,dc=com' -P Password -3 -t 5
+farms=
+log=false
+interval=15
+cut_conns=false
+template=true
+
+[check_ldaps]
+description=Send LDAPS query to backend and expect LDAP bind with a timeout of 5 secs. Change -b (base search), -D (user to bind), -P (user password).
+command=check_ldaps -H HOST -p PORT -b 'dc=company,dc=com' -D 'cn=my-user,ou=Company,dc=company,dc=com' -P Password -3 -t 5
+farms=
+log=false
+interval=15
+cut_conns=false
+template=true
+
+[check_smtp]
+description=Send SMTP connection to backend and expect a SMTP response OK with a timeout of 5 secs.
+command=check_smtp -H HOST -p PORT -C 'hello host' -t 5
+farms=
+log=false
+interval=15
+cut_conns=false
+template=true
+
+[check_imap]
+description=Send IMAP connection to backend and expect an IMAP response OK with a timeout of 5 secs.
+command=check_imap -H HOST -p PORT -t 5
+farms=
+log=false
+interval=15
+cut_conns=false
+template=true
+
+[check_pop]
+description=Send POP connection to backend and expect a POP response OK with a timeout of 5 secs.
+command=check_pop -H HOST -p PORT -t 5
+farms=
+log=false
+interval=15
+cut_conns=false
+template=true
+
+[check_udp]
+description=Send UDP connection to backend and check if port is opened.
+command=nmap -sU -p PORT HOST | grep open
+farms=
+log=false
+interval=15
+cut_conns=true
+template=true
+
+[check_ping]
+description=Send 2 ICMP packets and check that the 100% reaches the host.
+command=check_ping -H HOST -w 2,100% -c 2,100% -p 2
+farms=
+log=false
+interval=15
+cut_conns=true
+template=true
+
+[check_common]
+description=Check the folder /usr/local/zevenet/libexec, which includes more checks, get more info about the health check with <command> --help.
+command=
+farms=
+log=false
+interval=15
+cut_conns=false
+template=true
