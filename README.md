@@ -37,6 +37,14 @@ This git repository only contains the source code, the installable packages base
 root@zevenetlb#> wget -O - http://repo.zevenet.com/zevenet.com.gpg.key | apt-key add -
 
 ```
+Now, update the local APT database
+```
+root@zevenetlb#> apt-get update
+```
+And finally, install the Zevenet CE
+```
+root@zevenetlb#> apt-get install zevenet
+```
 ### Updates
 Please use the Zevenet APT repo in order to check if updates are available. 
 
