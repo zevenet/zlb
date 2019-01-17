@@ -508,6 +508,21 @@ if ( $action eq "stop" )
 		}
 	}
 
+	print ( "* Stopping nftlb service:" );
+
+    my $stop_nftlb = `/usr/local/zevenet/bin/nftlbd stop`;
+    my $status = `/usr/local/zevenet/bin/nftlbd status`;
+    my $rtn_code = 0 if ( grep /nftlb is not running/, $status );
+
+    if ( $rtn_code == 0 )
+	{
+		print ( " \033[1;32m OK \033[0m \n" );
+	}
+	else
+	{
+		print ( " \033[1;31m ERROR \033[0m \n" );
+	}
+
 	print ( "* Stopping Virtual Interfaces:\n" );
 
 	# Virtual Network Interfaces
