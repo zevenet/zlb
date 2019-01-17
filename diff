@@ -1,0 +1,185 @@
+diff --git a/usr/share/perl5/Zevenet/API31/Farm/Action.pm b/usr/share/perl5/Zevenet/API31/Farm/Action.pm
+index bff7d087..bbb79720 100644
+--- a/usr/share/perl5/Zevenet/API31/Farm/Action.pm
++++ b/usr/share/perl5/Zevenet/API31/Farm/Action.pm
+@@ -319,7 +319,7 @@ sub backend_maintenance    # ( $json_obj, $farmname, $backend_id )
+ 	require Zevenet::Farm::L4xNAT::Backend;
+ 
+ 	my $backends = &getL4FarmServers( $farmname );
+-	my $exists = &getFarmBackendExists( $backends, $backend_id );
++	my $exists = &getFarmServer( $backends, $backend_id );
+ 
+ 	if ( !$exists )
+ 	{
+diff --git a/usr/share/perl5/Zevenet/API31/Farm/Backend.pm b/usr/share/perl5/Zevenet/API31/Farm/Backend.pm
+index e761869a..9ce71f52 100644
+--- a/usr/share/perl5/Zevenet/API31/Farm/Backend.pm
++++ b/usr/share/perl5/Zevenet/API31/Farm/Backend.pm
+@@ -975,7 +975,7 @@ sub delete_backend    # ( $farmname, $id_server )
+ 	require Zevenet::Farm::Backend;
+ 
+ 	my $backends = &getFarmServers( $farmname );
+-	my $exists = &getFarmBackendExists( $backends, $id_server );
++	my $exists = &getFarmServer( $backends, $id_server );
+ 
+ 	if ( !$exists )
+ 	{
+diff --git a/usr/share/perl5/Zevenet/API32/Farm/Action.pm b/usr/share/perl5/Zevenet/API32/Farm/Action.pm
+index fe533546..675c2874 100644
+--- a/usr/share/perl5/Zevenet/API32/Farm/Action.pm
++++ b/usr/share/perl5/Zevenet/API32/Farm/Action.pm
+@@ -336,7 +336,7 @@ sub backend_maintenance    # ( $json_obj, $farmname, $backend_id )
+ 	require Zevenet::Farm::L4xNAT::Backend;
+ 
+ 	my $backends = &getL4FarmServers( $farmname );
+-	my $exists = &getFarmBackendExists( $backends, $backend_id );
++	my $exists = &getFarmServer( $backends, $backend_id );
+ 
+ 	if ( !$exists )
+ 	{
+diff --git a/usr/share/perl5/Zevenet/API32/Farm/Backend.pm b/usr/share/perl5/Zevenet/API32/Farm/Backend.pm
+index a3590918..571cfc51 100644
+--- a/usr/share/perl5/Zevenet/API32/Farm/Backend.pm
++++ b/usr/share/perl5/Zevenet/API32/Farm/Backend.pm
+@@ -964,7 +964,7 @@ sub delete_backend    # ( $farmname, $id_server )
+ 	}
+ 
+ 	my $backends = &getFarmServers( $farmname );
+-	my $exists = &getFarmBackendExists( $backends, $id_server );
++	my $exists = &getFarmServer( $backends, $id_server );
+ 
+ 	if ( !$exists )
+ 	{
+diff --git a/usr/share/perl5/Zevenet/API40/Farm/Action.pm b/usr/share/perl5/Zevenet/API40/Farm/Action.pm
+index ce69ab98..e969df41 100644
+--- a/usr/share/perl5/Zevenet/API40/Farm/Action.pm
++++ b/usr/share/perl5/Zevenet/API40/Farm/Action.pm
+@@ -332,7 +332,7 @@ sub backend_maintenance    # ( $json_obj, $farmname, $backend_id )
+ 	require Zevenet::Farm::L4xNAT::Backend;
+ 
+ 	my $backends = &getL4FarmServers( $farmname );
+-	my $exists = &getFarmBackendExists( $backends, $backend_id );
++	my $exists = &getFarmServer( $backends, $backend_id );
+ 
+ 	if ( !$exists )
+ 	{
+diff --git a/usr/share/perl5/Zevenet/API40/Farm/Backend.pm b/usr/share/perl5/Zevenet/API40/Farm/Backend.pm
+index 5c5a670d..c3ced65c 100644
+--- a/usr/share/perl5/Zevenet/API40/Farm/Backend.pm
++++ b/usr/share/perl5/Zevenet/API40/Farm/Backend.pm
+@@ -134,7 +134,8 @@ sub new_farm_backend    # ( $json_obj, $farmname )
+ 			 "info", "FARMS", "info", "FARMS" );
+ 
+ 	# Backend retrieval
+-	my $server = &getFarmServer( $farmname, undef, $id );
++	my $serversArray = &getFarmServers( $farmname );
++	my $server = &getFarmServer( $serversArray, $id );
+ 
+ 	if ( !$server )
+ 	{
+@@ -435,7 +436,8 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
+ 	}
+ 
+ 	# get backends
+-	my $backend = &getFarmServer( $farmname, undef, $id_server );
++	my $serversArray = &getFarmServers( $farmname );
++	my $backend = &getFarmServer( $serversArray, $id_server );
+ 
+ 	if ( !$backend || ref ( $backend ) ne "HASH" )
+ 	{
+@@ -721,7 +723,7 @@ sub delete_backend    # ( $farmname, $id_server )
+ 	}
+ 
+ 	my $backends = &getFarmServers( $farmname );
+-	my $exists = &getFarmBackendExists( $backends, $id_server );
++	my $exists = &getFarmServer( $backends, $id_server );
+ 
+ 	if ( !$exists )
+ 	{
+diff --git a/usr/share/perl5/Zevenet/Farm/Backend.pm b/usr/share/perl5/Zevenet/Farm/Backend.pm
+index a6ce0679..d15bb5f1 100644
+--- a/usr/share/perl5/Zevenet/Farm/Backend.pm
++++ b/usr/share/perl5/Zevenet/Farm/Backend.pm
+@@ -95,7 +95,7 @@ Parameters:
+ 	id - Backend ID to retrieve
+ 
+ Returns:
+-	hash ref - bachend hash reference
++	hash ref - bachend hash reference or undef if not exists
+ 
+ =cut
+ 
+@@ -103,16 +103,12 @@ sub getFarmServer    # ($farm_name, $service)
+ {
+ 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+ 			 "debug", "PROFILING" );
+-	my ( $farm_name, $service, $id ) = @_;
++	my $bcks_ref	= shift;
++	my $id 				= shift;
+ 
+-	my $serversArray = &getFarmServers( $farm_name, $service );
+-
+-	if ( defined $serversArray )
++	foreach my $server ( @{ $serversArray } )
+ 	{
+-		foreach my $server ( @{ $serversArray } )
+-		{
+-			return $server if ( $server->{ id } eq "$id" );
+-		}
++		return $server if ( $server->{ id } eq "$id" );
+ 	}
+ 
+ 	# Error, not found so return undef
+@@ -276,39 +272,5 @@ sub getFarmBackendAvailableID
+ 	return $nbackends;
+ }
+ 
+-=begin nd
+-Function: getFarmBackendExists
+-
+-	Search for a certain backend ID
+-
+-Parameters:
+-	bcks_ref - reference to the backends structure.
+-	id - backend identifier to be search.
+-
+-Returns:
+-	integer - 0 if not found, 1 if found.
+-
+-=cut
+-
+-sub getFarmBackendExists
+-{
+-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+-			 "debug", "PROFILING" );
+-	my $bcks_ref = shift;
+-	my $id       = shift;
+-
+-	my $exists = 0;
+-
+-	foreach my $backend ( @{ $bcks_ref } )
+-	{
+-		if ( $backend->{ id } == $id )
+-		{
+-			$exists = 1;
+-			last;
+-		}
+-	}
+-
+-	return $exists;
+-}
+ 
+ 1;
+diff --git a/usr/share/perl5/Zevenet/Farm/L4nft/Backend.pm b/usr/share/perl5/Zevenet/Farm/L4nft/Backend.pm
+index cdd7c2a1..1acf06c1 100644
+--- a/usr/share/perl5/Zevenet/Farm/L4nft/Backend.pm
++++ b/usr/share/perl5/Zevenet/Farm/L4nft/Backend.pm
+@@ -559,7 +559,7 @@ sub getL4FarmBackendAvailableID
+ 
+ 	for ( my $id = 0 ; $id < $nbackends ; $id++ )
+ 	{
+-		my $exists = &getFarmBackendExists( $backends, $id );
++		my $exists = &getFarmServer( $backends, $id );
+ 		return $id if ( !$exists );
+ 	}
+ 
