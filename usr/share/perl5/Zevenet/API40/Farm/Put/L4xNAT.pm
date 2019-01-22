@@ -365,11 +365,11 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 		{
 			#require Zevenet::Farm::Config;
 			my $msg = &eload(
-									module   => 'Zevenet::Farm::L4xNAT::Config::Ext',
-									func     => 'modifyLogsParam',
-									args     => [$farmname, $json_obj->{ logs }],
-									just_ret => 1,
-				);
+							  module   => 'Zevenet::Farm::L4xNAT::Config::Ext',
+							  func     => 'modifyLogsParam',
+							  args     => [$farmname, $json_obj->{ logs }],
+							  just_ret => 1,
+			);
 			if ( defined $msg && length $msg )
 			{
 				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -388,38 +388,6 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 
 	if ( &getL4FarmParam( 'status', $farmname ) eq 'up' )
 	{
-		# Reset ip rule mark when changing the farm's vip
-		if ( exists $json_obj->{ vip } && $json_obj->{ vip } ne $vip )
-		{
-			require Zevenet::Net::Util;
-
-			my $farm   = &getL4FarmStruct( $farmname );
-			my $ip_bin = &getGlobalConfiguration( 'ip_bin' );
-
-			# previous vip
-			my $prev_vip_if_name = &getInterfaceOfIp( $vip );
-			my $prev_vip_if      = &getInterfaceConfig( $prev_vip_if_name );
-			my $prev_table_if =
-			  ( $prev_vip_if->{ type } eq 'virtual' )
-			  ? $prev_vip_if->{ parent }
-			  : $prev_vip_if->{ name };
-
-			# new vip
-			my $vip_if_name = &getInterfaceOfIp( $json_obj->{ vip } );
-			my $vip_if      = &getInterfaceConfig( $vip_if_name );
-			my $table_if =
-			  ( $vip_if->{ type } eq 'virtual' ) ? $vip_if->{ parent } : $vip_if->{ name };
-
-			foreach my $server ( @{ $$farm{ servers } } )
-			{
-				my $ip_del_cmd =
-				  "$ip_bin rule add fwmark $server->{ tag } table table_$table_if";
-				my $ip_add_cmd =
-				  "$ip_bin rule del fwmark $server->{ tag } table table_$prev_table_if";
-				&logAndRun( $ip_add_cmd );
-				&logAndRun( $ip_del_cmd );
-			}
-		}
 
 		&eload(
 				module => 'Zevenet::Cluster',

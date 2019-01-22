@@ -807,6 +807,7 @@ sub setL4FarmVirtualConf    # ($vip,$vip_port,$farm_name)
 	my $output        = 0;
 
 	my $farm       = &getL4FarmStruct( $farm_name );
+	my $prev_vip   = $farm->{ vip };
 	my $fg_enabled = ( &getFarmGuardianConf( $$farm{ name } ) )[3];
 	my $fg_pid;
 
@@ -852,6 +853,37 @@ sub setL4FarmVirtualConf    # ($vip,$vip_port,$farm_name)
 		{
 			$output |= &runIptables( &applyIptRuleAction( $rule, 'delete' ) );
 			$output |= &runIptables( &applyIptRuleAction( $rule, 'append' ) );
+		}
+	}
+	if ( $vip )
+	{
+		# Reset ip rule mark when changing the farm's vip
+		require Zevenet::Net::Util;
+
+		my $farm   = &getL4FarmStruct( $farm_name );
+		my $ip_bin = &getGlobalConfiguration( 'ip_bin' );
+
+		# previous vip
+		my $prev_vip_if_name = &getInterfaceOfIp( $prev_vip );
+		my $prev_vip_if      = &getInterfaceConfig( $prev_vip_if_name );
+		my $prev_table_if =
+		  ( $prev_vip_if->{ type } eq 'virtual' )
+		  ? $prev_vip_if->{ parent }
+		  : $prev_vip_if->{ name };
+
+		# new vip
+		my $vip_if_name = &getInterfaceOfIp( $vip );
+		my $vip_if      = &getInterfaceConfig( $vip_if_name );
+		my $table_if =
+		  ( $vip_if->{ type } eq 'virtual' ) ? $vip_if->{ parent } : $vip_if->{ name };
+
+		foreach my $server ( @{ $$farm{ servers } } )
+		{
+			my $ip_del_cmd =
+			  "$ip_bin rule add fwmark $server->{ tag } table table_$table_if";
+			my $ip_add_cmd = "$ip_bin rule del fwmark $server->{ tag }";
+			&logAndRun( $ip_add_cmd );
+			&logAndRun( $ip_del_cmd );
 		}
 	}
 	return $output;
@@ -999,8 +1031,8 @@ sub getL4FarmStruct
 	$farm{ proto }      = &getL4ProtocolTransportLayer( $farm{ vproto } );
 	$farm{ bootstatus } = &_getL4ParseFarmConfig( 'bootstatus', undef, $config );
 	$farm{ status }     = &getL4FarmStatus( $farm{ name } );
-	$farm{ logs }       = &_getL4ParseFarmConfig( 'logs', undef, $config ) if ( $eload );
-	$farm{ servers }    = &_getL4FarmParseServers( $config );
+	$farm{ logs } = &_getL4ParseFarmConfig( 'logs', undef, $config ) if ( $eload );
+	$farm{ servers } = &_getL4FarmParseServers( $config );
 
 	# replace port * for all the range
 	if ( $farm{ vport } eq '*' )
@@ -1148,10 +1180,10 @@ sub refreshL4FarmRules    # AlgorithmRules
 	if ( $eload )
 	{
 		&eload(
-								module   => 'Zevenet::Farm::L4xNAT::Config::Ext',
-								func     => 'reloadL4FarmLogsRule',
-								args     => [$$farm{ name }],
-			);
+				module => 'Zevenet::Farm::L4xNAT::Config::Ext',
+				func   => 'reloadL4FarmLogsRule',
+				args   => [$$farm{ name }],
+		);
 	}
 
 	# apply new rules

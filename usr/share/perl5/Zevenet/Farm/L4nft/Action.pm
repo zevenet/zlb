@@ -60,11 +60,7 @@ sub startL4Farm    # ($farm_name)
 		return $status;
 	}
 
-	my $farm_ref = &getL4FarmStruct( $farm_name );
-	foreach my $server ( @{ $farm_ref->{ servers } } )
-	{
-		&setL4BackendRule( "add", $farm_ref, $server->{ tag } );
-	}
+	doL4FarmRules( "start", $farm_name );
 
 	# Enable IP forwarding
 	require Zevenet::Net::Util;
@@ -100,11 +96,7 @@ sub stopL4Farm    # ($farm_name)
 
 	&zlog( "Stopping farm $farm_name" ) if &debug > 2;
 
-	my $farm_ref = &getL4FarmStruct( $farm_name );
-	foreach my $server ( @{ $farm_ref->{ servers } } )
-	{
-		&setL4BackendRule( "del", $farm_ref, $server->{ tag } );
-	}
+	doL4FarmRules( "stop", $farm_name );
 
 	my $pid = &getNLBPid();
 	if ( $pid <= 0 )

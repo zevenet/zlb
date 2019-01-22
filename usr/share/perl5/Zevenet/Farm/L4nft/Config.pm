@@ -113,6 +113,7 @@ sub setL4FarmParam    # ($param, $value, $farm_name)
 	my $output        = -1;
 	my $srvparam      = "";
 	my $addition      = "";
+	my $prev_config   = "";
 	my $farm_req      = $farm_name;
 
 	if ( $param eq "name" )
@@ -133,7 +134,8 @@ sub setL4FarmParam    # ($param, $value, $farm_name)
 	}
 	elsif ( $param eq "vip" )
 	{
-		$srvparam = "virtual-addr";
+		$srvparam    = "virtual-addr";
+		$prev_config = &getFarmStruct( $farm_name );
 	}
 	elsif ( $param eq "vipp" )
 	{
@@ -218,6 +220,12 @@ sub setL4FarmParam    # ($param, $value, $farm_name)
 			 qq({"farms" : [ { "name" : "$farm_name", "$srvparam" : "$value"$addition } ] })
 		}
 	);
+
+	# Finally, reload rules
+	if ( $param eq "vip" && $srvparam eq "virtual-addr" )
+	{
+		&doL4FarmRules( "reload", $farm_name, $prev_config );
+	}
 
 	return $output;
 }
@@ -427,8 +435,8 @@ sub getL4FarmStruct
 	$farm{ proto }      = &getL4ProtocolTransportLayer( $farm{ vproto } );
 	$farm{ bootstatus } = &_getL4ParseFarmConfig( 'bootstatus', undef, $config );
 	$farm{ status }     = &getL4FarmStatus( $farm{ name } );
-	$farm{ logs }       = &_getL4ParseFarmConfig( 'logs', undef, $config ) if ( $eload );
-	$farm{ servers }    = &_getL4FarmParseServers( $config );
+	$farm{ logs } = &_getL4ParseFarmConfig( 'logs', undef, $config ) if ( $eload );
+	$farm{ servers } = &_getL4FarmParseServers( $config );
 
 	# replace port * for all the range
 	if ( $farm{ vport } eq '*' )
@@ -764,6 +772,40 @@ sub doL4FarmProbability
 	}
 
   #~ &zenlog( "doL4FarmProbability($$farm{ name }) => prob:$$farm{ prob }" ); ######
+}
+
+=begin nd
+Function: doL4FarmRules
+
+	Created to operate with setL4BackendRule in order to start, stop or reload ip rules
+
+Parameters:
+	action - stop (delete all ip rules), start (create ip rules) or reload (delete old one stored in prev_farm_ref and create new)
+	farm_name - farm hash ref. It is a hash with all information about the farm
+	prev_farm_ref - farm ref of the old configuration
+
+Returns:
+	none - .
+
+=cut
+
+sub doL4FarmRules    #($action, $f_ref)
+{
+	my $action        = shift;
+	my $farm_name     = shift;
+	my $prev_farm_ref = shift;
+
+	my $farm_ref = &getL4FarmStruct( $farm_name );
+
+	foreach my $server ( @{ $farm_ref->{ servers } } )
+	{
+		&setL4BackendRule( "del", $farm_ref, $server->{ tag } )
+		  if ( $action eq "stop" );
+		&setL4BackendRule( "del", $prev_farm_ref, $server->{ tag } )
+		  if ( $action eq "reload" );
+		&setL4BackendRule( "add", $farm_ref, $server->{ tag } )
+		  if ( $action eq "start" || $action eq "reload" );
+	}
 }
 
 # TODO: Obsolete. Eliminate callers.

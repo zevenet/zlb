@@ -25,12 +25,14 @@ use Zevenet::Farm::Base;
 use Zevenet::Farm::L4xNAT::Config;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 # PUT /farms/<farmname> Modify a l4xnat Farm
-sub modify_l4xnat_farm # ( $json_obj, $farmname )
+sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $farmname = shift;
 
@@ -55,7 +57,9 @@ sub modify_l4xnat_farm # ( $json_obj, $farmname )
 	my $vport = &getFarmVip( "vipp", $farmname );
 
 	my $reload_ipds = 0;
-	if (exists $json_obj->{vport} || exists $json_obj->{vip} || exists $json_obj->{newfarmname})
+	if (    exists $json_obj->{ vport }
+		 || exists $json_obj->{ vip }
+		 || exists $json_obj->{ newfarmname } )
 	{
 
 		if ( $eload )
@@ -63,19 +67,19 @@ sub modify_l4xnat_farm # ( $json_obj, $farmname )
 			$reload_ipds = 1;
 
 			&eload(
-				module => 'Zevenet::IPDS::Base',
-				func   => 'runIPDSStopByFarm',
-				args   => [$farmname],
+					module => 'Zevenet::IPDS::Base',
+					func   => 'runIPDSStopByFarm',
+					args   => [$farmname],
 			);
 
 			&eload(
-				module => 'Zevenet::Cluster',
-				func   => 'runZClusterRemoteManager',
-				args   => ['ipds', 'stop', $farmname],
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['ipds', 'stop', $farmname],
 			);
 		}
 	}
-	
+
 	####### Functions
 
 	# Modify Farm's Name
@@ -93,7 +97,7 @@ sub modify_l4xnat_farm # ( $json_obj, $farmname )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		if ($json_obj->{newfarmname} ne $farmname)
+		if ( $json_obj->{ newfarmname } ne $farmname )
 		{
 			#Check if farmname has correct characters (letters, numbers and hyphens)
 			unless ( $json_obj->{ newfarmname } =~ /^[a-zA-Z0-9\-]*$/ )
@@ -115,7 +119,8 @@ sub modify_l4xnat_farm # ( $json_obj, $farmname )
 			my $fnchange = &setNewFarmName( $farmname, $json_obj->{ newfarmname } );
 			if ( $fnchange == -1 )
 			{
-				my $msg = "The name of the farm can't be modified, delete the farm and create a new one.";
+				my $msg =
+				  "The name of the farm can't be modified, delete the farm and create a new one.";
 				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
 
@@ -280,19 +285,13 @@ sub modify_l4xnat_farm # ( $json_obj, $farmname )
 	if ( exists ( $json_obj->{ vport } ) )
 	{
 		# VPORT validation
-		if (
-			!&getValidPort(
-							$json_obj->{ vip },
-							$json_obj->{ vport },
-							"L4XNAT"
-			)
-		)
+		if ( !&getValidPort( $json_obj->{ vip }, $json_obj->{ vport }, "L4XNAT" ) )
 		{
 			my $msg = "The virtual port must be an acceptable value and must be available.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}
-	
+
 	# Modify only vip
 	if ( exists ( $json_obj->{ vip } ) && !exists ( $json_obj->{ vport } ) )
 	{
@@ -323,7 +322,8 @@ sub modify_l4xnat_farm # ( $json_obj, $farmname )
 	if ( exists ( $json_obj->{ vip } ) && exists ( $json_obj->{ vport } ) )
 	{
 		require Zevenet::Farm::Config;
-		if ( &setFarmVirtualConf( $json_obj->{ vip }, $json_obj->{ vport }, $farmname ) )
+		if (
+			 &setFarmVirtualConf( $json_obj->{ vip }, $json_obj->{ vport }, $farmname ) )
 		{
 			my $msg = "Invalid vport or invalid vip.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -333,58 +333,31 @@ sub modify_l4xnat_farm # ( $json_obj, $farmname )
 	}
 
 	# no error found, return successful response
-	&zenlog( "Success, some parameters have been changed in farm $farmname.", "info", "LSLB" );
+	&zenlog( "Success, some parameters have been changed in farm $farmname.",
+			 "info", "LSLB" );
 
 	if ( &getL4FarmParam( 'status', $farmname ) eq 'up' )
 	{
-		# Reset ip rule mark when changing the farm's vip
-		if ( exists $json_obj->{ vip } && $json_obj->{ vip } ne $vip )
-		{
-			require Zevenet::Net::Util;
-
-			my $farm   = &getL4FarmStruct( $farmname );
-			my $ip_bin = &getGlobalConfiguration( 'ip_bin' );
-			# previous vip
-			my $prev_vip_if_name = &getInterfaceOfIp( $vip );
-			my $prev_vip_if      = &getInterfaceConfig( $prev_vip_if_name );
-			my $prev_table_if =
-			  ( $prev_vip_if->{ type } eq 'virtual' )
-			  ? $prev_vip_if->{ parent }
-			  : $prev_vip_if->{ name };
-			# new vip
-			my $vip_if_name = &getInterfaceOfIp( $json_obj->{ vip } );
-			my $vip_if      = &getInterfaceConfig( $vip_if_name );
-			my $table_if =
-			  ( $vip_if->{ type } eq 'virtual' ) ? $vip_if->{ parent } : $vip_if->{ name };
-
-			foreach my $server ( @{ $$farm{ servers } } )
-			{
-				my $ip_del_cmd = "$ip_bin rule add fwmark $server->{ tag } table table_$table_if";
-				my $ip_add_cmd = "$ip_bin rule del fwmark $server->{ tag } table table_$prev_table_if";
-				&logAndRun( $ip_add_cmd );
-				&logAndRun( $ip_del_cmd );
-			}
-		}
 
 		&eload(
-			module => 'Zevenet::Cluster',
-			func   => 'runZClusterRemoteManager',
-			args   => ['farm', 'restart', $farmname],
+				module => 'Zevenet::Cluster',
+				func   => 'runZClusterRemoteManager',
+				args   => ['farm', 'restart', $farmname],
 		) if ( $eload );
 
 		if ( $reload_ipds && $eload )
 		{
 
 			&eload(
-				module => 'Zevenet::IPDS::Base',
-				func   => 'runIPDSStartByFarm',
-				args   => [$farmname],
+					module => 'Zevenet::IPDS::Base',
+					func   => 'runIPDSStartByFarm',
+					args   => [$farmname],
 			);
 
 			&eload(
-				module => 'Zevenet::Cluster',
-				func   => 'runZClusterRemoteManager',
-				args   => ['ipds', 'start', $farmname],
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['ipds', 'start', $farmname],
 			);
 		}
 	}
@@ -394,7 +367,7 @@ sub modify_l4xnat_farm # ( $json_obj, $farmname )
 				 params      => $json_obj
 	};
 
-	&httpResponse({ code => 200, body => $body });
+	&httpResponse( { code => 200, body => $body } );
 }
 
 1;
