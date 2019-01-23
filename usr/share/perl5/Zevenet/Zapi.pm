@@ -101,6 +101,7 @@ sub setZAPI    #($name,$value)
 			 "debug", "PROFILING" );
 	my ( $name, $value ) = @_;
 
+	my $out       = 0;
 	my $result    = "false";
 	my $globalcfg = &getGlobalConfiguration( 'globalcfg' );
 
@@ -158,6 +159,9 @@ sub setZAPI    #($name,$value)
 			}
 		}
 		untie @contents;
+
+		# Update zapikey global configuration
+		&getGlobalConfiguration( 'zapikey', 1 );
 	}
 }
 

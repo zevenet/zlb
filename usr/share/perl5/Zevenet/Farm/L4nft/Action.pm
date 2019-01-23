@@ -31,7 +31,8 @@ Function: startL4Farm
 	Run a l4xnat farm
 
 Parameters:
-	farmname - Farm name
+	farm_name - Farm name
+	writeconf - write this change in configuration status "writeconf" for true or omit it for false
 
 Returns:
 	Integer - return 0 on success or different of 0 on failure
@@ -44,6 +45,7 @@ sub startL4Farm    # ($farm_name)
 			 "debug", "PROFILING" );
 
 	my $farm_name = shift;
+	my $writeconf = shift;
 
 	&zlog( "Starting farm $farm_name" ) if &debug == 2;
 
@@ -52,13 +54,16 @@ sub startL4Farm    # ($farm_name)
 	&zenlog( "startL4Farm << farm_name:$farm_name" )
 	  if &debug;
 
-	$status = &startNLBFarm( $farm_name );
-	if ( $status <= 0 )
+	$status = &startNLBFarm( $farm_name, $writeconf );
+	if ( $status != 0 )
 	{
 		return $status;
 	}
 
+	doL4FarmRules( "start", $farm_name );
+
 	# Enable IP forwarding
+	require Zevenet::Net::Util;
 	&setIpForward( 'true' );
 
 	return $status;
@@ -70,7 +75,8 @@ Function: stopL4Farm
 	Stop a l4xnat farm
 
 Parameters:
-	farmname - Farm name
+	farm_name - Farm name
+	writeconf - write this change in configuration status "writeconf" for true or omit it for false
 
 Returns:
 	Integer - return 0 on success or other value on failure
@@ -83,30 +89,24 @@ sub stopL4Farm    # ($farm_name)
 			 "debug", "PROFILING" );
 
 	my $farm_name = shift;
+	my $writeconf = shift;
 	my $pidfile   = &getL4FarmPidFile( $farm_name );
 
 	require Zevenet::Farm::Core;
 
 	&zlog( "Stopping farm $farm_name" ) if &debug > 2;
 
-	my $status;
+	doL4FarmRules( "stop", $farm_name );
 
-	# Disable active l4xnat file
 	my $pid = &getNLBPid();
 	if ( $pid <= 0 )
 	{
 		return 0;
 	}
 
-	&stopNLBFarm( $farm_name );
+	my $status = &stopNLBFarm( $farm_name, $writeconf );
 
 	unlink "$pidfile" if ( -e "$pidfile" );
-
-	# Reload conntrack modules
-	#	if ( $$farm{ vproto } =~ /sip|ftp/ )
-	#	{
-	#		&loadL4Modules( $$farm{ vproto } );
-	#	}
 
 	return $status;
 }
@@ -234,13 +234,12 @@ sub loadNLBFarm    # ($farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name ) = @_;
+	my $farm_name = shift;
 
 	require Zevenet::Farm::Core;
 	require Zevenet::Farm::L4xNAT::Config;
 
 	my $farmfile = &getFarmFile( $farm_name );
-	my $pidfile  = &getL4FarmPidFile( $farm_name );
 
 	return -1 if ( !-e "$configdir/$farmfile" );
 
@@ -254,12 +253,6 @@ sub loadNLBFarm    # ($farm_name)
 							   }
 	);
 
-	if ( !-e "$pidfile" )
-	{
-		open my $fi, '>', "$pidfile";
-		close $fi;
-	}
-
 	return $out;
 }
 
@@ -270,6 +263,7 @@ Function: startNLBFarm
 
 Parameters:
 	farm_name - farm name to be started
+	writeconf - write this change in configuration status "writeconf" for true or omit it for false
 
 Returns:
 	Integer - 0 on success or -1 on failure
@@ -280,7 +274,8 @@ sub startNLBFarm    # ($farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name ) = @_;
+	my $farm_name = shift;
+	my $writeconf = shift;
 
 	#	require Zevenet::Farm::Core;
 	require Zevenet::Farm::L4xNAT::Config;
@@ -291,7 +286,15 @@ sub startNLBFarm    # ($farm_name)
 		return $out;
 	}
 
-	&setL4FarmParam( 'status', "up", $farm_name );
+	&setL4FarmParam( ( $writeconf ) ? 'bootstatus' : 'status', "up", $farm_name );
+
+	my $pidfile = &getL4FarmPidFile( $farm_name );
+
+	if ( !-e "$pidfile" )
+	{
+		open my $fi, '>', "$pidfile";
+		close $fi;
+	}
 
 	return $out;
 }
@@ -299,10 +302,11 @@ sub startNLBFarm    # ($farm_name)
 =begin nd
 Function: stopNLBFarm
 
-	Start a new farm in nftlb
+	Stop an existing farm in nftlb
 
 Parameters:
 	farm_name - farm name to be started
+	writeconf - write this change in configuration status "writeconf" for true or omit it for false
 
 Returns:
 	Integer - 0 on success or -1 on failure
@@ -313,13 +317,15 @@ sub stopNLBFarm    # ($farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name ) = @_;
+	my $farm_name = shift;
+	my $writeconf = shift;
 
 	require Zevenet::Farm::Core;
 
 	my $farmfile = &getFarmFile( $farm_name );
 
-	my $out = &setL4FarmParam( 'status', "down", $farm_name );
+	my $out = &setL4FarmParam( ( $writeconf ) ? 'bootstatus' : 'status',
+							   "down", $farm_name );
 
 	return $out;
 }

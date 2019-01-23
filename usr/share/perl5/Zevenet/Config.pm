@@ -33,6 +33,7 @@ Function: getGlobalConfiguration
 
 Parameters:
 	parameter - Name of the global configuration variable. Optional.
+	Force_relad - This parameter is a flag that force a reload of the global.conf structure, useful to reload the struct when it has been modified. Optional
 
 Returns:
 	scalar - Value of the configuration variable when a variable name is passed as an argument.
@@ -45,7 +46,10 @@ See Also:
 sub getGlobalConfiguration
 {
 	my $parameter = shift;
+	my $force_reload = shift // 0;
+
 	state $global_conf = &parseGlobalConfiguration();
+	$global_conf = &parseGlobalConfiguration() if ( $force_reload );
 
 	return eval { $global_conf->{ $parameter } } if $parameter;
 	return $global_conf;
@@ -72,7 +76,7 @@ sub parseGlobalConfiguration
 			 "debug", "PROFILING" );
 
 	my $global_conf_filepath = "/usr/local/zevenet/config/global.conf";
-	state $global_conf;
+	my $global_conf;
 
 	open ( my $global_conf_file, '<', $global_conf_filepath ) or do
 	{
@@ -149,6 +153,9 @@ sub setGlobalConfiguration    # ( parameter, value )
 		}
 	}
 	untie @global_hf;
+
+	# reload global.conf struct
+	&getGlobalConfiguration( undef, 1 );
 
 	return $output;
 }

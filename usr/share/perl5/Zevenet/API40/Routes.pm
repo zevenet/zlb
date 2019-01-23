@@ -57,7 +57,7 @@ my $fg_name_re = &getValidFormat( 'fg_name' );
 
 if ( $q->path_info =~ qr{^/farms/$farm_re/certificates} )
 {
-	require Zevenet::API40::Certificate::Farm;
+	require Zevenet::API40::Certificate;
 
 	POST qr{^/farms/($farm_re)/certificates$} => \&add_farm_certificate;
 

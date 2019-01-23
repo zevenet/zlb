@@ -1204,6 +1204,13 @@ sub getHTTPFarmPid    # ($farm_name)
 	my $piddir  = &getGlobalConfiguration( 'piddir' );
 	my $pidfile = "$piddir\/$farm_name\_pound.pid";
 
+	# Get number of cores
+	my $processors = `nproc`;
+	chomp $processors;
+
+	# If the LB has one core, wait 20ms for pound child process to generate pid.
+	select ( undef, undef, undef, 0.020 ) if ( $processors == 1 );
+
 	if ( -e $pidfile )
 	{
 		open my $fd, '<', $pidfile;

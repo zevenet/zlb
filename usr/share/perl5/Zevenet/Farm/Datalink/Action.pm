@@ -65,7 +65,7 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf)
 	if ( scalar @farmcron eq 0 )
 	{
 		push ( @cron_file,
-			   "* * * * *	root	\/usr\/local\/zevenet\/app\/libexec\/check_uplink $farm_name \# \_\_$farm_name\_\_"
+			"* * * * *	root	\/usr\/local\/zevenet\/app\/libexec\/check_uplink $farm_name \# \_\_$farm_name\_\_"
 		);
 	}
 	untie @cron_file;
@@ -138,6 +138,13 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf)
 
 		my $ipmask = &maskonif( $iface );
 		my ( $net, $mask ) = ipv4_network( "$ip / $ipmask" );
+
+		if ( !$net or !$mask )
+		{
+			&zenlog( "Interface $iface has to be up to boot the farm $farm_name" );
+			return -1;
+		}
+
 		&zenlog( "running $ip_bin rule add from $net/$mask lookup table_$iface",
 				 "info", "DSLB" );
 		my @eject = `$ip_bin rule add from $net/$mask lookup table_$iface 2> /dev/null`;

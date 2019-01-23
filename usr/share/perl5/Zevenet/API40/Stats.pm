@@ -46,8 +46,12 @@ sub getAllFarmStats
 
 	foreach my $file ( @files )
 	{
-		my $name        = &getFarmName( $file );
-		my $type        = &getFarmType( $name );
+		my $name = &getFarmName( $file );
+		my $type = &getFarmType( $name );
+
+		# datalink has not got stats
+		next if ( $type eq 'datalink' );
+
 		my $status      = &getFarmVipStatus( $name );
 		my $vip         = &getFarmVip( 'vip', $name );
 		my $port        = &getFarmVip( 'vipp', $name );
@@ -130,8 +134,11 @@ sub farm_stats    # ( $farmname )
 	if ( $type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Stats;
+		my $stats = &getL4FarmBackendsStats( $farmname );
 
-		my $stats    = &getL4FarmBackendsStats( $farmname );
+		require Zevenet::API40::Farm::Get;
+		&getAPIFarmBackends( $stats, $type, ['established', 'pending'] );
+
 		my $sessions = &getL4FarmSessions( $farmname );
 		my $body = {
 					 description => $desc,

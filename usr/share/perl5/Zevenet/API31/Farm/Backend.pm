@@ -23,6 +23,7 @@
 
 use strict;
 use Zevenet::Farm::Core;
+use Zevenet::API31::Farm::Get;
 
 my $eload;
 if ( eval { require Zevenet::ELoad; } )
@@ -127,6 +128,11 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		{
 			my $msg = "It's not possible to create the backend with ip $json_obj->{ ip }"
 			  . " and port $json_obj->{ port } for the $farmname farm";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+		if ( $status == -2 )
+		{
+			my $msg = "The IP $json_obj->{ip} is already set in farm $farmname";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
@@ -454,6 +460,7 @@ sub backends
 	{
 		require Zevenet::Farm::L4xNAT::Backend;
 		my $backends = &getL4FarmServers( $farmname );
+		&getAPIFarmBackends( $backends, $type );
 
 		my $body = {
 					 description => $desc,
@@ -656,6 +663,11 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 			my $msg = "It's not possible to modify the backend with ip $json_obj->{ip}.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
+		if ( $status == -2 )
+		{
+			my $msg = "The IP $json_obj->{ip} is already set in farm $farmname";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
 	}
 	elsif ( $type eq "datalink" )
 	{
@@ -750,8 +762,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 								  $be->{ ip },
 								  $be->{ interface },
 								  $be->{ weight },
-								  $be->{ priority },
-								  $farmname );
+								  $be->{ priority }, $farmname );
 
 		if ( $status == -1 )
 		{
@@ -888,7 +899,7 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		$be->{ priority } = $json_obj->{ weight };
+		$be->{ weight } = $json_obj->{ weight };
 	}
 
 	# validate BACKEND timeout
@@ -908,7 +919,7 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 	my $status = &setHTTPFarmServer( $id_server,
 									 $be->{ ip },
 									 $be->{ port },
-									 $be->{ priority },
+									 $be->{ weight },
 									 $be->{ timeout },
 									 $farmname, $service );
 
@@ -973,20 +984,10 @@ sub delete_backend    # ( $farmname, $id_server )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	my $exists = 0;
-
 	require Zevenet::Farm::Backend;
-	if ( $type eq 'l4xnat' )
-	{
-		my $servers  = &getFarmServers( $farmname );
-		my $nservers = @{ $servers };
-		$exists = ( $nservers ) ? 1 : 0;
-	}
-	else
-	{
-		my $backends = &getFarmServers( $farmname );
-		my $exists   = @{ $backends }[$id_server];
-	}
+
+	my $backends = &getFarmServers( $farmname );
+	my $exists = &getFarmServer( $backends, $id_server );
 
 	if ( !$exists )
 	{

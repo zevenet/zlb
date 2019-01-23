@@ -52,11 +52,14 @@ sub _runFarmStart    # ($farm_name, $writeconf)
 			 "debug", "PROFILING" );
 	my ( $farm_name, $writeconf ) = @_;
 
+	# The parameter expect "undef" to not write it
+	$writeconf = undef if ( $writeconf eq 'false' );
+
 	require Zevenet::Farm::Base;
 
 	my $status = -1;
 
-	# finish the function if the tarm is already up
+	# finish the function if the farm is already up
 	if ( &getFarmStatus( $farm_name ) eq "up" )
 	{
 		zenlog( "Farm $farm_name already up", "info", "FARMS" );
@@ -100,6 +103,8 @@ sub _runFarmStart    # ($farm_name, $writeconf)
 						  args   => [$farm_name, $writeconf],
 		);
 	}
+
+	&setFarmNoRestart( $farm_name );
 
 	return $status;
 }
@@ -219,6 +224,9 @@ sub _runFarmStop    # ($farm_name, $writeconf)
 			 "debug", "PROFILING" );
 	my ( $farm_name, $writeconf ) = @_;
 
+	# The parameter expect "undef" to not write it
+	$writeconf = undef if ( $writeconf eq 'false' );
+
 	require Zevenet::Farm::Base;
 	my $status = &getFarmStatus( $farm_name );
 	if ( $status eq "down" )
@@ -260,6 +268,8 @@ sub _runFarmStop    # ($farm_name, $writeconf)
 						  args   => [$farm_name, $writeconf],
 		);
 	}
+
+	&setFarmNoRestart( $farm_name );
 
 	return $status;
 }

@@ -252,6 +252,14 @@ while ()
 						{
 							$farms{ $fname }{ $server } = $mark;
 						}
+						if ( $status eq "maintenance" || $status eq 'fgDOWN' )
+						{
+								# Write condition 0
+								&zenlog( "l4sd: Disabling backend $server in $fcondition/\_$fname\_$mark\_ due to $status mode \n" );
+								open my $fo, '>', "$fcondition/\_$fname\_$mark\_";
+								print $fo '0';
+								close $fo;
+						}
 					}
 				}
 			}
@@ -392,4 +400,3 @@ while ()
 
 	$init = 0;
 }
-

@@ -24,7 +24,10 @@
 use strict;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
@@ -47,7 +50,8 @@ FIXME:
 
 sub setFarmHTTPNewService    # ($farm_name,$service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $service ) = @_;
 
 	use File::Grep 'fgrep';
@@ -74,7 +78,7 @@ sub setFarmHTTPNewService    # ($farm_name,$service)
 		return $output;
 	}
 
-	if ( !fgrep { /Service "$service"/ } "$configdir/$farm_name\_pound.cfg" )
+	if ( !fgrep { /^\s*Service "$service"/ } "$configdir/$farm_name\_pound.cfg" )
 	{
 		#create service
 		my @newservice;
@@ -171,7 +175,8 @@ Returns:
 
 sub delHTTPFarmService    # ($farm_name,$service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $service ) = @_;
 
 	require Tie::File;
@@ -277,14 +282,15 @@ FIXME:
 
 sub getHTTPFarmServices
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	require Zevenet::Farm::Core;
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $pos           = 0;
-	my @output = ();
+	my @output        = ();
 
 	open my $fh, '<', "$configdir\/$farm_filename";
 	my @file = <$fh>;
@@ -375,17 +381,17 @@ Returns:
 
 =cut
 
-
 sub getHTTPServiceBlocks
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm = shift;
 	my $srv  = shift;
 	my $out = {
-		farm => [],
-		services => {},
-		request => [],
-		};
+				farm     => [],
+				services => {},
+				request  => [],
+	};
 	my @block;
 	my @srv_block;
 	my $current_srv;
@@ -402,8 +408,8 @@ sub getHTTPServiceBlocks
 	{
 		if ( $line =~ /^\tService \"(.+)\"/ )
 		{
-			$srv_flag = 1;
-			$farm_flag = 0;
+			$srv_flag    = 1;
+			$farm_flag   = 0;
 			$current_srv = $1;
 		}
 
@@ -424,7 +430,7 @@ sub getHTTPServiceBlocks
 		}
 		if ( $line =~ /^\tEnd$/ and $srv_flag )
 		{
-			$srv_flag=0;
+			$srv_flag = 0;
 			$ind++ if ( $srv ne $current_srv );
 		}
 	}
@@ -490,7 +496,8 @@ Notes:
 
 sub getHTTPServiceStruct
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farmname, $service_name ) = @_;
 
 	require Zevenet::FarmGuardian;
@@ -501,7 +508,7 @@ sub getHTTPServiceStruct
 	my @serv = split ( ' ', $services );
 
 	# return error if service is not found
-	return unless grep( { $service_name eq $_ } @serv );
+	return unless grep ( { $service_name eq $_ } @serv );
 
 	my $vser         = &getHTTPFarmVS( $farmname, $service_name, "vs" );
 	my $urlp         = &getHTTPFarmVS( $farmname, $service_name, "urlp" );
@@ -596,7 +603,8 @@ FIXME:
 
 sub getHTTPFarmVS    # ($farm_name,$service,$tag)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $service, $tag ) = @_;
 
 	$service = "" unless $service;
@@ -850,13 +858,14 @@ Returns:
 
 sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $service, $tag, $string ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = 0;
-	my $sw = 0;
-	my $j  = -1;
+	my $sw            = 0;
+	my $j             = -1;
 	my $l;
 
 	$string =~ s/^\s+//;
@@ -1098,13 +1107,14 @@ FIXME:
 
 sub getFarmVSI    # ($farm_name,$service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farmname, $service ) = @_;
 
 	# get service position
 	my $srv_position = -1;
 	my @services     = &getHTTPFarmServices( $farmname );
-	my $index = 0;
+	my $index        = 0;
 	foreach my $srv ( @services )
 	{
 		if ( $srv eq $service )
@@ -1125,7 +1135,8 @@ sub getFarmVSI    # ($farm_name,$service)
 # Similar to getHTTPServiceStruct??
 sub get_http_service_struct
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farmname, $service_name ) = @_;
 
 	require Zevenet::FarmGuardian;
@@ -1133,14 +1144,14 @@ sub get_http_service_struct
 
 	my $service_ref = &getHTTPServiceStruct( $farmname, $service_name );
 
-		# Backends
-		my $backends = &getHTTPFarmBackends( $farmname, $service_name );
+	# Backends
+	my $backends = &getHTTPFarmBackends( $farmname, $service_name );
 
-		# Remove backend status 'undefined', it is for news api versions
-		foreach my $be ( @{ $backends } )
-		{
-			$be->{ 'status' } = 'up' if $be->{ 'status' } eq 'undefined';
-		}
+	# Remove backend status 'undefined', it is for news api versions
+	foreach my $be ( @{ $backends } )
+	{
+		$be->{ 'status' } = 'up' if $be->{ 'status' } eq 'undefined';
+	}
 
 	# Add FarmGuardian
 	$service_ref->{ farmguardian } = &getFGFarm( $farmname, $service_name );
@@ -1149,16 +1160,18 @@ sub get_http_service_struct
 	if ( $eload )
 	{
 		$service_ref->{ sts_status } = &eload(
-			module => 'Zevenet::Farm::HTTP::Service::Ext',
-			func   => 'getHTTPServiceSTSStatus',
-			args   => [$farmname, $service_name],
+											  module => 'Zevenet::Farm::HTTP::Service::Ext',
+											  func   => 'getHTTPServiceSTSStatus',
+											  args   => [$farmname, $service_name],
 		);
 
-		$service_ref->{ sts_timeout } = int( &eload(
-			module => 'Zevenet::Farm::HTTP::Service::Ext',
-			func   => 'getHTTPServiceSTSTimeout',
-			args   => [$farmname, $service_name],
-		) );
+		$service_ref->{ sts_timeout } = int (
+										  &eload(
+												  module => 'Zevenet::Farm::HTTP::Service::Ext',
+												  func   => 'getHTTPServiceSTSTimeout',
+												  args   => [$farmname, $service_name],
+										  )
+		);
 	}
 
 	return $service_ref;
@@ -1166,7 +1179,8 @@ sub get_http_service_struct
 
 sub get_http_all_services_struct
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farmname ) = @_;
 
 	# Output
@@ -1174,7 +1188,7 @@ sub get_http_all_services_struct
 
 	foreach my $service ( &getHTTPFarmServices( $farmname ) )
 	{
-		my $service_ref = &get_http_service_struct ( $farmname, $service );
+		my $service_ref = &get_http_service_struct( $farmname, $service );
 
 		push @services_list, $service_ref;
 	}
@@ -1184,7 +1198,8 @@ sub get_http_all_services_struct
 
 sub get_http_all_services_summary_struct
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farmname ) = @_;
 
 	# Output

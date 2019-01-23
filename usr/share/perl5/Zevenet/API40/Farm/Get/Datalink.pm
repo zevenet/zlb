@@ -21,7 +21,7 @@
 ###############################################################################
 
 use strict;
-use Zevenet::Farm::Datalink::Backend;
+use Zevenet::Farm::Backend;
 
 my $eload;
 if ( eval { require Zevenet::ELoad; } )
@@ -46,7 +46,8 @@ sub farms_name_datalink    # ( $farmname )
 	};
 
 	### backends
-	my $out_b = &getDatalinkFarmBackends( $farmname );
+	my $out_b = &getFarmServers( $farmname );
+	&getAPIFarmBackends( $out_b, 'datalink' );
 
 	my $body = {
 				 description => "List farm $farmname",

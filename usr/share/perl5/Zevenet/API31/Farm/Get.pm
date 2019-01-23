@@ -26,12 +26,16 @@ use Zevenet::Farm::Core;
 use Zevenet::Farm::Base;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 #GET /farms
 sub farms    # ()
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	require Zevenet::Farm::Base;
 
 	my @out;
@@ -66,7 +70,8 @@ sub farms    # ()
 # GET /farms/LSLBFARM
 sub farms_lslb    # ()
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	require Zevenet::Farm::Base;
 
 	my @out;
@@ -102,7 +107,8 @@ sub farms_lslb    # ()
 # GET /farms/DATALINKFARM
 sub farms_dslb    # ()
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	require Zevenet::Farm::Base;
 
 	my @out;
@@ -137,7 +143,8 @@ sub farms_dslb    # ()
 #GET /farms/<name>/summary
 sub farms_name_summary    # ( $farmname )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farmname = shift;
 	my $desc     = "Show farm $farmname";
 
@@ -163,7 +170,8 @@ sub farms_name_summary    # ( $farmname )
 #GET /farms/<name>
 sub farms_name    # ( $farmname )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farmname = shift;
 
 	my $desc = "Show farm $farmname";
@@ -195,11 +203,46 @@ sub farms_name    # ( $farmname )
 	if ( $type eq 'gslb' && $eload )
 	{
 		&eload(
-			module => 'Zevenet::API31::Farm::Get::GSLB',
-			func   => 'farms_name_gslb',
-			args   => [$farmname],
+				module => 'Zevenet::API31::Farm::Get::GSLB',
+				func   => 'farms_name_gslb',
+				args   => [$farmname],
 		) if ( $eload );
 	}
+}
+
+# function to standarizate the backend output
+sub getAPIFarmBackends
+{
+	my $out_b        = shift;
+	my $type         = shift;
+	my $add_api_keys = shift // [];
+	my $translate    = shift // {};
+	my @api_keys     = @{ $add_api_keys };
+
+	require Zevenet::Farm::Backend;
+
+	# Backends
+	die "Waiting a hash input" if ( !ref $out_b );
+
+	# filters:
+	if ( $type eq 'l4xnat' )
+	{
+		push @api_keys, qw(id weight port ip max_conns priority status);
+	}
+	elsif ( $type eq 'datalink' )
+	{
+		push @api_keys, qw(id weight ip priority status interface);
+	}
+
+	if ( $eload )
+	{
+		push @api_keys, "alias";
+	}
+
+	# add static translations
+	$translate->{ status } = { "opt" => "fgdown", "rep" => "down" };
+
+	return &buildAPIParams( $out_b, \@api_keys, $translate );
 }
 
 1;

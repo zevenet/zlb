@@ -57,11 +57,6 @@ sub runL4FarmCreate    # ($vip,$farm_name,$vip_port)
 
 	$vip_port = 80 if not defined $vip_port;
 
-  #	open FO, ">$configdir\/$farm_name\_$farm_type.cfg";
-  # farmname;protocol;vip;vport;nattype;algorithm;persistence;ttl;status;logs
-  #	print FO "$farm_name\;tcp\;$vip\;$vip_port\;nat\;weight\;none\;120\;up;false\n";
-  #	close FO;
-
 	$output = &httpNLBRequest(
 		{
 		   farm       => $farm_name,
@@ -69,21 +64,13 @@ sub runL4FarmCreate    # ($vip,$farm_name,$vip_port)
 		   method     => "PUT",
 		   uri        => "/farms",
 		   body =>
-			 qq({"farms" : [ { "name" : "$farm_name", "virtual-addr" : "$vip", "virtual-ports" : "$vip_port", "source-addr" : "$vip", "protocol" : "tcp", "mode" : "snat", "scheduler" : "weight", "state" : "up" } ] })
+			 qq({"farms" : [ { "name" : "$farm_name", "virtual-addr" : "$vip", "virtual-ports" : "$vip_port", "protocol" : "tcp", "mode" : "snat", "scheduler" : "weight", "state" : "up" } ] })
 		}
 	);
 
-	#	my $piddir = &getGlobalConfiguration('piddir');
-	#	if ( !-e "$piddir/${farm_name}_$farm_type.pid" )
-	#	{
-	#		# Enable active l4xnat file
-	#		open FI, ">$piddir\/$farm_name\_$farm_type.pid";
-	#		close FI;
-	#	}
-
 	&startL4Farm( $farm_name );
 
-	return $output;    # FIXME
+	return $output;
 }
 
 =begin nd

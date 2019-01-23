@@ -426,6 +426,9 @@ sub httpErrorResponse
 				 message     => $args->{ msg },
 	};
 
+	my $doc_url = &getGlobalConfiguration( 'doc_v4_0' );
+	$body->{ documentation } = $doc_url if $doc_url;
+
 	&zenlog( "$args->{ desc }: $args->{ msg }", "error", $LOG_TAG );
 	&zenlog( $args->{ log_msg }, "info", $LOG_TAG ) if exists $args->{ log_msg };
 
@@ -535,4 +538,53 @@ sub httpDownloadResponse
 	&httpResponse( { code => 200, headers => $headers, body => $body } );
 }
 
+sub buildAPIParams
+{
+	my $out_b     = shift;
+	my $api_keys  = shift;
+	my $translate = shift;
+
+	# Delete not visible params
+	if ( ref $out_b eq "ARRAY" )
+	{
+		foreach my $backend ( @{ $out_b } )
+		{
+			&buildBackendAPIParams( $backend, $api_keys, $translate );
+		}
+	}
+	elsif ( ref $out_b eq "HASH" )
+	{
+		&buildBackendAPIParams( $out_b, $api_keys, $translate );
+	}
+
+	return $out_b;
+}
+
+sub buildBackendAPIParams
+{
+	my $out_b     = shift;
+	my $api_keys  = shift;
+	my $translate = shift;
+
+	my @bk_keys = keys ( %{ $out_b } );
+
+	foreach my $param ( keys %{ $translate } )
+	{
+		$out_b->{ $param } =~
+		  s/$translate->{$param}->{opt}/$translate->{$param}->{rep}/i;
+	}
+
+	foreach my $param ( @bk_keys )
+	{
+		delete $out_b->{ $param } if ( !grep ( /^$param$/, @{ $api_keys } ) );
+	}
+	if ( &debug() )
+	{
+		foreach my $param ( @{ $api_keys } )
+		{
+			&zenlog( "API parameter $param is missing", 'error', 'API' )
+			  if ( !grep ( /^$param$/, @bk_keys ) );
+		}
+	}
+}
 1;

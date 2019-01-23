@@ -39,7 +39,7 @@ Parameters:
 	ids - backend id
 	rip - backend ip
 	port - backend port
-	priority - The priority of this backend (between 1 and 9). Higher priority backends will be used more often than lower priority ones
+	weight - The weight of this backend (between 1 and 9). Higher weight backends will be used more often than lower weight ones. This parameter is called priority in pound directives
 	timeout - Override the global time out for this backend
 	farmname - Farm name
 	service - service name
@@ -49,7 +49,7 @@ Returns:
 
 =cut
 
-sub setHTTPFarmServer # ($ids,$rip,$port,$priority,$timeout,$farm_name,$service)
+sub setHTTPFarmServer   # ($ids,$rip,$port,$weight,$timeout,$farm_name,$service)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );

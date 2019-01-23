@@ -114,21 +114,51 @@ echo "netstat -nr"                      >> $backup_dir/netstat.txt
 /bin/netstat -nr                        >> $backup_dir/netstat.txt
 
 echo "- Netfilter"
-echo "Filter table "                    >> $backup_dir/netfilter.txt
-/sbin/iptables -nL -t filter            >> $backup_dir/netfilter.txt
-echo -e "\nNAT table "                  >> $backup_dir/netfilter.txt
-/sbin/iptables -nL -t nat               >> $backup_dir/netfilter.txt
-echo -e "\nMangle table "               >> $backup_dir/netfilter.txt
-/sbin/iptables -nL -t mangle            >> $backup_dir/netfilter.txt
-echo -e "\nRaw table "                  >> $backup_dir/netfilter.txt
-/sbin/iptables -nL -t raw               >> $backup_dir/netfilter.txt
+ISNFT=`readlink -f /usr/share/perl5/Zevenet/Farm/L4xNAT | grep nft`
+
+if [ -z "$ISNFT" ]; then
+
+	echo "Filter table "                    >> $backup_dir/netfilter.txt
+	/sbin/iptables -nL -t filter            >> $backup_dir/netfilter.txt
+	echo -e "\nNAT table "                  >> $backup_dir/netfilter.txt
+	/sbin/iptables -nL -t nat               >> $backup_dir/netfilter.txt
+	echo -e "\nMangle table "               >> $backup_dir/netfilter.txt
+	/sbin/iptables -nL -t mangle            >> $backup_dir/netfilter.txt
+	echo -e "\nRaw table "                  >> $backup_dir/netfilter.txt
+	/sbin/iptables -nL -t raw               >> $backup_dir/netfilter.txt
+
+	echo "- xt_recent"
+	if [ -e /proc/net/xt_recent/ ];
+	then
+		for file in $(ls -1 /proc/net/xt_recent/); do
+			echo "Recent table for $file"   >> $backup_dir/recent.txt
+			cat /proc/net/xt_recent/$file   >> $backup_dir/recent.txt
+		done
+	fi
+
+	if [ -f /sbin/ipset ]; then
+		echo "- ipset"
+		/sbin/ipset save                    >> $backup_dir/ipset_tables.txt 2>&1
+	fi
+
+else
+
+	NFTBIN=`which nft`
+	echo "List nftables ruleset "			>> $backup_dir/nftables.txt
+	$NFTBIN list ruleset					>> $backup_dir/nftables.txt
+
+fi
 
 echo "- ARP table"
 /usr/sbin/arp -n                        >> $backup_dir/arp_table.txt
-if [ -f /sbin/arptables ];
-then
-	echo "- ARP filtering"
-	/sbin/arptables -nL                      >> $backup_dir/arp_filtering.txt
+if [ -z "$ISNFT" ]; then
+
+	if [ -f /sbin/arptables ];
+	then
+		echo "- ARP filtering"
+		/sbin/arptables -nL                      >> $backup_dir/arp_filtering.txt
+	fi
+
 fi
 
 echo "- nf_conntrack"
@@ -137,19 +167,6 @@ then
     /usr/sbin/conntrack -L              >> $backup_dir/conntrack.txt 2>&1
 fi
 
-echo "- xt_recent"
-if [ -e /proc/net/xt_recent/ ];
-then
-    for file in $(ls -1 /proc/net/xt_recent/); do
-        echo "Recent table for $file"   >> $backup_dir/recent.txt
-        cat /proc/net/xt_recent/$file   >> $backup_dir/recent.txt
-    done
-fi
-
-if [ -f /sbin/ipset ]; then
-	echo "- ipset"
-    /sbin/ipset save                    >> $backup_dir/ipset_tables.txt 2>&1
-fi
 
 if [ -f /etc/zevenet_version ]; then
 	/bin/cp /etc/zevenet_version $backup_dir/template_version

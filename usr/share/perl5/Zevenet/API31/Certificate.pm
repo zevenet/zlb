@@ -252,7 +252,7 @@ sub upload_certificate    # ()
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	unless ( &saveFileHandler( "$configdir/$filename", $upload_filehandle ) )
+	unless ( &setFile( "$configdir/$filename", $upload_filehandle ) )
 	{
 		my $msg = "Could not save the certificate file";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );

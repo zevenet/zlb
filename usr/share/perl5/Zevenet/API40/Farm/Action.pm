@@ -76,8 +76,6 @@ sub farm_actions    # ( $json_obj, $farmname )
 			my $msg = "Error trying to set the action stop in farm $farmname.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-
-		&setFarmNoRestart( $farmname );
 	}
 	elsif ( $json_obj->{ action } eq "start" )
 	{
@@ -130,8 +128,6 @@ sub farm_actions    # ( $json_obj, $farmname )
 			  "ZAPI error, trying to start the farm in the action restart in farm $farmname.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-
-		&setFarmNoRestart( $farmname );
 	}
 	else
 	{
@@ -335,7 +331,8 @@ sub backend_maintenance    # ( $json_obj, $farmname, $backend_id )
 	# validate BACKEND
 	require Zevenet::Farm::L4xNAT::Backend;
 
-	my $exists = defined ( @{ &getL4FarmServers( $farmname ) }[$backend_id] );
+	my $backends = &getL4FarmServers( $farmname );
+	my $exists = &getFarmServer( $backends, $backend_id );
 
 	if ( !$exists )
 	{

@@ -40,11 +40,11 @@ Parameters:
 	maxconn - Maximum connections for the given backend
 
 Returns:
-	Integer - return 0 on success or -1 on failure
+	Integer - return 0 on success, -1 on NFTLB failure or -2 on IP duplicated.
 
 Returns:
 	Scalar - 0 on success or other value on failure
-
+	FIXME: Stop returning -2 when IP duplicated, nftlb should do this
 =cut
 
 sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
@@ -56,6 +56,7 @@ sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
 	#	require Zevenet::FarmGuardian;
 	require Zevenet::Farm::L4xNAT::Config;
 	require Zevenet::Farm::L4xNAT::Action;
+	require Zevenet::Farm::Backend;
 	require Zevenet::Netfilter;
 
 	&zenlog(
@@ -64,7 +65,7 @@ sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $mark          = &getNewMark( $farm_name );
-	my $output        = 0;                            # output: error code
+	my $output        = 0;
 
 	if ( $weight == 0 )
 	{
@@ -87,6 +88,17 @@ sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
 		}
 	}
 
+	my $exists = &getFarmServer( $f_ref->{ servers }, $ids );
+
+	# It's a backend modification
+	if ( $exists )
+	{
+		$mark = $exists->{ tag };
+	}
+
+	$exists = &getFarmServer( $f_ref->{ servers }, $rip, "rip" );
+	return -2 if ( $exists && ( $exists->{ id } ne $ids ) );
+
 	$output = &httpNLBRequest(
 		{
 		   farm       => $farm_name,
@@ -97,6 +109,8 @@ sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
 			 qq({"farms" : [ { "name" : "$farm_name", "backends" : [ { "name" : "bck$ids", "ip-addr" : "$rip", "ports" : "", "weight" : "$weight", "priority" : "$priority", "mark" : "$mark", "state" : "up" } ] } ] })
 		}
 	);
+
+	&setL4BackendRule( "add", $f_ref, $mark );
 
 	return $output;
 }
@@ -140,15 +154,6 @@ sub runL4FarmServerDelete    # ($ids,$farm_name)
 		}
 	}
 
-	foreach my $server ( @{ $f_ref->{ servers } } )
-	{
-		if ( $server->{ id } eq $ids )
-		{
-			$mark = $server->{ tag };
-			last;
-		}
-	}
-
 	$output = &httpNLBRequest(
 							   {
 								 farm       => $farm_name,
@@ -159,6 +164,16 @@ sub runL4FarmServerDelete    # ($ids,$farm_name)
 							   }
 	);
 
+	foreach my $server ( @{ $f_ref->{ servers } } )
+	{
+		if ( $server->{ id } eq $ids )
+		{
+			$mark = $server->{ tag };
+			last;
+		}
+	}
+
+	&setL4BackendRule( "del", $f_ref, $mark );
 	&delMarks( "", $mark );
 
 	return $output;
@@ -190,7 +205,8 @@ sub setL4FarmBackendStatus    # ($farm_name,$backend,$status)
 
 	my $farm_filename = &getFarmFile( $farm_name );
 
-	$status = 'off' if ( $status eq "maintenance" );
+	$status = 'off'  if ( $status eq "maintenance" );
+	$status = 'down' if ( $status eq "fgDOWN" );
 
 	# load the configuration file first if the farm is down
 	my $f_ref = &getL4FarmStruct( $farm_name );
@@ -302,7 +318,7 @@ sub _getL4FarmParseServers
 			$index =~ s/bck//;
 			$server->{ id }        = $index + 0;
 			$server->{ port }      = undef;
-			$server->{ tag }       = 400;
+			$server->{ tag }       = "0x0";
 			$server->{ max_conns } = 0;
 		}
 
@@ -359,218 +375,6 @@ sub _getL4FarmParseServers
 	}
 
 	return \@servers;
-}
-
-=begin nd
-Function: _runL4ServerStart
-
-	called from setL4FarmBackendStatus($farm_name,$server_id,$status)
-	Run rules to enable a backend
-
-Parameters:
-	farmname - Farm name
-	backend - Backend id
-
-Returns:
-	Integer - Error code: 0 on success or other value on failure
-
-=cut
-
-sub _runL4ServerStart    # ($farm_name,$server_id)
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my $farm_name = shift;    # input: farm name string
-	my $server_id = shift;    # input: server id number
-
-	my $status = 0;
-	my $rules;
-
-	&zenlog( "_runL4ServerStart << farm_name:$farm_name server_id:$server_id" )
-	  if &debug;
-
-	my $fg_enabled = ( &getFarmGuardianConf( $farm_name ) )[3];
-
-	my $caller             = ( caller ( 2 ) )[3];
-	my $changing_algorithm = ( $caller =~ /setL4FarmParam/ );
-	my $setting_be         = ( $caller =~ /setFarmServer/ );
-	my $fg_pid             = &getFarmGuardianPid( $farm_name );
-
-	#~ &zlog("(caller(2))[3]:$caller");
-
-	if ( $fg_enabled eq 'true' && !$changing_algorithm && !$setting_be )
-	{
-		kill 'STOP' => $fg_pid;
-	}
-
-	# initialize a farm struct
-	my %farm   = %{ &getL4FarmStruct( $farm_name ) };
-	my %server = %{ $farm{ servers }[$server_id] };
-
-	## Applying all rules ##
-	$rules = &getL4ServerActionRules( \%farm, \%server, 'on' );
-
-	$status |= &applyIptRules( @{ $$rules{ t_mangle_p } } );
-	$status |= &applyIptRules( @{ $$rules{ t_mangle } } );
-	$status |= &applyIptRules( @{ $$rules{ t_nat } } );
-	$status |= &applyIptRules( @{ $$rules{ t_snat } } );
-	## End applying rules ##
-
-	if ( $fg_enabled eq 'true' && !$changing_algorithm && !$setting_be )
-	{
-		kill 'CONT' => $fg_pid;
-	}
-
-	return $status;
-}
-
-=begin nd
-Function: _runL4ServerStop
-
-	Delete rules to disable a backend
-
-Parameters:
-	farmname - Farm name
-	backend - Backend id
-
-Returns:
-	Integer - Error code: 0 on success or other value on failure
-
-=cut
-
-sub _runL4ServerStop    # ($farm_name,$server_id)
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my $farm_name = shift;    # input: farm name string
-	my $server_id = shift;    # input: server id number
-
-	my $output = 0;
-	my $rules;
-
-	my $farm       = &getL4FarmStruct( $farm_name );
-	my $fg_enabled = ( &getFarmGuardianConf( $farm_name ) )[3];
-
-	# check calls
-	my $caller             = ( caller ( 2 ) )[3];
-	my $changing_algorithm = ( $caller =~ /setL4FarmParam/ );
-	my $removing_be        = ( $caller =~ /runL4FarmServerDelete/ );
-	my $fg_pid             = &getFarmGuardianPid( $farm_name );
-
-	#~ &zlog("(caller(2))[3]:$caller");
-
-	if ( $fg_enabled eq 'true' && !$changing_algorithm && !$removing_be )
-	{
-		kill 'STOP' => $fg_pid;
-	}
-
-	$farm = &getL4FarmStruct( $farm_name );
-	my $server = $$farm{ servers }[$server_id];
-
-	## Applying all rules ##
-	$rules = &getL4ServerActionRules( $farm, $server, 'off' );
-
-	$output |= &applyIptRules( @{ $$rules{ t_mangle_p } } );
-	$output |= &applyIptRules( @{ $$rules{ t_mangle } } );
-	$output |= &applyIptRules( @{ $$rules{ t_nat } } );
-	$output |= &applyIptRules( @{ $$rules{ t_snat } } );
-	## End applying rules ##
-
-	if ( $fg_enabled eq 'true' && !$changing_algorithm && !$removing_be )
-	{
-		kill 'CONT' => $fg_pid;
-	}
-
-	return $output;
-}
-
-=begin nd
-Function: getL4ServerActionRules
-
-	???
-
-Parameters:
-	farm - Farm hash ref. It is a hash with all information about the farm
-	backend - Backend id
-	switch - "on" or "off" ???
-
-Returns:
-	???
-
-=cut
-
-sub getL4ServerActionRules
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my $farm   = shift;    # input: farm reference
-	my $server = shift;    # input: server reference
-	my $switch = shift;    # input: on/off
-
-	require Zevenet::Netfilter;
-
-	my $rules = &getIptRulesStruct();
-	my $rule;
-
-	## persistence rules ##
-	if ( $$farm{ persist } ne 'none' )
-	{
-		# remove if the backend is not under maintenance
-		# but if algorithm is set to prio remove anyway
-		if (
-			 $switch eq 'on'
-			 || ( $switch eq 'off'
-				  && ( $$farm{ lbalg } eq 'prio' || $$server{ status } ne 'maintenance' ) )
-		  )
-		{
-			$rule = &genIptMarkPersist( $farm, $server );
-
-			$rule = ( $switch eq 'off' )
-			  ? &getIptRuleDelete( $rule )    # delete
-			  : &getIptRuleInsert( $farm, $server, $rule );    # insert second
-
-			push ( @{ $$rules{ t_mangle_p } }, $rule );
-		}
-	}
-
-	## dnat (redirect) rules ##
-	$rule = &genIptRedirect( $farm, $server );
-
-	$rule = ( $switch eq 'off' )
-	  ? &getIptRuleDelete( $rule )                             # delete
-	  : &getIptRuleAppend( $rule );
-
-	push ( @{ $$rules{ t_nat } }, $rule );
-
-	## rules for source nat or nat ##
-	if ( $$farm{ nattype } eq 'nat' )
-	{
-		if ( $$farm{ vproto } eq 'sip' )
-		{
-			$rule = &genIptSourceNat( $farm, $server );
-		}
-		else
-		{
-			$rule = &genIptMasquerade( $farm, $server );
-		}
-
-		$rule = ( $switch eq 'off' )
-		  ? &getIptRuleDelete( $rule )    # delete
-		  : &getIptRuleAppend( $rule );
-
-		push ( @{ $$rules{ t_snat } }, $rule );
-	}
-
-	## packet marking rules ##
-	$rule = &genIptMark( $farm, $server );
-
-	$rule = ( $switch eq 'off' )
-	  ? &getIptRuleDelete( $rule )        # delete
-	  : &getIptRuleInsert( $farm, $server, $rule );    # insert second
-
-	push ( @{ $$rules{ t_mangle } }, $rule );
-
-	return $rules;
 }
 
 =begin nd
@@ -632,7 +436,8 @@ sub setL4FarmBackendMaintenance    # ( $farm_name, $backend )
 
 	if ( $mode eq "cut" )
 	{
-		&setL4FarmBackendsSessionsRemove( $farm_name, $backend );
+		# TODO: Remove persistence
+		#&setL4FarmBackendsSessionsRemove( $farm_name, $backend );
 
 		# remove conntrack
 		my $farm   = &getL4FarmStruct( $farm_name );
@@ -759,25 +564,58 @@ sub getL4FarmBackendAvailableID
 			 "debug", "PROFILING" );
 	my $farmname = shift;
 
+	require Zevenet::Farm::Backend;
+
 	my $backends  = &getL4FarmServers( $farmname );
 	my $nbackends = $#{ $backends } + 1;
 
 	for ( my $id = 0 ; $id < $nbackends ; $id++ )
 	{
-		my $noexist = 1;
-		foreach my $backend ( @{ $backends } )
-		{
-			if ( $backend->{ id } == $id )
-			{
-				$noexist = 0;
-				last;
-			}
-		}
-
-		return $id if ( $noexist );
+		my $exists = &getFarmServer( $backends, $id );
+		return $id if ( !$exists );
 	}
 
 	return $nbackends;
+}
+
+=begin nd
+Function: setL4BackendRule
+
+	Add or delete the route rule according to the backend mark.
+
+Parameters:
+	action - "add" to create the mark or "del" to remove it.
+	farm_ref - farm reference.
+	mark - backend mark to apply in the rule.
+
+Returns:
+	integer - 0 if successful, otherwise error.
+
+=cut
+
+sub setL4BackendRule
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $action   = shift;
+	my $farm_ref = shift;
+	my $mark     = shift;
+
+	return -1
+	  if (    $action != /add|del/
+		   || !defined $farm_ref
+		   || $mark eq ""
+		   || $mark eq "0x0" );
+
+	require Zevenet::Net::Util;
+	require Zevenet::Net::Route;
+
+	my $vip_if_name = &getInterfaceOfIp( $farm_ref->{ vip } );
+	my $vip_if      = &getInterfaceConfig( $vip_if_name );
+	my $table_if =
+	  ( $vip_if->{ type } eq 'virtual' ) ? $vip_if->{ parent } : $vip_if->{ name };
+
+	return &setRule( $action, $vip_if, $table_if, "", "$mark/0x7fffffff" );
 }
 
 1;
