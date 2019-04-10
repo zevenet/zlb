@@ -371,7 +371,7 @@ while ( 1 )
 			{
 				&setL4FarmBackendStatus( $farmname, $backendid[$j], 'fgDOWN' );
 				$auxLog = " in farm: '$farmname'";
-				&setL4FarmBackendsSessionsRemove( $farmname, $backendid[$j] ) if ( $cutConns eq 'true' );
+				#&setL4FarmBackendsSessionsRemove( $farmname, $backendid[$j] ) if ( $cutConns eq 'true' );
 
 				system ( "$zcluster_send_action farm restart $farmname &" ) if -f $zcluster_send_action;
 			}
