@@ -40,12 +40,14 @@ FIXME:
 	If are there more than one certificate, only return the last one
 
 =cut
+
 sub getFarmCertificate    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
-	my $output    = -1;
+	my $output = -1;
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	open my $fd, '<', "$configdir/$farm_filename";
@@ -82,9 +84,11 @@ FIXME:
 	There is other function for this action: setFarmCertificateSNI
 
 =cut
+
 sub setFarmCertificate    # ($cfile,$farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $cfile, $farm_name ) = @_;
 
 	require Tie::File;
@@ -96,7 +100,8 @@ sub setFarmCertificate    # ($cfile,$farm_name)
 	my $lock_fh       = &openlock( $lock_file, 'w' );
 	my $output        = -1;
 
-	&zenlog( "Setting 'Certificate $cfile' for $farm_name farm https", "info", "LSLB" );
+	&zenlog( "Setting 'Certificate $cfile' for $farm_name farm https",
+			 "info", "LSLB" );
 
 	tie my @array, 'Tie::File', "$configdir/$farm_filename";
 	for ( @array )
@@ -126,9 +131,12 @@ Parameters:
 Returns:
 	Integer - return 0 on success or -1 on failure
 =cut
+
 sub setFarmCipherList    # ($farm_name,$ciphers,$cipherc)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
 	# assign first/second/third argument or take global value
 	my $farm_name = shift;
 	my $ciphers   = shift;
@@ -158,7 +166,7 @@ sub setFarmCipherList    # ($farm_name,$ciphers,$cipherc)
 		}
 		elsif ( $ciphers eq "cipherpci" )
 		{
-			my $cipher_pci = &getGlobalConfiguration('cipher_pci');
+			my $cipher_pci = &getGlobalConfiguration( 'cipher_pci' );
 			$line =~ s/#//g;
 			$line   = "\tCiphers \"$cipher_pci\"";
 			$output = 0;
@@ -172,7 +180,7 @@ sub setFarmCipherList    # ($farm_name,$ciphers,$cipherc)
 		}
 		elsif ( $ciphers eq "cipherssloffloading" )
 		{
-			my $cipher = &getGlobalConfiguration('cipher_ssloffloading');
+			my $cipher = &getGlobalConfiguration( 'cipher_ssloffloading' );
 			$line   = "\tCiphers \"$cipher\"";
 			$output = 0;
 		}
@@ -205,11 +213,13 @@ Parameters:
 Returns:
 	scalar - return a string with cipher value or -1 on failure
 =cut
+
 sub getFarmCipherList    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm_name = shift;
-	my $output = -1;
+	my $output    = -1;
 
 	my $farm_filename = &getFarmFile( $farm_name );
 
@@ -242,9 +252,11 @@ Returns:
 	scalar - return a string with cipher set (ciphers) or -1 on failure
 
 =cut
+
 sub getFarmCipherSet    # ($farm_name)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $output = -1;
@@ -255,11 +267,11 @@ sub getFarmCipherSet    # ($farm_name)
 	{
 		$output = "cipherglobal";
 	}
-	elsif ( $cipher_list eq &getGlobalConfiguration('cipher_pci') )
+	elsif ( $cipher_list eq &getGlobalConfiguration( 'cipher_pci' ) )
 	{
 		$output = "cipherpci";
 	}
-	elsif ( $cipher_list eq &getGlobalConfiguration('cipher_ssloffloading') )
+	elsif ( $cipher_list eq &getGlobalConfiguration( 'cipher_ssloffloading' ) )
 	{
 		$output = "cipherssloffloading";
 	}
@@ -283,16 +295,18 @@ Parameters:
 Returns:
 	Integer - 1 on disabled, 0 on enabled or -1 on failure
 =cut
+
 sub getHTTPFarmDisableSSL    # ($farm_name, $protocol)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $protocol ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
 
 	open my $fd, '<', "$configdir\/$farm_filename" or return $output;
-	$output = 0;	# if the directive is not in config file, it is disabled
+	$output = 0;    # if the directive is not in config file, it is disabled
 	my @file = <$fd>;
 	close $fd;
 
@@ -321,9 +335,11 @@ Parameters:
 Returns:
 	Integer - Error code: 0 on success or -1 on failure
 =cut
+
 sub setHTTPFarmDisableSSL    # ($farm_name, $protocol, $action )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $protocol, $action ) = @_;
 
 	require Tie::File;
@@ -339,7 +355,7 @@ sub setHTTPFarmDisableSSL    # ($farm_name, $protocol, $action )
 
 	if ( $action == 1 )
 	{
-		foreach my $line (@file)
+		foreach my $line ( @file )
 		{
 			if ( $line =~ /Ciphers\ .*/ )
 			{
@@ -351,13 +367,15 @@ sub setHTTPFarmDisableSSL    # ($farm_name, $protocol, $action )
 	}
 	else
 	{
-		my $it=-1;
-		foreach my $line (@file)
+		my $it = -1;
+		foreach my $line ( @file )
 		{
-			$it = $it +1;
-			last if( $line =~ /Disable $protocol$/);
+			$it = $it + 1;
+			last if ( $line =~ /Disable $protocol$/ );
 		}
-		splice @file, $it, 1;
+
+		# Remove line only if it is found (we haven't arrive at last line).
+		splice ( @file, $it, 1 ) if ( ( $it + 1 ) != scalar @file );
 		$output = 0;
 	}
 

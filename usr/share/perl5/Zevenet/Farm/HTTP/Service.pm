@@ -69,15 +69,6 @@ sub setFarmHTTPNewService    # ($farm_name,$service)
 		return $output;
 	}
 
-	#check the correct string in the service
-	my $newservice = &checkFarmnameOK( $service );
-
-	if ( $newservice ne 0 )
-	{
-		$output = 3;
-		return $output;
-	}
-
 	if ( !fgrep { /^\s*Service "$service"/ } "$configdir/$farm_name\_pound.cfg" )
 	{
 		#create service
@@ -523,21 +514,6 @@ sub getHTTPServiceStruct
 	$dyns    = "false" if $dyns eq '';
 	$httpsbe = "false" if $httpsbe eq '';
 
-	my @fgconfig  = &getFarmGuardianConf( $farmname, $service_name );
-	my $fgttcheck = $fgconfig[1];
-	my $fgscript  = $fgconfig[2];
-	my $fguse     = $fgconfig[3];
-	my $fglog     = $fgconfig[4];
-
-	# Default values for farm guardian parameters
-	if ( !$fgttcheck ) { $fgttcheck = 5; }
-	if ( !$fguse )     { $fguse     = "false"; }
-	if ( !$fglog )     { $fglog     = "false"; }
-	if ( !$fgscript )  { $fgscript  = ""; }
-
-	$fgscript =~ s/\n//g;
-	$fguse =~ s/\n//g;
-
 	my $backends = &getHTTPFarmBackends( $farmname, $service_name );
 
 	# Backends
@@ -548,9 +524,14 @@ sub getHTTPServiceStruct
 	{
 		$be->{ 'status' } = 'up' if $be->{ 'status' } eq 'undefined';
 	}
-
-	$ttl       = 0 unless $ttl;
-	$fgttcheck = 0 unless $fgttcheck;
+	if ( $eload )
+	{
+		my $backends = &eload(
+							   module => 'Zevenet::Alias',
+							   func   => 'addAliasBackendsStruct',
+							   args   => [$backends],
+		);
+	}
 
 	my $service_ref = {
 						id           => $service_name,
@@ -566,6 +547,9 @@ sub getHTTPServiceStruct
 						backends     => $backends,
 	};
 
+	# add fg
+	$service_ref->{ farmguardian } = &getFGFarm( $farmname, $service_name );
+
 	if ( $eload )
 	{
 		$service_ref = &eload(
@@ -578,6 +562,19 @@ sub getHTTPServiceStruct
 											  module => 'Zevenet::Farm::HTTP::Service::Ext',
 											  func   => 'getHTTPServiceRedirectCode',
 											  args   => [$farmname, $service_name],
+		);
+		$service_ref->{ sts_status } = &eload(
+											  module => 'Zevenet::Farm::HTTP::Service::Ext',
+											  func   => 'getHTTPServiceSTSStatus',
+											  args   => [$farmname, $service_name],
+		);
+
+		$service_ref->{ sts_timeout } = int (
+										  &eload(
+												  module => 'Zevenet::Farm::HTTP::Service::Ext',
+												  func   => 'getHTTPServiceSTSTimeout',
+												  args   => [$farmname, $service_name],
+										  )
 		);
 	}
 
@@ -1132,7 +1129,7 @@ sub getFarmVSI    # ($farm_name,$service)
 	return $srv_position;
 }
 
-# Similar to getHTTPServiceStruct??
+# esta funcion es solo para API32. borrar y usar getHTTPServiceStruct
 sub get_http_service_struct
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
@@ -1177,6 +1174,7 @@ sub get_http_service_struct
 	return $service_ref;
 }
 
+# esta funcion es solo para API32.
 sub get_http_all_services_struct
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
@@ -1191,6 +1189,16 @@ sub get_http_all_services_struct
 		my $service_ref = &get_http_service_struct( $farmname, $service );
 
 		push @services_list, $service_ref;
+	}
+
+	if ( $eload )
+	{
+		my $out_b = &eload(
+							module => 'Zevenet::Alias',
+							func   => 'addAliasBackendsStruct',
+							args   => [\@services_list],
+		);
+		@services_list = @{ $out_b };
 	}
 
 	return \@services_list;

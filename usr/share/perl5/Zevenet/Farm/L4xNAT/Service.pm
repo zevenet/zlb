@@ -22,19 +22,26 @@
 ###############################################################################
 
 use strict;
+use warnings;
+
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
 =begin nd
 Function: loadL4FarmModules
 
-	Load L4farm system modules and conntrack using nft
+	Load L4farm system modules and conntrack
 
 Parameters:
 	none
 
 Returns:
-	Integer - 0 on success or -1 on failure
+	Integer - 0 on success or any other value on failure
 
 =cut
 
@@ -43,22 +50,31 @@ sub loadL4FarmModules
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
-	my $out = system ( '/sbin/modprobe nf_conntrack >/dev/null 2>&1' );
+	my $modprobe_bin = &getGlobalConfiguration( "modprobe" );
+	my $error        = 0;
+	if ( $eload )
+	{
+		my $cmd = "$modprobe_bin nf_conntrack enable_hooks=1";
+		$error += system ( "$cmd >/dev/null 2>&1" );
+	}
+	else
+	{
+		$error += system ( "$modprobe_bin nf_conntrack >/dev/null 2>&1" );
 
-	# Initialize conntrack
-	my $nftbin = `which nft`;
-	chomp $nftbin;
+		# Initialize conntrack
+		my $nftbin = &getGlobalConfiguration( "nft_bin" );
 
-	# Flush nft tables
-	system ( "$nftbin flush ruleset" );
+		# Flush nft tables
+		system ( "$nftbin flush ruleset" );
 
-	my $nftCmd =
-	  "$nftbin add table ip dummyTable; $nftbin add chain ip dummyTable dummyChain { type nat hook input priority 0 \\; }; $nftbin add rule ip dummyTable dummyChain ct state established accept";
+		my $nftCmd =
+		  "$nftbin add table ip dummyTable; $nftbin add chain ip dummyTable dummyChain { type nat hook input priority 0 \\; }; $nftbin add rule ip dummyTable dummyChain ct state established accept";
 
-	$out += system ( "$nftCmd" )
-	  if ( system ( "$nftbin list table dummyTable >/dev/null 2>&1" ) );
+		$error += system ( "$nftCmd" )
+		  if ( system ( "$nftbin list table dummyTable >/dev/null 2>&1" ) );
+	}
 
-	return $out;
+	return $error;
 }
 
 1;

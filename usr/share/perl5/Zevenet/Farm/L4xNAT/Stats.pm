@@ -22,6 +22,7 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 =begin nd
 Function: getL4BackendEstConns
@@ -41,7 +42,7 @@ FIXME:
 
 =cut
 
-sub getL4BackendEstConns    # ($farm_name,$be_ip,$be_port,$netstat)
+sub getL4BackendEstConns
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -140,7 +141,7 @@ FIXME:
 
 =cut
 
-sub getL4FarmEstConns    # ($farm_name,$netstat)
+sub getL4FarmEstConns
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -247,7 +248,7 @@ FIXME:
 
 =cut
 
-sub getL4BackendSYNConns    # ($farm_name,$be_ip,$be_port,$netstat)
+sub getL4BackendSYNConns
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -455,34 +456,49 @@ sub getL4FarmSessions
 
 	require Zevenet::Net::ConnStats;
 
-	my $conntrack_bin = &getGlobalConfiguration( 'conntrack' );
-	my $sessions      = [];
-	my $backends      = &getL4FarmServers( $farmname );
+	my $nft_bin  = &getGlobalConfiguration( 'nft_bin' );
+	my $farm     = &getL4FarmStruct( $farmname );
+	my $sessions = [];
+	my $data     = 0;
+
+	return 0 if ( $farm->{ persist } eq "" );
+
+	my $map_name   = "persist-$farmname";
+	my @persistmap = `$nft_bin list map nftlb $map_name`;
 
 	my $id = 0;
 
-	foreach my $bk ( @{ $backends } )
+	foreach my $line ( @persistmap )
 	{
-		# get backend lines
-		my $params = &getConntrackParams( { 'mark' => $bk->{ tag } } );
-		&zenlog( "Executing: $conntrack_bin --dump $params 2>/dev/null", 'debug' );
-		my @list = `$conntrack_bin --dump $params 2>/dev/null`;
+		$data = 1 if ( $line =~ /elements = / );
+		next if ( !$data );
 
-		# parse and add to the struct
-		foreach my $line ( @list )
-		{
-# tcp      6 0 TIME_WAIT src=192.168.1.185 dst=192.168.102.249 sport=40696 dport=778 src=192.168.101.253 dst=192.168.101.249 sport=80 dport=40696 [ASSURED] mark=545 use=1
-			$line =~
-			  /src=(.+) dst=.+ sport=\d+ dport=\d+ src=(.+) dst=.+ sport=\d+ dport=\d+ \[ASSURED\] mark=\d+ use=/;
-			push @{ $sessions },
-			  {
-				'id'      => $bk->{ id },
-				'session' => $2,
-				'client'  => $1,
-			  };
+		my ( $key, $time, $value ) =
+		  ( $line =~ / \s*([\w\.\s\:]+) expires (\w+) : (\w+)[\s,]/ );
 
-			$id += 1;
-		}
+		push @{ $sessions },
+		  {
+			'id'      => &getL4ServerByMark( $farm->{ servers }, $value ),
+			'session' => $id,
+			'client'  => $key,
+		  };
+
+		$id += 1;
+
+		( $key, $time, $value ) =
+		  ( $line =~ /, ([\w\.\s\:]+) expires (\w+) : (\w+)[\s,]/ );
+
+		push @{ $sessions },
+		  {
+			'id'      => &getL4ServerByMark( $farm->{ servers }, $value ),
+			'session' => $id,
+			'client'  => $key,
+		  }
+		  if ( $key ne "" );
+
+		$id += 1;
+
+		last if ( $data && $line =~ /\}/ );
 	}
 
 	return $sessions;

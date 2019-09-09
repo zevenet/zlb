@@ -213,6 +213,8 @@ sub farms_name    # ( $farmname )
 # function to standarizate the backend output
 sub getAPIFarmBackends
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $out_b        = shift;
 	my $type         = shift;
 	my $add_api_keys = shift // [];

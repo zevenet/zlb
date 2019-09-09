@@ -467,7 +467,6 @@ sub setFarmListen    # ( $farm_name, $farmlisten )
 		if ( $filefarmhttp[$i_f] =~ /.*Cert\ \"/ && $flisten eq "https" )
 		{
 			$filefarmhttp[$i_f] =~ s/#//g;
-
 		}
 
 		#
@@ -478,7 +477,6 @@ sub setFarmListen    # ( $farm_name, $farmlisten )
 		if ( $filefarmhttp[$i_f] =~ /.*Ciphers\ \"/ && $flisten eq "https" )
 		{
 			$filefarmhttp[$i_f] =~ s/#//g;
-
 		}
 
 		# Enable 'Disable TLSv1, TLSv1_1 or TLSv1_2'
@@ -536,13 +534,13 @@ sub setFarmListen    # ( $farm_name, $farmlisten )
 		}
 
 		# Check for ECDHCurve cyphers
-		if ( $filefarmhttp[$i_f] =~ /^\#*ECDHCurve/ && $flisten eq "http" )
+		if ( $filefarmhttp[$i_f] =~ /ECDHCurve/ && $flisten eq "http" )
 		{
-			$filefarmhttp[$i_f] =~ s/.*ECDHCurve/\#ECDHCurve/;
+			$filefarmhttp[$i_f] =~ s/ECDHCurve/\#ECDHCurve/;
 		}
-		if ( $filefarmhttp[$i_f] =~ /^\#*ECDHCurve/ && $flisten eq "https" )
+		if ( $filefarmhttp[$i_f] =~ /ECDHCurve/ && $flisten eq "https" )
 		{
-			$filefarmhttp[$i_f] =~ s/.*ECDHCurve.*/ECDHCurve\t"prime256v1"/;
+			$filefarmhttp[$i_f] =~ s/#ECDHCurve/ECDHCurve/;
 		}
 
 		# Generate DH Keys if needed
@@ -1334,7 +1332,7 @@ sub setHTTPFarmVirtualConf    # ($vip,$vip_port,$farm_name)
 	my ( $vip, $vip_port, $farm_name ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $stat          = 0;
+	my $stat          = 1;
 	my $enter         = 2;
 
 	my $lock_file = &getLockFile( $farm_name );
@@ -1348,16 +1346,21 @@ sub setHTTPFarmVirtualConf    # ($vip,$vip_port,$farm_name)
 	{
 		if ( $array[$i] =~ /Address/ )
 		{
-			$array[$i] =~ s/.*Address\ .*/\tAddress\ $vip/g;
-			$stat = $? || $stat;
+			if ( $array[$i] =~ s/.*Address\ .*/\tAddress\ $vip/ )
+			{
+				$stat = 0;
+			}
 			$enter--;
 		}
 		if ( $array[$i] =~ /Port/ and $vip_port )
 		{
-			$array[$i] =~ s/.*Port\ .*/\tPort\ $vip_port/g;
-			$stat = $? || $stat;
+			if ( $array[$i] =~ s/.*Port\ .*/\tPort\ $vip_port/ )
+			{
+				$stat = 0;
+			}
 			$enter--;
 		}
+		last if ( !$enter );
 	}
 
 	untie @array;
@@ -1427,12 +1430,19 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 
 	my @run = `$pound_command 2>&1`;
 	my $rc  = $?;
-	my $msg;
 
 	return "" unless ( $rc );
 
-	$run[-1] =~ / line (\d+): /;
+	shift @run if ( $run[0] =~ /starting\.\.\./ );
+	chomp @run;
+	my $msg;
 
+	&zenlog( "Error checking $configdir\/$farm_filename." );
+	&zenlog( $run[0], "Error", "http" );
+
+	return "Error loading waf configuration" if ( $run[0] =~ /waf/i );
+
+	$run[0] =~ / line (\d+): /;
 	my $line_num = $1;
 
 	# get line
@@ -1461,6 +1471,7 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 #	AAAhttps, /usr/local/zevenet/config/AAAhttps_pound.cfg line 40: SSL_CTX_use_PrivateKey_file failed - aborted
 	$file_line =~ /\s*([\w-]+)/;
 	my $param = $1;
+	$msg = "Error in the configuration file";
 
 	# parse line
 	if ( $param eq "Cert" )
@@ -1474,11 +1485,15 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 		$srv = "in the service $srv" if ( $srv );
 		$msg = "Error in the parameter $param ${srv}";
 	}
-
-	if ( not $msg )
+	elsif ( $param )
 	{
-		if   ( &debug() ) { $msg = $run[-1]; }
-		else              { $msg = "Error in the configuration file"; }
+		$srv = "in the service $srv" if ( $srv );
+		$msg = "Error in the parameter $param ${srv}";
+	}
+
+	elsif ( &debug() )
+	{
+		$msg = $run[0];
 	}
 
 	&zenlog( "Error checking config file: $msg", 'debug' );
@@ -1583,7 +1598,7 @@ sub getHTTPFarmStruct
 		}
 		elsif ( $ciphers eq "cipherssloffloading" )
 		{
-			$ciphers = "cipherssloffloading";
+			$ciphers = "ssloffloading";
 		}
 		elsif ( $ciphers eq "cipherpci" )
 		{
@@ -1608,6 +1623,15 @@ sub getHTTPFarmStruct
 		  ( &getHTTPFarmDisableSSL( $farmname, "TLSv1_1" ) ) ? "true" : "false";
 		$farm->{ disable_tlsv1_2 } =
 		  ( &getHTTPFarmDisableSSL( $farmname, "TLSv1_2" ) ) ? "true" : "false";
+	}
+
+	if ( $eload )
+	{
+		$farm = &eload(
+						module => 'Zevenet::Farm::HTTP::Ext',
+						func   => 'get_http_farm_ee_struct',
+						args   => [$farmname, $farm],
+		);
 	}
 
 	return $farm;

@@ -49,6 +49,20 @@ sub delete_interface_nic    # ( $nic )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
+	if ( $eload )
+	{
+		my $msg = &eload(
+						  module => 'Zevenet::Net::Ext',
+						  func   => 'isManagementIP',
+						  args   => [$if_ref->{ addr }],
+		);
+		if ( $msg ne "" )
+		{
+			$msg = "The interface cannot be modified. $msg";
+			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+	}
+
 	# not delete the interface if it has some vlan configured
 	my @child = &getInterfaceChild( $nic );
 	if ( @child )
@@ -153,20 +167,26 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
-	# reject not accepted parameters
-	if ( grep { $_ ne 'action' } keys %$json_obj )
-	{
-		my $msg = "Only the parameter 'action' is accepted";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
+	my $params = {
+				   "action" => {
+								 'non_blank' => 'true',
+								 'required'  => 'true',
+								 'values'    => ['up', 'down'],
+				   },
+	};
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
+
+	my $if_ref = &getInterfaceConfig( $nic, $ip_v );
 
 	# validate action parameter
 	if ( $json_obj->{ action } eq "up" )
 	{
 		require Zevenet::Net::Core;
 		require Zevenet::Net::Route;
-
-		my $if_ref = &getInterfaceConfig( $nic, $ip_v );
 
 		# Delete routes in case that it is not a vini
 		if ( $if_ref->{ addr } )
@@ -176,7 +196,7 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 
 		&addIp( $if_ref ) if $if_ref;
 
-		my $state = &upIf( { name => $nic }, 'writeconf' );
+		my $state = &upIf( $if_ref, 'writeconf' );
 
 		if ( !$state )
 		{
@@ -195,20 +215,28 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 	}
 	elsif ( $json_obj->{ action } eq "down" )
 	{
-		require Zevenet::Net::Core;
+		if ( $eload )
+		{
+			my $msg = &eload(
+							  module => 'Zevenet::Net::Ext',
+							  func   => 'isManagementIP',
+							  args   => [$if_ref->{ addr }],
+			);
+			if ( $msg ne "" )
+			{
+				$msg = "The interface cannot be stopped. $msg";
+				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
 
-		my $state = &downIf( { name => $nic }, 'writeconf' );
+		require Zevenet::Net::Core;
+		my $state = &downIf( $if_ref, 'writeconf' );
 
 		if ( $state )
 		{
 			my $msg = "The interface $nic could not be set DOWN";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-	}
-	else
-	{
-		my $msg = "The accepted values for 'action' are: up or down";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
 	my $body = {
@@ -242,55 +270,107 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
-	unless (    exists $json_obj->{ ip }
-			 || exists $json_obj->{ netmask }
-			 || exists $json_obj->{ gateway } )
+	my $params = {
+				   "ip" => {
+							 'valid_format' => 'ip_addr',
+				   },
+				   "netmask" => {
+								  'valid_format' => 'ip_mask',
+				   },
+				   "gateway" => {
+								  'valid_format' => 'ip_addr',
+				   },
+				   "force" => {
+								'non_blank' => 'true',
+								'values'    => ['true'],
+				   },
+	};
+
+	if ( $eload )
 	{
-		my $msg = "No parameter received to be configured";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		$params->{ "dhcp" } = {
+								'non_blank' => 'true',
+								'values'    => ['true', 'false'],
+		};
 	}
 
-	# Check address errors
-	if ( exists $json_obj->{ ip } )
-	{
-		my $defined_ip = defined $json_obj->{ ip } && $json_obj->{ ip } ne '';
-		my $ip_ver = &ipversion( $json_obj->{ ip } );
-
-		unless ( !$defined_ip || $ip_ver )
-		{
-			my $msg = "Invalid IP address.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-	}
-
-	# Check netmask errors
-	if ( exists $json_obj->{ netmask } )
-	{
-		my $defined_mask =
-		  defined $json_obj->{ netmask } && $json_obj->{ netmask } ne '';
-
-		unless (   !$defined_mask
-				 || &getValidFormat( 'ip_mask', $json_obj->{ netmask } ) )
-		{
-			my $msg = "Invalid network mask.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-	}
-
-	# Check gateway errors
-	if ( exists $json_obj->{ gateway } )
-	{
-		my $defined_gw = defined $json_obj->{ gateway } && $json_obj->{ gateway } ne '';
-
-		unless ( !$defined_gw || &getValidFormat( 'ip_addr', $json_obj->{ gateway } ) )
-		{
-			my $msg = "Invalid gateway address.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-	}
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
 
 	# Delete old interface configuration
-	my $if_ref = &getInterfaceConfig( $nic );
+	my $if_ref = &getInterfaceConfig( $nic ) // &getSystemInterface( $nic );
+
+	# check if some farm is using this ip
+	my @child = &getInterfaceChild( $nic );
+	my @farms;
+	if ( exists $json_obj->{ ip }
+		 or ( exists $json_obj->{ dhcp } ) )
+	{
+		if ( $eload )
+		{
+			my $msg = &eload(
+							  module => 'Zevenet::Net::Ext',
+							  func   => 'isManagementIP',
+							  args   => [$if_ref->{ addr }],
+			);
+			if ( $msg ne "" )
+			{
+				$msg = "The interface cannot be modified. $msg";
+				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
+
+		require Zevenet::Farm::Base;
+		@farms = &getFarmListByVip( $if_ref->{ addr } );
+
+		if ( @farms )
+		{
+			if (    !exists $json_obj->{ ip }
+				 and exists $json_obj->{ dhcp }
+				 and $json_obj->{ dhcp } eq 'false' )
+			{
+				my $msg =
+				  "This interface is been used by some farms, please, set up a new 'ip' in order to be used as farm vip.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+			if ( $json_obj->{ force } ne 'true' )
+			{
+				my $str = join ( ', ', @farms );
+				my $msg =
+				  "The IP is being used as farm vip in the farm(s): $str. If you are sure, repeat with parameter 'force'. All farms using this interface will be restarted.";
+				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
+	}
+
+	my $dhcp_status = $json_obj->{ dhcp } // $if_ref->{ dhcp };
+
+	if ( exists $json_obj->{ dhcp } )
+	{
+		# only allow dhcp when no other parameter was sent
+		if ( $json_obj->{ dhcp } eq 'true' )
+		{
+			if (    exists $json_obj->{ ip }
+				 or exists $json_obj->{ netmask }
+				 or exists $json_obj->{ gateway } )
+			{
+				my $msg =
+				  "It is not possible set 'ip', 'netmask' or 'gateway' while 'dhcp' is going to be set up.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
+		elsif ( !exists $json_obj->{ ip } )
+		{
+			if ( @child )
+			{
+				my $msg =
+				  "This interface has appending some virtual interfaces, please, set up a new 'ip' in the current networking range.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
+	}
 
 	# check if network is correct
 	my $new_if;
@@ -333,7 +413,6 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 # Do not modify gateway or netmask if exists a virtual interface using this interface
 	if ( exists $json_obj->{ ip } or exists $json_obj->{ netmask } )
 	{
-		my @child = &getInterfaceChild( $nic );
 		my @wrong_conf;
 
 		foreach my $child_name ( @child )
@@ -377,23 +456,7 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 		}
 	}
 
-	# check if some farm is using this ip
-	my @farms;
-
-	if ( $json_obj->{ ip } )
-	{
-		require Zevenet::Farm::Base;
-
-		@farms = &getFarmListByVip( $if_ref->{ addr } );
-
-		if ( @farms and $json_obj->{ force } ne 'true' )
-		{
-			my $str = join ( ', ', @farms );
-			my $msg =
-			  "The IP is being used as farm vip in the farm(s): $str. If you are sure, repeat with parameter 'force'. All farms using this interface will be restarted.";
-			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-	}
+	# END CHECKS
 
 	if ( $if_ref->{ addr } )
 	{
@@ -414,71 +477,115 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 	$if_ref->{ ip_v } = &ipversion( $if_ref->{ addr } );
 	$if_ref->{ net } =
 	  &getAddressNetwork( $if_ref->{ addr }, $if_ref->{ mask }, $if_ref->{ ip_v } );
+	$if_ref->{ dhcp } = $json_obj->{ dhcp } if exists $json_obj->{ dhcp };
 
-	unless ( $if_ref->{ addr } && $if_ref->{ mask } )
+	# set DHCP
+	my $set_flag        = 1;
+	my $nic_config_file = "";
+	if ( exists $json_obj->{ dhcp } )
 	{
-		my $msg = "Cannot configure the interface without address or without netmask.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		if ( $json_obj->{ dhcp } eq "true" )
+		{
+			require Zevenet::Lock;
+			$nic_config_file =
+			  &getGlobalConfiguration( 'configdir' ) . "/if_$if_ref->{ name }_conf";
+			&lockResource( $nic_config_file, "l" );
+		}
+
+		my $func = ( $json_obj->{ dhcp } eq 'true' ) ? "enableDHCP" : "disableDHCP";
+		my $err = &eload(
+						  module => 'Zevenet::Net::DHCP',
+						  func   => $func,
+						  args   => [$if_ref],
+		);
+
+		if (    $json_obj->{ dhcp } eq 'false' and !exists $json_obj->{ ip }
+			 or $json_obj->{ dhcp } eq 'true' )
+		{
+			$set_flag = 0;
+		}
 	}
-
-	eval {
-		# Add new IP, netmask and gateway
-		# sometimes there are expected errors pending to be controlled
-		&addIp( $if_ref );
-
-		# Writing new parameters in configuration file
-		&writeRoutes( $if_ref->{ name } );
-
-		# Put the interface up
-		my $previous_status = $if_ref->{ status };
-
-		if ( $previous_status eq "up" )
-		{
-			if ( &upIf( $if_ref, 'writeconf' ) == 0 )
-			{
-				$if_ref->{ status } = "up";
-				&applyRoutes( "local", $if_ref );
-			}
-			else
-			{
-				$if_ref->{ status } = $previous_status;
-			}
-		}
-
-		&setInterfaceConfig( $if_ref ) or die;
-
-		# if the GW is changed, change it in all appending virtual interfaces
-		if ( exists $json_obj->{ gateway } )
-		{
-			foreach my $appending ( &getInterfaceChild( $nic ) )
-			{
-				my $app_config = &getInterfaceConfig( $appending );
-				$app_config->{ gateway } = $json_obj->{ gateway };
-				&setInterfaceConfig( $app_config );
-			}
-		}
-
-		# put all dependant interfaces up
-		require Zevenet::Net::Util;
-		&setIfacesUp( $nic, "vini" );
-
-		# change farm vip,
-		if ( @farms )
-		{
-			require Zevenet::Farm::Config;
-			&setAllFarmByVip( $json_obj->{ ip }, \@farms );
-		}
-	};
-
-	if ( $@ )
+	if ( !&setInterfaceConfig( $if_ref ) )
 	{
+		if ( $json_obj->{ dhcp } eq "true" )
+		{
+			require Zevenet::Lock;
+			&lockResource( $nic_config_file, "ud" );
+		}
 		my $msg = "Errors found trying to modify interface $nic";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
+	# Free the resource
+	if ( $json_obj->{ dhcp } eq "true" )
+	{
+		require Zevenet::Lock;
+		&lockResource( $nic_config_file, "ud" );
+	}
+
+	# set up
+	if (     $if_ref->{ addr } && $if_ref->{ mask }
+		 and $set_flag )
+	{
+		eval {
+			# Add new IP, netmask and gateway
+			# sometimes there are expected errors pending to be controlled
+			&addIp( $if_ref );
+
+			# Writing new parameters in configuration file
+			&writeRoutes( $if_ref->{ name } );
+
+			# Put the interface up
+			my $previous_status = $if_ref->{ status };
+
+			if ( $previous_status eq "up" )
+			{
+				if ( &upIf( $if_ref, 'writeconf' ) == 0 )
+				{
+					$if_ref->{ status } = "up";
+					&applyRoutes( "local", $if_ref );
+				}
+				else
+				{
+					$if_ref->{ status } = $previous_status;
+				}
+			}
+
+			# if the GW is changed, change it in all appending virtual interfaces
+			if ( exists $json_obj->{ gateway } )
+			{
+				foreach my $appending ( &getInterfaceChild( $nic ) )
+				{
+					my $app_config = &getInterfaceConfig( $appending );
+					$app_config->{ gateway } = $json_obj->{ gateway };
+					&setInterfaceConfig( $app_config );
+				}
+			}
+
+			# put all dependent interfaces up
+			require Zevenet::Net::Util;
+			&setIfacesUp( $nic, "vini" );
+
+			# change farm vip,
+			if ( @farms )
+			{
+				require Zevenet::Farm::Config;
+				&setAllFarmByVip( $json_obj->{ ip }, \@farms );
+				&reloadFarmsSourceAddress();
+			}
+		};
+
+		if ( $@ )
+		{
+			my $msg = "Errors found trying to modify interface $nic";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+	}
+
+	my $iface_out = &get_nic_struct( $nic );
 	my $body = {
 				 description => $desc,
-				 params      => $json_obj,
+				 params      => $iface_out,
 	};
 
 	&httpResponse( { code => 200, body => $body } );

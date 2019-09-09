@@ -46,25 +46,21 @@ sub set_dns
 
 	require Zevenet::System::DNS;
 
-	my $desc = "Post dns";
+	my $desc = "Modify the DNS";
 
-	my @allowParams = ( "primary", "secondary" );
-	my $param_msg = &getValidOptParams( $json_obj, \@allowParams );
+	my $params = {
+				   "primary" => {
+								  'valid_format' => 'dns_nameserver',
+				   },
+				   "secondary" => {
+									'valid_format' => 'dns_nameserver',
+				   },
+	};
 
-	if ( $param_msg )
-	{
-		&httpErrorResponse( code => 400, desc => $desc, msg => $param_msg );
-	}
-
-	foreach my $key ( keys %{ $json_obj } )
-	{
-		unless ( &getValidFormat( 'dns_nameserver', $json_obj->{ $key } )
-				 || ( $key eq 'secondary' && $json_obj->{ $key } eq '' ) )
-		{
-			my $msg = "Please, insert a correct nameserver.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-	}
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
 
 	foreach my $key ( keys %{ $json_obj } )
 	{

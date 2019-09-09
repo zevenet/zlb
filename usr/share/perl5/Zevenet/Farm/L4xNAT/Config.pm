@@ -22,8 +22,11 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
+
+use Zevenet::Nft;
 
 my $eload;
 if ( eval { require Zevenet::ELoad; } )
@@ -47,6 +50,14 @@ Parameters:
 		"proto": get the protocol
 		"persist": get persistence
 		"persisttm": get client persistence timeout
+		"limitrst": limit RST request per second
+		"limitrstbrst": limit RST request per second burst
+		"limitsec": connection limit per second
+		"limitsecbrst": Connection limit per second burst
+		"limitconns": total connections limit per source IP
+		"bogustcpflags": check bogus TCP flags
+		"nfqueue": queue to verdict the packets
+		"sourceaddr": get the source address
 	farmname - Farm name
 
 Returns:
@@ -54,11 +65,13 @@ Returns:
 
 =cut
 
-sub getL4FarmParam    # ($param, $farm_name)
+sub getL4FarmParam
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $param, $farm_name ) = @_;
+
+	require Zevenet::Farm::Core;
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
@@ -66,6 +79,13 @@ sub getL4FarmParam    # ($param, $farm_name)
 	if ( $param eq "status" )
 	{
 		return &getL4FarmStatus( $farm_name );
+	}
+
+	if ( $param eq "alg" )
+	{
+		require Zevenet::Farm::L4xNAT::L4sd;
+		my $l4sched = &getL4sdType( $farm_name );
+		return $l4sched if ( $l4sched ne "" );
 	}
 
 	open my $fd, '<', "$configdir/$farm_filename";
@@ -94,6 +114,15 @@ Parameters:
 		"proto": write the protocol
 		"persist": write persistence
 		"persisttm": write client persistence timeout
+		"limitrst": limit RST request per second
+		"limitrstbrst": limit RST request per second burst
+		"limitsec": connection limit per second
+		"limitsecbrst": Connection limit per second burst
+		"limitconns": total connections limit per source IP
+		"bogustcpflags": check bogus TCP flags
+		"nfqueue": queue to verdict the packets
+		"policy": policy list to be applied
+		"sourceaddr": set the source address
 	value - the new value of the given parameter of a certain farm
 	farmname - Farm name
 
@@ -102,50 +131,91 @@ Returns:
 
 =cut
 
-sub setL4FarmParam    # ($param, $value, $farm_name)
+sub setL4FarmParam
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $param, $value, $farm_name ) = @_;
 
 	require Zevenet::Farm::Core;
+
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
 	my $srvparam      = "";
 	my $addition      = "";
 	my $prev_config   = "";
 	my $farm_req      = $farm_name;
+	my $parameters    = "";
 
 	if ( $param eq "name" )
 	{
-		$srvparam      = "newname";
 		$farm_filename = "${value}_l4xnat.cfg";
 		$farm_req      = $value;
+		$parameters    = qq(, "newname" : "$value" );
 	}
 	elsif ( $param eq "family" )
 	{
-		$srvparam = $param;
+		$parameters = qq(, "family" : "$value" );
 	}
 	elsif ( $param eq "mode" )
 	{
-		$srvparam = $param;
-		$value    = "snat" if ( $value eq "nat" );
-		$value    = "stlsdnat" if ( $value eq "stateless_dnat" );
+		$value = "snat"     if ( $value eq "nat" );
+		$value = "stlsdnat" if ( $value eq "stateless_dnat" );
+		$parameters = qq(, "mode" : "$value" );
+
+		# deactivate leastconn and persistence for ingress modes
+		if ( $value eq "dsr" || $value eq "stateless_dnat" )
+		{
+			require Zevenet::Farm::L4xNAT::L4sd;
+			&setL4sdType( $farm_name, "none" );
+			&setL4FarmParam( 'persist', "", $farm_name );
+
+			if ( $eload )
+			{
+				# unassign DoS & RBL
+				&eload(
+						module => 'Zevenet::IPDS::Base',
+						func   => 'runIPDSStopByFarm',
+						args   => [$farm_name, "dos"],
+				);
+				&eload(
+						module => 'Zevenet::IPDS::Base',
+						func   => 'runIPDSStopByFarm',
+						args   => [$farm_name, "rbl"],
+				);
+			}
+		}
+
+		# take care of floating interfaces without masquerading
+		if ( $value eq "snat" && $eload )
+		{
+			my $farm_ref = &getL4FarmStruct( $farm_name );
+			&eload(
+					module => 'Zevenet::Net::Floating',
+					func   => 'setFloatingSourceAddr',
+					args   => [$farm_ref, undef],
+			);
+		}
 	}
 	elsif ( $param eq "vip" )
 	{
-		$srvparam    = "virtual-addr";
 		$prev_config = &getFarmStruct( $farm_name );
+		$parameters  = qq(, "virtual-addr" : "$value" );
 	}
-	elsif ( $param eq "vipp" )
+	elsif ( $param eq "vipp" or $param eq "vport" )
 	{
-		$srvparam = "virtual-ports";
-		$value =~ s/\:/\-/g, $value;
+		$value =~ s/\:/\-/g;
+		if ( $value eq "*" )
+		{
+			$parameters = qq(, "virtual-ports" : "" );
+		}
+		else
+		{
+			$parameters = qq(, "virtual-ports" : "$value" );
+		}
 	}
 	elsif ( $param eq "alg" )
 	{
-		$srvparam = "scheduler";
-
 		$value = "rr" if ( $value eq "roundrobin" );
 
 		if ( $value eq "hash_srcip_srcport" )
@@ -159,22 +229,37 @@ sub setL4FarmParam    # ($param, $value, $farm_name)
 			$value    = "hash";
 			$addition = $addition . qq( , "sched-param" : "srcip" );
 		}
+
+		require Zevenet::Farm::L4xNAT::L4sd;
+		if ( $value eq "leastconn" )
+		{
+			&setL4sdType( $farm_name, $value );
+			$value = "weight";
+		}
+		else
+		{
+			&setL4sdType( $farm_name, "none" );
+		}
+
+		$parameters = qq(, "scheduler" : "$value" ) . $addition;
 	}
 	elsif ( $param eq "proto" )
 	{
 		$srvparam = "protocol";
 
-		if ( $value =~ /ftp|irc|pptp/ )
+		&loadL4Modules( $value );
+
+		if ( $value =~ /^ftp|irc|pptp|sane/ )
 		{
 			$addition = $addition . qq( , "helper" : "$value" );
 			$value    = "tcp";
 		}
-		elsif ( $value =~ /tftp/ )
+		elsif ( $value =~ /tftp|snmp|amanda|netbios-ns/ )
 		{
 			$addition = $addition . qq( , "helper" : "$value" );
 			$value    = "udp";
 		}
-		elsif ( $value =~ /sip|amanda|h323|netbios-ns|sane|snmp/ )
+		elsif ( $value =~ /sip|h323/ )
 		{
 			$addition = $addition . qq( , "helper" : "$value" );
 			$value    = "all";
@@ -184,47 +269,99 @@ sub setL4FarmParam    # ($param, $value, $farm_name)
 			$addition = $addition . qq( , "helper" : "none" );
 		}
 
-		$addition = $addition . qq( , "vport" : "" ) if ( $value eq "all" );
+		$addition = $addition . qq( , "virtual-ports" : "" ) if ( $value eq "all" );
+		$parameters = qq(, "protocol" : "$value" ) . $addition;
 	}
 	elsif ( $param eq "status" || $param eq "bootstatus" )
 	{
-		$srvparam = "state";
+		$parameters = qq(, "state" : "$value" );
 	}
-	elsif ( $param =~ /persist/ )
+	elsif ( $param eq "persist" )
 	{
-		return 0;    # TODO
+		$value = "srcip" if ( $value eq "ip" );
+		$value = "none"  if ( $value eq "" );
+		$parameters = qq(, "persistence" : "$value" );
+	}
+	elsif ( $param eq "persisttm" )
+	{
+		$parameters = qq(, "persist-ttl" : "$value" );
+	}
+	elsif ( $param eq "limitrst" )
+	{
+		$parameters = qq(, "rst-rtlimit" : "$value" );
+	}
+	elsif ( $param eq "limitrstbrst" )
+	{
+		$parameters = qq(, "rst-rtlimit-burst" : "$value" );
+	}
+	elsif ( $param eq "limitrst-logprefix" )
+	{
+		$parameters = qq(, "rst-rtlimit-log-prefix" : "$value" );
+	}
+	elsif ( $param eq "limitsec" )
+	{
+		$parameters = qq(, "new-rtlimit" : "$value" );
+	}
+	elsif ( $param eq "limitsecbrst" )
+	{
+		$parameters = qq(, "new-rtlimit-burst" : "$value" );
+	}
+	elsif ( $param eq "limitsec-logprefix" )
+	{
+		$parameters = qq(, "new-rtlimit-log-prefix" : "$value" );
+	}
+	elsif ( $param eq "limitconns" )
+	{
+		$parameters = qq(, "est-connlimit" : "$value" );
+	}
+	elsif ( $param eq "limitconns-logprefix" )
+	{
+		$parameters = qq(, "est-connlimit-log-prefix" : "$value" );
+	}
+	elsif ( $param eq "bogustcpflags" )
+	{
+		$parameters = qq(, "tcp-strict" : "$value" );
+	}
+	elsif ( $param eq "bogustcpflags-logprefix" )
+	{
+		$parameters = qq(, "tcp-strict-log-prefix" : "$value" );
+	}
+	elsif ( $param eq "nfqueue" )
+	{
+		$parameters = qq(, "queue" : "$value" );
+	}
+	elsif ( $param eq "sourceaddr" )
+	{
+		$parameters = qq(, "source-addr" : "$value" );
+	}
+	elsif ( $param eq 'policy' )
+	{
+		$parameters = qq(, "policies" : [ { "name" : "$value" } ] );
 	}
 	else
 	{
 		return -1;
 	}
 
-	# load the configuration file first if the farm is down
-	my $f_ref = &getL4FarmStruct( $farm_name );
-	if ( $f_ref->{ status } ne "up" )
-	{
-		my $out = &loadNLBFarm( $farm_name );
-		if ( $out != 0 )
-		{
-			return $out;
-		}
-	}
+	require Zevenet::Farm::L4xNAT::Action;
 
-	$output = &httpNLBRequest(
-		{
-		   farm       => $farm_req,
-		   configfile => ( $param ne 'status' ) ? "$configdir/$farm_filename" : undef,
-		   method     => "PUT",
-		   uri        => "/farms",
-		   body =>
-			 qq({"farms" : [ { "name" : "$farm_name", "$srvparam" : "$value"$addition } ] })
-		}
+	$output = &sendL4NlbCmd(
+				{
+				  farm   => $farm_req,
+				  file   => ( $param ne 'status' ) ? "$configdir/$farm_filename" : undef,
+				  method => "PUT",
+				  body   => qq({"farms" : [ { "name" : "$farm_name"$parameters } ] })
+				}
 	);
 
 	# Finally, reload rules
-	if ( $param eq "vip" && $srvparam eq "virtual-addr" )
+	if ( $param eq "vip" )
 	{
 		&doL4FarmRules( "reload", $farm_name, $prev_config );
+
+		# reload source address maquerade
+		require Zevenet::Farm::Config;
+		&reloadFarmsSourceAddressByFarm( $farm_name );
 	}
 
 	return $output;
@@ -236,7 +373,7 @@ Function: _getL4ParseFarmConfig
 	Parse the farm file configuration and read/write a certain parameter
 
 Parameters:
-	param - requested parameter. The options are "family", "vip", "vipp", "status", "mode", "alg", "proto", "persist", "presisttm"
+	param - requested parameter. The options are "family", "vip", "vipp", "status", "mode", "alg", "proto", "persist", "presisttm", "limitsec", "limitsecbrst", "limitconns", "limitrst", "limitrstbrst", "bogustcpflags", "nfqueue", "sourceaddr"
 	value - value to be changed in case of write operation, undef for read only cases
 	config - reference of an array with the full configuration file
 
@@ -245,19 +382,13 @@ Returns:
 
 =cut
 
-sub _getL4ParseFarmConfig    # ($param, $value, $config)
+sub _getL4ParseFarmConfig
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $param, $value, $config ) = @_;
 	my $output = -1;
 	my $exit   = 1;
-
-	if ( $param eq 'persist' || $param eq 'persisttm' )
-	{
-		$output = "none";
-		return $output;
-	}
 
 	foreach my $line ( @{ $config } )
 	{
@@ -277,7 +408,14 @@ sub _getL4ParseFarmConfig    # ($param, $value, $config)
 		{
 			my @l = split /"/, $line;
 			$output = $l[3];
+			$output = "*" if ( $output eq '1-65535' || $output eq '' );
 			$output =~ s/-/:/g;
+		}
+
+		if ( $line =~ /\"source-addr\"/ && $param eq 'sourceaddr' )
+		{
+			my @l = split /"/, $line;
+			$output = $l[3];
 		}
 
 		if ( $line =~ /\"mode\"/ && $param eq 'mode' )
@@ -292,6 +430,38 @@ sub _getL4ParseFarmConfig    # ($param, $value, $config)
 		{
 			my @l = split /"/, $line;
 			$output = $l[3];
+			$exit   = 0;
+		}
+
+		if ( $line =~ /\"persistence\"/ && $param eq 'persist' )
+		{
+			my @l = split /"/, $line;
+			my $out = $l[3];
+			if ( $out =~ /none/ )
+			{
+				$output = "";
+			}
+			elsif ( $out =~ /srcip/ )
+			{
+				$output = "ip";
+				$output = "srcip_srcport" if ( $out =~ /srcport/ );
+				$output = "srcip_dstport" if ( $out =~ /dstport/ );
+			}
+			elsif ( $out =~ /srcport/ )
+			{
+				$output = "srcport";
+			}
+			elsif ( $out =~ /srcmac/ )
+			{
+				$output = "srcmac";
+			}
+			$exit = 0;
+		}
+
+		if ( $line =~ /\"persist-ttl\"/ && $param eq 'persisttm' )
+		{
+			my @l = split /"/, $line;
+			$output = $l[3] + 0;
 			$exit   = 0;
 		}
 
@@ -349,9 +519,51 @@ sub _getL4ParseFarmConfig    # ($param, $value, $config)
 			}
 		}
 
+		if ( $line =~ /\"rst-rtlimit\"/ && $param eq "limitrst" )
+		{
+			my @l = split /"/, $line;
+			$output = $l[3];
+		}
+
+		if ( $line =~ /\"rst-rtlimit-burst\"/ && $param eq "limitrstbrst" )
+		{
+			my @l = split /"/, $line;
+			$output = $l[3];
+		}
+
+		if ( $line =~ /\"new-rtlimit\"/ && $param eq "limitsec" )
+		{
+			my @l = split /"/, $line;
+			$output = $l[3];
+		}
+
+		if ( $line =~ /\"new-rtlimit-burst\"/ && $param eq "limitsecbrst" )
+		{
+			my @l = split /"/, $line;
+			$output = $l[3];
+		}
+
+		if ( $line =~ /\"est-connlimit\"/ && $param eq "limitconns" )
+		{
+			my @l = split /"/, $line;
+			$output = $l[3];
+		}
+
+		if ( $line =~ /\"tcp-strict\"/ && $param eq "bogustcpflags" )
+		{
+			my @l = split /"/, $line;
+			$output = $l[3];
+		}
+
+		if ( $line =~ /\"queue\"/ && $param eq "nfqueue" )
+		{
+			my @l = split /"/, $line;
+			$output = $l[3];
+		}
+
 		if ( $output ne "-1" )
 		{
-			$line =~ s/$output/$value/r if $value != undef;
+			$line =~ s/$output/$value/g if defined $value;
 			return $output if ( $exit );
 		}
 	}
@@ -383,7 +595,7 @@ sub getL4FarmStatus
 	my $pidfile = &getL4FarmPidFile( $farm_name );
 	my $output  = "down";
 
-	my $nlbpid = &getNLBPid();
+	my $nlbpid = &getNlbPid();
 	if ( $nlbpid eq "-1" )
 	{
 		return $output;
@@ -413,9 +625,9 @@ sub getL4FarmStruct
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my %farm;    # declare output hash
+	my %farm;
 
-	$farm{ name } = shift;    # input: farm name
+	$farm{ name } = shift;
 
 	require Zevenet::Farm::L4xNAT::Backend;
 
@@ -424,100 +636,40 @@ sub getL4FarmStruct
 	my $config = &getFarmPlainInfo( $farm{ name } );
 
 	$farm{ nattype } = &_getL4ParseFarmConfig( 'mode', undef, $config );
-	$farm{ mode }    = $farm{ nattype };
-	$farm{ lbalg }   = &_getL4ParseFarmConfig( 'alg', undef, $config );
-	$farm{ vip }     = &_getL4ParseFarmConfig( 'vip', undef, $config );
-	$farm{ vport }   = &_getL4ParseFarmConfig( 'vipp', undef, $config );
-	$farm{ vproto }  = &_getL4ParseFarmConfig( 'proto', undef, $config );
+	$farm{ mode } = $farm{ nattype };
 
-#	$farm{ persist }    = &_getL4ParseFarmConfig( 'persist', undef, $config ); #TODO: not yet supported
-#	$farm{ ttl }        = &_getL4ParseFarmConfig( 'persisttm', undef, $config );
+	require Zevenet::Farm::L4xNAT::L4sd;
+	my $l4sched = &getL4sdType( $farm{ name } );
+	if ( $l4sched ne "" )
+	{
+		$farm{ lbalg } = $l4sched;
+	}
+	else
+	{
+		$farm{ lbalg } = &_getL4ParseFarmConfig( 'alg', undef, $config );
+	}
+
+	$farm{ vip }    = &_getL4ParseFarmConfig( 'vip',   undef, $config );
+	$farm{ vport }  = &_getL4ParseFarmConfig( 'vipp',  undef, $config );
+	$farm{ vproto } = &_getL4ParseFarmConfig( 'proto', undef, $config );
+
+	my $persist = &_getL4ParseFarmConfig( 'persist', undef, $config );
+	$farm{ persist } = ( $persist eq "-1" ) ? '' : $persist;
+	my $ttl = &_getL4ParseFarmConfig( 'persisttm', undef, $config );
+	$farm{ ttl } = ( $ttl == -1 ) ? 0 : $ttl;
+
 	$farm{ proto }      = &getL4ProtocolTransportLayer( $farm{ vproto } );
 	$farm{ bootstatus } = &_getL4ParseFarmConfig( 'bootstatus', undef, $config );
 	$farm{ status }     = &getL4FarmStatus( $farm{ name } );
 	$farm{ logs } = &_getL4ParseFarmConfig( 'logs', undef, $config ) if ( $eload );
 	$farm{ servers } = &_getL4FarmParseServers( $config );
 
-	# replace port * for all the range
-	if ( $farm{ vport } eq '*' )
-	{
-		$farm{ vport } = '0:65535';
-	}
-
 	if ( $farm{ lbalg } eq 'weight' )
 	{
 		&getL4BackendsWeightProbability( \%farm );
 	}
 
-	return \%farm;    # return a hash reference
-}
-
-=begin nd
-Function: httpNLBRequest
-
-	Send an action to nftlb
-
-Parameters:
-	hash - includes a method, uri, reference of headers and body
-
-Returns:
-	Integer - return code of the request command
-
-=cut
-
-sub httpNLBRequest # ( \%hash ) hash_keys->( $farm, $configfile, $method, $uri, %headers, $body )
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my $self     = shift;
-	my $curl_cmd = `which curl`;    #TODO
-	my $output   = -1;
-	my $body     = "";
-
-	require Zevenet::Farm::L4xNAT::Action;
-
-	my $pid = &startNLB();
-	if ( $pid <= 0 )
-	{
-		return -1;
-	}
-
-	chomp ( $curl_cmd );
-
-	$body = qq(-d'$self->{ body }') if ( $self->{ body } );
-	my $execmd =
-	  qq($curl_cmd -s -H "Key: HoLa" -H \"Expect:\" -X "$self->{ method }" $body http://127.0.0.1:27$self->{ uri });
-
-	#~ &zenlog( "Executing nftlb: " . "$execmd" );
-	$output = &logAndRun( $execmd );
-
-	if ( $output != 0 )
-	{
-		return -1;
-	}
-
-	if ( $self->{ method } eq "GET" or !$self->{ configfile } )
-	{
-		return $output;
-	}
-
-	# update farm configuration file
-	my $execmd =
-	  "$curl_cmd -s -H \"Key: HoLa\" -H \"Expect:\" -X \"GET\" http://127.0.0.1:27/farms/$self->{ farm }";
-
-	if ( $self->{ method } =~ /PUT|DELETE/ )
-	{
-		$execmd = $execmd . " > '$self->{ configfile }'";
-	}
-
-	$output = &logAndRun( $execmd );
-
-	if ( $output != 0 )
-	{
-		return -1;
-	}
-
-	return 0;
+	return \%farm;
 }
 
 =begin nd
@@ -533,7 +685,7 @@ Returns:
 
 =cut
 
-sub getL4FarmsPorts    # ($protocol)
+sub getL4FarmsPorts
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -566,7 +718,6 @@ sub getL4FarmsPorts    # ($protocol)
 		$port_list .= "$farm_port,";
 	}
 
-	# remove the las comma
 	chop ( $port_list );
 
 	return $port_list;
@@ -581,15 +732,11 @@ Parameters:
 	protocol - protocol module to load
 
 Returns:
-	Integer - Always return 0
-
-FIXME:
-	1. The maximum number of ports, when the module is loaded, is 8
-	2. Always return 0
+	Integer - 0 if success, otherwise error
 
 =cut
 
-sub loadL4Modules    # ($protocol)
+sub loadL4Modules
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -597,38 +744,43 @@ sub loadL4Modules    # ($protocol)
 
 	require Zevenet::Netfilter;
 
-	my $status    = 0;
-	my $port_list = &getL4FarmsPorts( $protocol );
+	my $status = 0;
 
-	if ( $protocol eq "sip" )
+	if ( $protocol =~ /sip|tftp|ftp|amanda|h323|irc|netbios-ns|pptp|sane|snmp/ )
 	{
-		&removeNfModule( "nf_nat_sip" );
-		&removeNfModule( "nf_conntrack_sip" );
-		if ( $port_list )
-		{
-			&loadNfModule( "nf_conntrack_sip", "ports=\"$port_list\"" );
-			&loadNfModule( "nf_nat_sip",       "" );
-		}
+		$status = &loadNfModule( "nf_conntrack_$protocol", "" );
+		$status = $status || &loadNfModule( "nf_nat_$protocol", "" );
 	}
-	elsif ( $protocol eq "ftp" )
+
+	return $status;
+}
+
+=begin nd
+Function: unloadL4Modules
+
+	Unload conntrack helpers modules for l4 farms
+
+Parameters:
+	protocol - protocol module to load
+
+Returns:
+	Integer - 0 if success, otherwise error
+
+=cut
+
+sub unloadL4Modules
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $protocol = shift;
+	my $status   = 0;
+
+	require Zevenet::Netfilter;
+
+	if ( $protocol =~ /sip|tftp|ftp|amanda|h323|irc|netbios-ns|pptp|sane|snmp/ )
 	{
-		&removeNfModule( "nf_nat_ftp" );
-		&removeNfModule( "nf_conntrack_ftp" );
-		if ( $port_list )
-		{
-			&loadNfModule( "nf_conntrack_ftp", "ports=\"$port_list\"" );
-			&loadNfModule( "nf_nat_ftp",       "" );
-		}
-	}
-	elsif ( $protocol eq "tftp" )
-	{
-		&removeNfModule( "nf_nat_tftp" );
-		&removeNfModule( "nf_conntrack_tftp" );
-		if ( $port_list )
-		{
-			&loadNfModule( "nf_conntrack_tftp", "ports=\"$port_list\"" );
-			&loadNfModule( "nf_nat_tftp",       "" );
-		}
+		$status = &removeNfModule( "nf_nat_$protocol" );
+		$status = $status || &removeNfModule( "nf_conntrack_$protocol", "" );
 	}
 
 	return $status;
@@ -648,7 +800,7 @@ Returns:
 
 =cut
 
-sub validL4ExtPort    # ($farm_protocol,$ports)
+sub validL4ExtPort
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -674,14 +826,14 @@ Function: getFarmPortList
 	If port is multiport, it removes range port and it passes it to a port list
 
 Parameters:
-	port - Port string
+	fvipp - Port string
 
 Returns:
 	array - return a list of ports
 
 =cut
 
-sub getFarmPortList    # ($fvipp)
+sub getFarmPortList
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -759,7 +911,7 @@ sub doL4FarmProbability
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $farm = shift;    # input: farm reference
+	my $farm = shift;
 
 	$$farm{ prob } = 0;
 
@@ -770,8 +922,6 @@ sub doL4FarmProbability
 			$$farm{ prob } += $$server_ref{ weight };
 		}
 	}
-
-  #~ &zenlog( "doL4FarmProbability($$farm{ name }) => prob:$$farm{ prob }" ); ######
 }
 
 =begin nd
@@ -789,8 +939,10 @@ Returns:
 
 =cut
 
-sub doL4FarmRules    #($action, $f_ref)
+sub doL4FarmRules
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $action        = shift;
 	my $farm_name     = shift;
 	my $prev_farm_ref = shift;
@@ -808,13 +960,59 @@ sub doL4FarmRules    #($action, $f_ref)
 	}
 }
 
-# TODO: Obsolete. Eliminate callers.
-sub reloadL4FarmsSNAT
+=begin nd
+Function: writeL4NlbConfigFile
+
+	Write the L4 config file from a curl Nlb request, by filtering IPDS parameters.
+
+Parameters:
+	nftfile - temporary file captured from the nftlb farm configuration
+	cfgfile - definitive file where the definitive nftlb farm configuration will be stored
+
+Returns:
+	Integer - 0 if success, other if error.
+
+=cut
+
+sub writeL4NlbConfigFile
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	require Zevenet::Farm::Core;
-	require Zevenet::Farm::Base;
+
+	my $nftfile = shift;
+	my $cfgfile = shift;
+
+	require Zevenet::Lock;
+
+	if ( !-e "$nftfile" )
+	{
+		return 1;
+	}
+
+	my $fo = &openlock( $cfgfile, 'w' );
+	open my $fi, '<', "$nftfile";
+	my $backends = 0;
+	my $policies = 0;
+	while ( my $line = <$fi> )
+	{
+		$backends = 1 if ( $line =~ /\"backends\"\:/ );
+		$policies = 1 if ( $line =~ /\"policies\"\:/ );
+		if ( $backends == 1 && $line =~ /\]/ )
+		{
+			$backends = 0;
+			$line =~ s/,$//g;
+		}
+		print $fo $line
+		  if (
+			   $line !~ /new-rtlimit|rst-rtlimit|tcp-strict|queue|^[\s]{24}.est-connlimit/
+			   && $policies == 0 );
+		$policies = 0 if ( $policies == 1 && $line =~ /\]/ );
+	}
+	close $fo;
+	close $fi;
+	unlink $nftfile;
+
+	return 0;
 }
 
 1;

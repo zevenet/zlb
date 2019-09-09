@@ -60,7 +60,7 @@ sub _runHTTPFarmStart    # ($farm_name, $writeconf)
 
 	my $cmd =
 	  "$pound $args -f $configdir\/$farm_filename -p $piddir\/$farm_name\_pound.pid";
-	$status = &zsystem( "$cmd 2>/dev/null" );
+	$status = &zsystem( "$cmd" );
 
 	if ( $status == 0 )
 	{

@@ -33,6 +33,8 @@ if ( eval { require Zevenet::ELoad; } )
 # PUT /farms/<farmname> Modify a l4xnat Farm
 sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $farmname = shift;
 
@@ -138,7 +140,13 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		unless ( $json_obj->{ algorithm } =~ /^(leastconn|weight|prio)$/ )
+		if ( $json_obj->{ algorithm } =~ /^(prio)$/ )
+		{
+			my $msg = "Not supported anymore.";
+			&httpErrorResponse( code => 410, desc => $desc, msg => $msg );
+		}
+
+		unless ( $json_obj->{ algorithm } =~ /^(leastconn|weight)$/ )
 		{
 			my $msg = "Invalid algorithm.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -166,7 +174,6 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 		}
 
 		my $persistence = $json_obj->{ persistence };
-		$persistence = 'none' if $persistence eq '';
 
 		if ( &getL4FarmParam( 'persist', $farmname ) ne $persistence )
 		{
@@ -285,7 +292,9 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 	if ( exists ( $json_obj->{ vport } ) )
 	{
 		# VPORT validation
-		if ( !&getValidPort( $json_obj->{ vip }, $json_obj->{ vport }, "L4XNAT" ) )
+		if (
+			 !&getValidPort( $json_obj->{ vip }, $json_obj->{ vport }, "L4XNAT", $farmname )
+		  )
 		{
 			my $msg = "The virtual port must be an acceptable value and must be available.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );

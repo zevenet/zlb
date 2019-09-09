@@ -42,14 +42,15 @@ See Also:
 #check if a port in a ip is up
 sub checkport    # ($host, $port)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
-	my ( $host, $port ) = @_;
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $host, $port, $farmname ) = @_;
 
 	# check local ports;
 	if ( $host eq '127.0.0.1' || $host =~ /local/ )
 	{
 		my $flag = system ( "netstat -putan | grep $port >/dev/null 2>&1" );
-		if ( ! $flag )
+		if ( !$flag )
 		{
 			return "true";
 		}
@@ -58,6 +59,10 @@ sub checkport    # ($host, $port)
 	# check remote ports
 	else
 	{
+		# check if it used by a l4 farm
+		require Zevenet::Farm::L4xNAT::Validate;
+		return "true" if ( &checkL4Port( $host, $port, $farmname ) );
+
 		require IO::Socket;
 		my $sock = IO::Socket::INET->new(
 										  PeerAddr => $host,
@@ -94,7 +99,8 @@ Returns:
 #check if a ip is ok structure
 sub ipisok    # ($checkip, $version)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $checkip = shift;
 	my $version = shift;
 	my $return  = "false";
@@ -137,7 +143,8 @@ Returns:
 #check if a ip is IPv4 or IPv6
 sub ipversion    # ($checkip)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $checkip = shift;
 	my $output  = "-";
 
@@ -180,16 +187,18 @@ Returns:
 
 sub getNetValidate    # ($ip, $mask, $ip2)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $ip, $mask, $ip2 ) = @_;
 
 	require NetAddr::IP;
 
-	my $addr1 = NetAddr::IP->new( $ip, $mask );
+	my $addr1 = NetAddr::IP->new( $ip,  $mask );
 	my $addr2 = NetAddr::IP->new( $ip2, $mask );
 
-	return defined $addr1 && defined $addr2 &&
-		( $addr1->network() eq $addr2->network() );
+	return (    defined $addr1
+			 && defined $addr2
+			 && ( $addr1->network() eq $addr2->network() ) ) ? 1 : 0;
 }
 
 =begin nd
@@ -214,7 +223,8 @@ Bugs:
 #function check if interface exist
 sub ifexist    # ($nif)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $nif = shift;
 
 	use IO::Interface qw(:flags);    # Needs to load with 'use'
@@ -264,7 +274,8 @@ See Also:
 
 sub isValidPortNumber    # ($port)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $port = shift;
 	my $valid;
 
@@ -299,7 +310,8 @@ Returns:
 
 sub checkNetworkExists
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $net, $mask, $exception ) = @_;
 
 	require Zevenet::Net::Interface;
@@ -320,8 +332,7 @@ sub checkNetworkExists
 		# found
 		my $net2 = NetAddr::IP->new( $if_ref->{ addr }, $if_ref->{ mask } );
 
-		eval
-		{
+		eval {
 			if ( $net1->contains( $net2 ) or $net2->contains( $net1 ) )
 			{
 				return $if_ref->{ name };
@@ -330,6 +341,25 @@ sub checkNetworkExists
 	}
 
 	return "";
+}
+
+sub validBackendStack
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $be_aref, $ip ) = @_;
+	my $ip_stack     = &ipversion( $ip );
+	my $ipv_mismatch = 0;
+
+	# check every backend ip version
+	foreach my $be ( @{ $be_aref } )
+	{
+		my $current_stack = &ipversion( $be->{ ip } );
+		$ipv_mismatch = $current_stack ne $ip_stack;
+		last if $ipv_mismatch;
+	}
+
+	return ( !$ipv_mismatch );
 }
 
 1;

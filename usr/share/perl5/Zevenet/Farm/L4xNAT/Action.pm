@@ -22,8 +22,11 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
+
+use Zevenet::Nft;
 
 =begin nd
 Function: startL4Farm
@@ -45,26 +48,37 @@ sub startL4Farm    # ($farm_name)
 			 "debug", "PROFILING" );
 
 	my $farm_name = shift;
-	my $writeconf = shift;
+	my $writeconf = shift // 0;
+
+	require Zevenet::Farm::L4xNAT::Config;
 
 	&zlog( "Starting farm $farm_name" ) if &debug == 2;
 
 	my $status = 0;
+	my $farm   = &getL4FarmStruct( $farm_name );
 
 	&zenlog( "startL4Farm << farm_name:$farm_name" )
 	  if &debug;
 
-	$status = &startNLBFarm( $farm_name, $writeconf );
+	&loadL4Modules( $$farm{ vproto } );
+
+	$status = &startL4FarmNlb( $farm_name, $writeconf );
 	if ( $status != 0 )
 	{
 		return $status;
 	}
 
-	doL4FarmRules( "start", $farm_name );
+	&doL4FarmRules( "start", $farm_name );
 
 	# Enable IP forwarding
 	require Zevenet::Net::Util;
 	&setIpForward( 'true' );
+
+	if ( $farm->{ lbalg } eq 'leastconn' )
+	{
+		require Zevenet::Farm::L4xNAT::L4sd;
+		&sendL4sdSignal();
+	}
 
 	return $status;
 }
@@ -93,20 +107,31 @@ sub stopL4Farm    # ($farm_name)
 	my $pidfile   = &getL4FarmPidFile( $farm_name );
 
 	require Zevenet::Farm::Core;
+	require Zevenet::Farm::L4xNAT::Config;
 
 	&zlog( "Stopping farm $farm_name" ) if &debug > 2;
 
-	doL4FarmRules( "stop", $farm_name );
+	my $farm = &getL4FarmStruct( $farm_name );
 
-	my $pid = &getNLBPid();
+	&doL4FarmRules( "stop", $farm_name );
+
+	my $pid = &getNlbPid();
 	if ( $pid <= 0 )
 	{
 		return 0;
 	}
 
-	my $status = &stopNLBFarm( $farm_name, $writeconf );
+	my $status = &stopL4FarmNlb( $farm_name, $writeconf );
 
 	unlink "$pidfile" if ( -e "$pidfile" );
+
+	&unloadL4Modules( $$farm{ vproto } );
+
+	if ( $farm->{ lbalg } eq 'leastconn' )
+	{
+		require Zevenet::Farm::L4xNAT::L4sd;
+		&sendL4sdSignal();
+	}
 
 	return $status;
 }
@@ -135,7 +160,7 @@ sub setL4NewFarmName    # ($farm_name, $new_farm_name)
 
 	require Tie::File;
 
-	my $output = &setL4FarmParam( 'name', "$new_farm_name", $farm_name );
+	$output = &setL4FarmParam( 'name', "$new_farm_name", $farm_name );
 
 	unlink "$configdir\/${farm_name}_l4xnat.cfg";
 
@@ -143,82 +168,7 @@ sub setL4NewFarmName    # ($farm_name, $new_farm_name)
 }
 
 =begin nd
-Function: startNLB
-
-	Launch the nftlb daemon and create the PID file. Do
-	nothing if already is launched.
-
-Parameters:
-	none
-
-Returns:
-	Integer - return PID on success or <= 0 on failure
-
-=cut
-
-sub startNLB    # ()
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my $nftlbd     = &getGlobalConfiguration( 'zbindir' ) . "/nftlbd";
-	my $pidof      = &getGlobalConfiguration( 'pidof' );
-	my $nlbpidfile = &getNLBPidFile();
-	my $nlbpid     = &getNLBPid();
-
-	if ( $nlbpid eq "-1" )
-	{
-		&logAndRun( "$nftlbd start" );
-
-		#required to wait at startup to ensure the process is up
-		sleep 1;
-
-		$nlbpid = `$pidof nftlb`;
-		if ( $nlbpid eq "" )
-		{
-			return -1;
-		}
-
-		open my $fd, '>', "$nlbpidfile";
-		print $fd "$nlbpid";
-		close $fd;
-	}
-
-	return $nlbpid;
-}
-
-=begin nd
-Function: stopNLB
-
-	Stop the nftlb daemon. Do nothing if is already stopped.
-
-Parameters:
-	none
-
-Returns:
-	Integer - return PID on success or <= 0 on failure
-
-=cut
-
-sub stopNLB    # ()
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-
-	my $nftlbd     = &getGlobalConfiguration( 'zbindir' ) . "/nftlbd";
-	my $pidof      = &getGlobalConfiguration( 'pidof' );
-	my $nlbpidfile = &getNLBPidFile();
-	my $nlbpid     = &getNLBPid();
-
-	if ( $nlbpid ne "-1" )
-	{
-		&logAndRun( "$nftlbd stop" );
-	}
-
-	return $nlbpid;
-}
-
-=begin nd
-Function: loadNLBFarm
+Function: loadL4NlbFarm
 
 	Load farm configuration in nftlb
 
@@ -230,34 +180,31 @@ Returns:
 
 =cut
 
-sub loadNLBFarm    # ($farm_name)
+sub loadL4FarmNlb    # ($farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	require Zevenet::Farm::Core;
-	require Zevenet::Farm::L4xNAT::Config;
 
 	my $farmfile = &getFarmFile( $farm_name );
 
-	return -1 if ( !-e "$configdir/$farmfile" );
+	return 0 if ( !-e "$configdir/$farmfile" );
 
-	my $out = &httpNLBRequest(
-							   {
-								 farm       => $farm_name,
-								 configfile => "$configdir/$farmfile",
-								 method     => "POST",
-								 uri        => "/farms",
-								 body       => qq(\@$configdir/$farmfile)
-							   }
-	);
-
-	return $out;
+	return
+	  &httpNlbRequest(
+					   {
+						 farm   => $farm_name,
+						 method => "POST",
+						 uri    => "/farms",
+						 body   => qq(\@$configdir/$farmfile)
+					   }
+	  );
 }
 
 =begin nd
-Function: startNLBFarm
+Function: startL4FarmNlb
 
 	Start a new farm in nftlb
 
@@ -270,23 +217,17 @@ Returns:
 
 =cut
 
-sub startNLBFarm    # ($farm_name)
+sub startL4FarmNlb    # ($farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 	my $writeconf = shift;
 
-	#	require Zevenet::Farm::Core;
 	require Zevenet::Farm::L4xNAT::Config;
 
-	my $out = &loadNLBFarm( $farm_name );
-	if ( $out != 0 )
-	{
-		return $out;
-	}
-
-	&setL4FarmParam( ( $writeconf ) ? 'bootstatus' : 'status', "up", $farm_name );
+	my $output =
+	  &setL4FarmParam( ( $writeconf ) ? 'bootstatus' : 'status', "up", $farm_name );
 
 	my $pidfile = &getL4FarmPidFile( $farm_name );
 
@@ -296,11 +237,11 @@ sub startNLBFarm    # ($farm_name)
 		close $fi;
 	}
 
-	return $out;
+	return $output;
 }
 
 =begin nd
-Function: stopNLBFarm
+Function: stopL4FarmNlb
 
 	Stop an existing farm in nftlb
 
@@ -313,7 +254,7 @@ Returns:
 
 =cut
 
-sub stopNLBFarm    # ($farm_name)
+sub stopL4FarmNlb    # ($farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -328,68 +269,6 @@ sub stopNLBFarm    # ($farm_name)
 							   "down", $farm_name );
 
 	return $out;
-}
-
-=begin nd
-Function: getNLBPid
-
-	Return the nftlb pid
-
-Parameters:
-	none
-
-Returns:
-	Integer - PID if successful or -1 on failure
-
-=cut
-
-sub getNLBPid
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-
-	my $nlbpidfile = &getNLBPidFile();
-	my $nlbpid     = -1;
-
-	if ( !-f "$nlbpidfile" )
-	{
-		return -1;
-	}
-
-	open my $fd, '<', "$nlbpidfile";
-	$nlbpid = <$fd>;
-	close $fd;
-
-	if ( $nlbpid eq "" )
-	{
-		return -1;
-	}
-
-	return $nlbpid;
-}
-
-=begin nd
-Function: getNLBPidFile
-
-	Return the nftlb pid file
-
-Parameters:
-	none
-
-Returns:
-	String - Pid file path or -1 on failure
-
-=cut
-
-sub getNLBPidFile
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-
-	my $piddir     = &getGlobalConfiguration( 'piddir' );
-	my $nlbpidfile = "$piddir/nftlb.pid";
-
-	return $nlbpidfile;
 }
 
 =begin nd
@@ -415,6 +294,105 @@ sub getL4FarmPidFile
 	my $pidfile = "$piddir/$farm_name\_l4xnat.pid";
 
 	return $pidfile;
+}
+
+=begin nd
+Function: sendL4NlbCmd
+
+	Send the param to Nlb for a L4 Farm
+
+Parameters:
+	self - hash that includes hash_keys -> ( $farm, $backend, $file, $method, $body )
+
+Returns:
+	Integer - return code of the request command
+
+=cut
+
+sub sendL4NlbCmd
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $self    = shift;
+	my $cfgfile = "";
+	my $output  = -1;
+
+	# load the configuration file first if the farm is down
+	my $status = &getL4FarmStatus( $self->{ farm } );
+	if ( $status ne "up" )
+	{
+		my $out = &loadL4FarmNlb( $self->{ farm } );
+		return $out if ( $out != 0 );
+	}
+
+  # avoid farm configuration file destruction by asking nftlb only for modifications
+  # or deletion of attributes of the farm
+	if ( $self->{ method } =~ /PUT/
+		 || ( $self->{ method } =~ /DELETE/ && $self->{ uri } =~ /farms\/.*\/.*/ ) )
+	{
+		my $file  = "/tmp/nft_$$";
+		my $match = 0;
+
+		$output = &httpNlbRequest(
+								   {
+									 method => "GET",
+									 uri    => "/farms/" . $self->{ farm },
+									 file   => "$file"
+								   }
+		);
+
+		if ( -e "$file" )
+		{
+			open my $fh, "<", $file;
+			while ( my $line = <$fh> )
+			{
+				if ( $line =~ /\"name\"\: \"$$self{ farm }\"/ )
+				{
+					$match = 1;
+					last;
+				}
+			}
+			close $fh;
+			unlink $file;
+		}
+
+		&loadL4FarmNlb( $self->{ farm } ) if ( !$match );
+	}
+
+	if ( $self->{ method } =~ /PUT|DELETE/ )
+	{
+		$cfgfile = $self->{ file };
+		$self->{ file } = "";
+	}
+
+	if ( defined $self->{ backend } && $self->{ backend } ne "" )
+	{
+		$self->{ uri } =
+		  "/farms/" . $self->{ farm } . "/backends/" . $self->{ backend };
+	}
+	else
+	{
+		$self->{ uri } = "/farms";
+		$self->{ uri } = "/farms/" . $self->{ farm }
+		  if ( $self->{ method } eq "DELETE" );
+	}
+
+	$output = &httpNlbRequest( $self );
+
+	return $output if ( $self->{ method } eq "GET" or !defined $self->{ file } );
+
+	if ( $self->{ method } =~ /PUT|DELETE/ )
+	{
+		$self->{ file } = $cfgfile;
+	}
+
+	$self->{ method } = "GET";
+	$self->{ uri }    = "/farms/" . $self->{ farm };
+	$self->{ body }   = "";
+
+	$output = &httpNlbRequest( $self ) || $output;
+
+	return $output;
 }
 
 1;

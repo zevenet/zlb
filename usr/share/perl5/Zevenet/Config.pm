@@ -45,13 +45,33 @@ See Also:
 
 sub getGlobalConfiguration
 {
-	my $parameter = shift;
+	my $parameter    = shift;
 	my $force_reload = shift // 0;
 
 	state $global_conf = &parseGlobalConfiguration();
 	$global_conf = &parseGlobalConfiguration() if ( $force_reload );
 
-	return eval { $global_conf->{ $parameter } } if $parameter;
+	if ( $parameter )
+	{
+		if ( defined $global_conf->{ $parameter } )
+		{
+			return $global_conf->{ $parameter };
+		}
+
+# bugfix: it is not returned any message when the 'debug' parameter is not defined in global.conf.
+		elsif ( $parameter eq 'debug' )
+		{
+			return undef;
+		}
+		else
+		{
+			&zenlog( "The global configuration parameter '$parameter' has not been found",
+					 'warning', 'Configuration' )
+			  if ( $parameter ne "debug" );
+			return undef;
+		}
+	}
+
 	return $global_conf;
 }
 
@@ -89,7 +109,7 @@ sub parseGlobalConfiguration
 	while ( my $conf_line = <$global_conf_file> )
 	{
 		# extract variable name and value
-		if ( $conf_line =~ /^\s*\$(\w+)\s*=\s*(?:"(.*)"|\'(.*)\');\s*$/ )
+		if ( $conf_line =~ /^\s*\$(\w+)\s*=\s*(?:"(.*)"|\'(.*)\');(?:\s*#update)?\s*$/ )
 		{
 			$global_conf->{ $1 } = $2;
 		}
@@ -104,7 +124,7 @@ sub parseGlobalConfiguration
 		# replace every variable used in the $var_value by its content
 		while ( $global_conf->{ $param } =~ /\$(\w+)/ )
 		{
-			$var = $1;
+			$var   = $1;
 			$value = $global_conf->{ $var } // '';
 			$global_conf->{ $param } =~ s/\$$var/$value/;
 		}

@@ -73,18 +73,22 @@ sub new_farm_service    # ( $json_obj, $farmname )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
+	my $params = {
+				   "id" => {
+							 'valid_format' => 'http_service',
+							 'non_blank'    => 'true',
+				   },
+	};
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
+
 	# HTTP profile
 	require Zevenet::API40::Farm::Get::HTTP;
 	require Zevenet::Farm::Base;
 	require Zevenet::Farm::HTTP::Service;
-
-	# validate new service name
-	# FIXME: validate service name
-	if ( $json_obj->{ id } eq '' )
-	{
-		my $msg = "Invalid service name, please insert a valid value.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
 
 	my $result = &setFarmHTTPNewService( $farmname, $json_obj->{ id } );
 
@@ -92,13 +96,6 @@ sub new_farm_service    # ( $json_obj, $farmname )
 	if ( $result == 1 )
 	{
 		my $msg = "Service name " . $json_obj->{ id } . " already exists.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
-
-	# check if the service name was empty
-	if ( $result == 2 )
-	{
-		my $msg = "The service name can't be empty.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -181,7 +178,7 @@ sub farm_services
 	}
 
 	# no error found, return successful response
-	my $service = &get_http_service_struct( $farmname, $servicename );
+	my $service = &getHTTPServiceStruct( $farmname, $servicename );
 
 	my $body = {
 				 description => $desc,
@@ -243,6 +240,54 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 		);
 	}
 
+	my $params = {
+		"vhost"    => {},
+		"urlp"     => {},
+		"redirect" => {
+						'non_blank' => 'false',    # it is allowed the string ''
+		},
+		"redirecttype" => {
+							'values' => ['default', 'append'],
+		},
+		"leastresp" => {
+						 'valid_format' => 'boolean',
+						 'non_blank'    => 'true',
+		},
+		"persistence" => {
+				 'values'    => ["IP", "BASIC",          "URL", "PARM", "COOKIE", "HEADER"],
+				 'non_blank' => 'false', # it is allowed ''
+		},
+		"sessionid" => {},
+		"ttl"       => {
+				   'non_blank'    => 'true',
+				   'valid_format' => 'natural_num',
+		},
+		"httpsb" => {
+					  'non_blank'    => 'true',
+					  'valid_format' => 'boolean',
+		},
+	};
+
+	if ( $eload )
+	{
+		$params->{ redirect_code } = { 'values'       => [301, 302, 307], };
+		$params->{ sts_timeout }   = { 'valid_format' => 'http_sts_timeout', };
+		$params->{ sts_status }    = { 'valid_format' => 'http_sts_status', };
+		$params->{ cookieinsert }  = { 'valid_format' => 'boolean', };
+		$params->{ cookiettl } = {
+								   'valid_format' => 'integer',
+								   'non_blank'    => 'true',
+		};
+		$params->{ cookiename }   = {};
+		$params->{ cookiedomain } = {};
+		$params->{ cookiepath }   = {};
+	}
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
+
 	if ( exists $json_obj->{ vhost } )
 	{
 		&setFarmVS( $farmname, $service, "vs", $json_obj->{ vhost } );
@@ -258,14 +303,6 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	if ( exists $json_obj->{ redirect } )
 	{
 		my $redirect = $json_obj->{ redirect };
-
-		unless (    $redirect =~ /^http\:\/\//i
-				 || $redirect =~ /^https:\/\//i
-				 || $redirect eq '' )
-		{
-			my $msg = "Invalid redirect value.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
 
 		&setFarmVS( $farmname, $service, "redirect", $redirect );
 
@@ -316,26 +353,18 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 		{
 			&setFarmVS( $farmname, $service, "dynscale", "" );
 		}
-		else
-		{
-			my $msg = "Invalid leastresp.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
 	}
 
 	if ( exists $json_obj->{ persistence } )
 	{
-		if ( $json_obj->{ persistence } =~ /^(|IP|BASIC|URL|PARM|COOKIE|HEADER)$/ )
-		{
-			my $session = $json_obj->{ persistence };
-			$session = 'nothing' if $session eq "";
+		my $session = $json_obj->{ persistence };
+		$session = 'nothing' if $session eq "";
 
-			my $error = &setFarmVS( $farmname, $service, "session", $session );
-			if ( $error )
-			{
-				my $msg = "It's not possible to change the persistence parameter.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
+		my $error = &setFarmVS( $farmname, $service, "session", $session );
+		if ( $error )
+		{
+			my $msg = "It's not possible to change the persistence parameter.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}
 
@@ -354,12 +383,6 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	{
 		if ( $session =~ /^(IP|BASIC|URL|PARM|COOKIE|HEADER)$/ )
 		{
-			if ( $json_obj->{ ttl } !~ /^\d+$/ )
-			{
-				my $msg = "Invalid ttl, must be numeric.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
 			my $error = &setFarmVS( $farmname, $service, "ttl", "$json_obj->{ttl}" );
 			if ( $error )
 			{
@@ -407,11 +430,6 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 				&setFarmVS( $farmname, $service, "httpsbackend", "" );
 
 			}
-			else
-			{
-				my $msg = "Invalid httpsb value.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
 		}
 	}
 
@@ -420,12 +438,6 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	{
 		if ( $eload )
 		{
-			if ( !&getValidFormat( 'redirect_code', $json_obj->{ redirect_code } ) )
-			{
-				my $msg = "The available values for redirect_code are: 301, 302 or 307";
-				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
 			my $err = &eload(
 							  module => 'Zevenet::Farm::HTTP::Service::Ext',
 							  func   => 'setHTTPServiceRedirectCode',
@@ -457,13 +469,6 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 
 			}
-			if ( !&getValidFormat( 'http_sts_status', $json_obj->{ sts_status } ) )
-			{
-				my $msg =
-				  "The value $json_obj->{ sts_status } of the param sts_status is invalid";
-				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
 			my $err = &eload(
 							  module => 'Zevenet::Farm::HTTP::Service::Ext',
 							  func   => 'setHTTPServiceSTSStatus',
@@ -483,13 +488,6 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 			if ( $type ne 'https' )
 			{
 				my $msg = "The farms have to be HTTPS to modify STS";
-				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-
-			}
-			if ( !&getValidFormat( 'http_sts_timeout', $json_obj->{ sts_timeout } ) )
-			{
-				my $msg =
-				  "The value $json_obj->{ sts_timeout } of the param sts_timeout is invalid";
 				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
 

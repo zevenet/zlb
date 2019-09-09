@@ -22,7 +22,7 @@
 ###############################################################################
 
 use strict;
-use warnings;
+
 use Zevenet::Log;
 use Zevenet::Config;
 
@@ -31,6 +31,8 @@ my $action = $ARGV[1];
 
 my $backupdir = &getGlobalConfiguration( 'backupdir' );
 my $tar       = &getGlobalConfiguration( 'tar' );
+my $exclude_52_60 =
+  "--exclude=hostname --exclude=zlbcertfile.pem --exclude=/etc/cron.d/zevenet --exclude=global.conf --exclude=ssh_brute_force.txt --exclude=cluster.conf";
 
 if ( $action eq "-c" )
 {
@@ -54,4 +56,38 @@ if ( $action eq "-c" )
 if ( $action eq "-d" )
 {
 	my @eject = `$tar -xzf $backupdir\/backup-$name.tar.gz -C /`;
+}
+
+if ( $action eq "-D52to60" )
+{
+	print
+	  "Importing from Zevenet 5.2 to Zevenet 6.0, using $backupdir\/backup-$name.tar.gz\n";
+	print
+	  "A snapshot before to continue is recommended for Virtual Load Balancers...\n";
+	if ( !-e "$backupdir\/backup-$name.tar.gz" )
+	{
+		print "The given file doesn't exist...\n";
+		exit;
+	}
+	print
+	  "Will be kept: current hostname, global.conf and activation certificate file.\n";
+	print "Cluster config file will not be imported\n";
+	print "Press a key to start...\n";
+	<STDIN>;
+
+	my @eject = `$tar $exclude_52_60 -xvzf $backupdir\/backup-$name.tar.gz -C /`;
+	print "@eject\n";
+	print "Configuration files have been moved to local system.\n";
+
+	#migrating config files
+	my $MIG_DIR = "/usr/local/zevenet/migrating/";
+	my @listing = `ls $MIG_DIR`;
+	foreach my $file ( @listing )
+	{
+		print "Running Migration: ${MIG_DIR}${file}\n";
+		my @run = `${MIG_DIR}${file}`;
+	}
+
+	print
+	  "A restart of the load balancer is pending in order to apply the changes...\n";
 }

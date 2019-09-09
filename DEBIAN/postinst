@@ -30,6 +30,9 @@ GLOBALCFT="/usr/local/zevenet/share/global.conf.template"
 # upgrading global.conf
 /usr/local/zevenet/bin/checkglobalconf
 
+# load LB variables
+source /usr/local/zevenet/bin/load_global_conf
+load_global_conf
 
 # Enable root access through SSH
 SSHDCONFIG="/etc/ssh/sshd_config"
@@ -56,16 +59,24 @@ fi
 sed -i 's/^\# Required-Start:.*/# Required-Start:\t\$remote_fs \$syslog zevenet/g' /etc/init.d/ssh
 sed -i 's/^\# Required-Stop:.*/# Required-Stop:\t\$remote_fs \$syslog zevenet/g'   /etc/init.d/ssh
 
-# Restore already existing zlb-stop and zlb-start
-if [ -f /tmp/zlb-start ]; then
-	mv /tmp/zlb-start /usr/local/zevenet/config/
+
+## Create configuration files
+
+# Move zlb-stop & zlb-start
+if [ ! -f $zlb_start_script ]; then
+	cp $zlb_start_tpl $zlb_start_script
 fi
-if [ -f /tmp/zlb-stop ]; then
-	mv /tmp/zlb-stop /usr/local/zevenet/config/
+if [ ! -f $zlb_stop_script ]; then
+	cp $zlb_stop_tpl $zlb_stop_script
 fi
 
-chmod +x /usr/local/zevenet/config/zlb-start
-chmod +x /usr/local/zevenet/config/zlb-stop
+# create Web server
+if [ ! -f "$http_server_cert" ]; then
+	cp -rf $http_server_cert_tpl $http_server_cert
+fi
+if [ ! -f "$http_server_key" ]; then
+	cp -rf $http_server_key_tpl $http_server_key
+fi
 
 # Install check_uplink
 ZBIN_PATH="/usr/local/zevenet/bin"

@@ -178,7 +178,7 @@ sub setHTTPFarmServer   # ($ids,$rip,$port,$weight,$timeout,$farm_name,$service)
 			{
 				$backend++;
 			}
-			if ( $line =~ /Service \"$service\"/ )
+			if ( $line =~ /Service \"$service\"/ && $be_section == -1 )
 			{
 				$be_section++;
 			}
@@ -217,7 +217,7 @@ sub setHTTPFarmServer   # ($ids,$rip,$port,$weight,$timeout,$farm_name,$service)
 					$index++;
 				}
 				splice @contents, $index, 0, "\t\tEnd";
-				$be_section = -1;
+				$be_section++;    # Backend Added
 			}
 
 			# if backend added then go out of form
@@ -357,24 +357,6 @@ sub getHTTPFarmBackends    # ($farm_name,$service)
 	my @be_status = @{ &getHTTPFarmBackendsStatus( $farmname, $service ) };
 	my @out_ba;
 
-	# alias
-	my $permission = 0;
-	my $alias;
-	if ( $eload )
-	{
-		$permission = &eload(
-							  module => 'Zevenet::RBAC::Core',
-							  func   => 'getRBACRolePermission',
-							  args   => ['alias', 'list'],
-		);
-
-		$alias = &eload(
-						 module => 'Zevenet::Alias',
-						 func   => 'getAlias',
-						 args   => ['backend']
-		) if $permission;
-	}
-
 	foreach my $subl ( @be )
 	{
 		my @subbe = split ( ' ', $subl );
@@ -400,7 +382,6 @@ sub getHTTPFarmBackends    # ($farm_name,$service)
 			timeout => $tout,
 			weight  => $prio
 		  };
-		$out_ba[-1]->{ alias } = $permission ? $alias->{ $ip } : undef if ( $eload );
 	}
 
 	return \@out_ba;
@@ -840,9 +821,7 @@ sub setHTTPFarmBackendNoMaintenance    # ($farm_name,$backend,$service)
 		my $poundctl_command =
 		  "$poundctl -c /tmp/$farm_name\_pound.socket -B 0 $idsv $backend";
 
-		&zenlog( "running '$poundctl_command'", "info", "LSLB" );
-		my @run = `$poundctl_command`;
-		$output = $?;
+		$output = &logAndRun( $poundctl_command );
 	}
 
 	# save backend status in status file

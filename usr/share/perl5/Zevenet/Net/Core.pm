@@ -52,7 +52,7 @@ sub createIf    # ($if_ref)
 			 "debug", "PROFILING" );
 	my $if_ref = shift;
 
-	my $status = 0;
+	my $status = 1;
 
 	if ( defined $$if_ref{ vlan } && $$if_ref{ vlan } ne '' )
 	{
@@ -87,7 +87,8 @@ sub upIf    # ($if_ref, $writeconf)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $if_ref, $writeconf ) = @_;
+	my $if_ref    = shift;
+	my $writeconf = shift;
 
 	my $configdir = &getGlobalConfiguration( 'configdir' );
 	my $status    = 0;
@@ -130,32 +131,26 @@ sub upIf    # ($if_ref, $writeconf)
 	{
 		my $file = "$configdir/if_$$if_ref{name}_conf";
 
-		if ( -f $file )
-		{
-			require Tie::File;
+		require Config::Tiny;
+		my $fileHandler = Config::Tiny->new();
+		$fileHandler = Config::Tiny->read( $file ) if ( -f $file );
 
-			my $found = 0;
-			tie my @if_lines, 'Tie::File', "$file";
-			for my $line ( @if_lines )
-			{
-				if ( $line =~ /^status=/ )
-				{
-					$line  = "status=up";
-					$found = 1;
-					last;
-				}
-			}
-
-			unshift ( @if_lines, 'status=up' ) if !$found;
-			untie @if_lines;
-		}
-		else
-		{
-			open ( my $fh, '>', $file );
-			print { $fh } "status=up\n";
-			close $fh;
-		}
+		$fileHandler->{ $if_ref->{ name } }->{ status } = "up";
+		$fileHandler->write( $file );
 	}
+
+	if ( !$status and $eload and $if_ref->{ dhcp } eq 'true' )
+	{
+		$status = &eload(
+						  'module' => 'Zevenet::Net::DHCP',
+						  'func'   => 'startDHCP',
+						  'args'   => [$if_ref->{ name }],
+		);
+	}
+
+	# calculate new backend masquerade IPs
+	require Zevenet::Farm::Config;
+	&reloadFarmsSourceAddress();
 
 	return $status;
 }
@@ -181,12 +176,22 @@ sub downIf    # ($if_ref, $writeconf)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $if_ref, $writeconf ) = @_;
-
+	my $if_ref    = shift;
+	my $writeconf = shift;
+	my $status;
 	if ( ref $if_ref ne 'HASH' )
 	{
 		&zenlog( "Wrong argument putting down the interface", "error", "NETWORK" );
 		return -1;
+	}
+
+	if ( $eload and $if_ref->{ dhcp } eq 'true' )
+	{
+		$status = &eload(
+						  'module' => 'Zevenet::Net::DHCP',
+						  'func'   => 'stopDHCP',
+						  'args'   => [$if_ref->{ name }],
+		);
 	}
 
 	my $ip_cmd;
@@ -205,7 +210,7 @@ sub downIf    # ($if_ref, $writeconf)
 		$ip_cmd = "$ip_bin addr del $$if_ref{addr}/$$if_ref{mask} dev $routed_iface";
 	}
 
-	my $status = &logAndRun( $ip_cmd );
+	$status = &logAndRun( $ip_cmd );
 
 	# Set down status in configuration file
 	if ( $writeconf )
@@ -213,19 +218,17 @@ sub downIf    # ($if_ref, $writeconf)
 		my $configdir = &getGlobalConfiguration( 'configdir' );
 		my $file      = "$configdir/if_$$if_ref{name}_conf";
 
-		require Tie::File;
-		tie my @if_lines, 'Tie::File', "$file";
+		require Config::Tiny;
+		my $fileHandler = Config::Tiny->new();
+		$fileHandler = Config::Tiny->read( $file ) if ( -f $file );
 
-		for my $line ( @if_lines )
-		{
-			if ( $line =~ /^status=/ )
-			{
-				$line = "status=down";
-				last;
-			}
-		}
-		untie @if_lines;
+		$fileHandler->{ $if_ref->{ name } }->{ status } = "down";
+		$fileHandler->write( $file );
 	}
+
+	# calculate new backend masquerade IPs
+	require Zevenet::Farm::Config;
+	&reloadFarmsSourceAddress();
 
 	return $status;
 }
@@ -344,46 +347,20 @@ sub delIf    # ($if_ref)
 	my ( $if_ref ) = @_;
 
 	my $status;
-	my $configdir = &getGlobalConfiguration( 'configdir' );
-	my $file      = "$configdir/if_$$if_ref{name}\_conf";
 	my $has_more_ips;
 
-	# remove stack line
-	open ( my $in_fh,  '<', "$file" );
-	open ( my $out_fh, '>', "$file.new" );
-
-	if ( $in_fh && $out_fh )
+	# remove dhcp configuration
+	if ( exists $if_ref->{ dhcp } and $if_ref->{ dhcp } eq 'true' )
 	{
-		while ( my $line = <$in_fh> )
-		{
-			if ( $line !~ /$$if_ref{addr}/ )
-			{
-				print $out_fh $line;
-				$has_more_ips++ if $line =~ /;/;
-			}
-		}
-
-		close $in_fh;
-		close $out_fh;
-
-		rename "$file.new", "$file";
-
-		if ( !$has_more_ips )
-		{
-			# remove file only if not a nic interface
-			# nics need to store status even if not configured, for vlans
-			if ( $$if_ref{ name } ne $$if_ref{ dev } )
-			{
-				unlink ( $file ) or return 1;
-			}
-		}
-	}
-	else
-	{
-		&zenlog( "Error opening $file: $!", "info", "NETWORK" );
-		$status = 1;
+		&eload(
+				module => 'Zevenet::Net::DHCP',
+				func   => 'disableDHCP',
+				args   => [$if_ref],
+		);
 	}
 
+	require Zevenet::Net::Interface;
+	$status = &cleanInterfaceConfig( $if_ref );
 	if ( $status )
 	{
 		return $status;
@@ -392,10 +369,14 @@ sub delIf    # ($if_ref)
 	# If $if is Vini do nothing
 	if ( $$if_ref{ vini } eq '' )
 	{
-		# If $if is a Interface, delete that IP
-		my $ip_cmd =
-		  "$ip_bin addr del $$if_ref{addr}/$$if_ref{mask} dev $$if_ref{name}";
-		$status = &logAndRun( $ip_cmd );
+		my $ip_cmd;
+		if ( $if_ref->{ dhcp } ne 'true' )
+		{
+			# If $if is a Interface, delete that IP
+			$ip_cmd = "$ip_bin addr del $$if_ref{addr}/$$if_ref{mask} dev $$if_ref{name}";
+			$status = &logAndRun( $ip_cmd )
+			  if ( length $if_ref->{ addr } && length $if_ref->{ mask } );
+		}
 
 		# If $if is a Vlan, delete Vlan
 		if ( $$if_ref{ vlan } ne '' )
@@ -408,7 +389,8 @@ sub delIf    # ($if_ref)
 		my $ip_v_to_check = ( $$if_ref{ ip_v } == 4 ) ? 6 : 4;
 		my $interface = &getInterfaceConfig( $$if_ref{ name }, $ip_v_to_check );
 
-		if ( !$interface )
+		if ( !$interface
+			 or ( $interface->{ type } eq "bond" and !exists $interface->{ addr } ) )
 		{
 			my $rttables = &getGlobalConfiguration( 'rttables' );
 
@@ -444,6 +426,11 @@ sub delIf    # ($if_ref)
 				func   => 'delRBACResource',
 				args   => [$$if_ref{ name }, 'interfaces'],
 		);
+
+		#reload netplug
+		&eload( module => 'Zevenet::Net::Ext',
+				func   => 'reloadNetplug', );
+
 	}
 
 	return $status;
@@ -472,6 +459,8 @@ sub delIp    # 	($if, $ip ,$netmask)
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $if, $ip, $netmask ) = @_;
+
+	return 0 if ( !defined $ip or $ip eq '' );
 
 	&zenlog( "Deleting ip $ip/$netmask from interface $if", "info", "NETWORK" );
 
@@ -508,6 +497,7 @@ sub addIp    # ($if_ref)
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $if_ref ) = @_;
+	my $if_announce = "";
 
 	&zenlog( "Adding IP $$if_ref{addr}/$$if_ref{mask} to interface $$if_ref{name}",
 			 "info", "NETWORK" );
@@ -543,13 +533,7 @@ sub addIp    # ($if_ref)
 
 		$ip_cmd =
 		  "$ip_bin addr add $$if_ref{addr}/$$if_ref{mask} $broadcast_opt dev $toif label $$if_ref{name} $extra_params";
-	}
-
-	# $if is a Vlan
-	elsif ( defined $$if_ref{ vlan } && $$if_ref{ vlan } ne '' )
-	{
-		$ip_cmd =
-		  "$ip_bin addr add $$if_ref{addr}/$$if_ref{mask} $broadcast_opt dev $$if_ref{name} $extra_params";
+		$if_announce = $toif;
 	}
 
 	# $if is a Network Interface
@@ -557,9 +541,33 @@ sub addIp    # ($if_ref)
 	{
 		$ip_cmd =
 		  "$ip_bin addr add $$if_ref{addr}/$$if_ref{mask} $broadcast_opt dev $$if_ref{name} $extra_params";
+		$if_announce = "$$if_ref{name}";
 	}
 
 	my $status = &logAndRun( $ip_cmd );
+
+	#if arp_announce is enabled then send garps to network
+	eval {
+		if ( $eload )
+		{
+			my $cl_status = &eload(
+									module => 'Zevenet::Cluster',
+									func   => 'getZClusterNodeStatus',
+									args   => [],
+			);
+
+			if (    &getGlobalConfiguration( 'arp_announce' ) eq "true"
+				 && $cl_status ne "backup" )
+			{
+
+				require Zevenet::Net::Util;
+
+				#&sendGArp($$if_ref{parent},$$if_ref{addr})
+				&zenlog( "Announcing garp $if_announce and $$if_ref{addr} " );
+				&sendGArp( $if_announce, $$if_ref{ addr } );
+			}
+		}
+	};
 
 	return $status;
 }

@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 IFS='.' read -a DEBVERSION < /etc/debian_version
 #~ if [ $DEBVERSION != 9 ]; then
 	#~ echo "Zevenet Load Balancer installation only available for Debian 9 Stretch"
