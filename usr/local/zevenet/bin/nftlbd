@@ -1,11 +1,19 @@
 #!/bin/sh
 
 DEBUG=""
+NFTBIN=/usr/local/sbin/nft
+#NFTBIN=`which nft`
 GLOBALCONF="/usr/local/zevenet/config/global.conf"
 if [ -f "$GLOBALCONF" ]; then
-	LEVEL=`grep ^.debug= "$GLOBALCONF" | awk -F'"' '{ printf $2 }' 2> /dev/null`
-	if [ ! -z $LEVEL ] && [ "$LEVEL" != "0" ]; then
-		DEBUG="-l $LEVEL"
+	# debug
+	VAR=`grep ^.debug= "$GLOBALCONF" | awk -F'"' '{ printf $2 }' 2> /dev/null`
+	if [ ! -z $VAR ] && [ "$VAR" != "0" ]; then
+		DEBUG="-l $VAR"
+	fi
+	# nft binary
+	VAR=`grep ^.nft_bin= "$GLOBALCONF" | awk -F'"' '{ printf $2 }' 2> /dev/null`
+	if [ ! -z $VAR ] && [ -e "$VAR" ]; then
+		NFTBIN="$VAR"
 	fi
 fi
 
@@ -13,7 +21,6 @@ DESC="nftlb daemon service"
 NAME=nftlb
 DAEMON=/usr/local/zevenet/app/nftlb/sbin/nftlb
 DAEMON_ARGS="$DEBUG -H 127.0.0.1 -k HoLa -P 27"
-NFTBIN=`which nft`
 PIDFILE=/var/run/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
 
@@ -29,10 +36,12 @@ do_start()
 }
 
 do_stop() {
-	`$NFTBIN flush ruleset`
 	start-stop-daemon --stop --signal 1 --quiet --remove-pidfile --pidfile $PIDFILE --name $NAME
+	PID=`pidof nftlb`
+	[ -n "$PID" ] && kill -9 $PID
+	`$NFTBIN delete table ip nftlb 2> /dev/null`
+	`$NFTBIN delete table netdev nftlb 2> /dev/null`
 	[ -f $PIDFILE ] && rm -i $PIDFILE
-	[ "$?" -ne 0 ] && return 2
 }
 
 case "$1" in
