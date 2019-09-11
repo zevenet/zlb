@@ -76,7 +76,9 @@ sub getHostname
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $hostname = `uname -n`;
+
+	my $uname    = &getGlobalConfiguration( 'uname' );
+	my $hostname = `$uname -n`;
 	chomp $hostname;
 
 	return $hostname;
@@ -124,15 +126,13 @@ sub getApplianceVersion
 	# generate appliance version
 	if ( !$version )
 	{
-		my $uname  = &getGlobalConfiguration( 'uname' );
-		my $kernel = `$uname -r`;
+		my $kernel = &getKernelVersion();
 
-		#~ $kernel = "$uname -r";
 		my $awk      = &getGlobalConfiguration( 'awk' );
 		my $ifconfig = &getGlobalConfiguration( 'ifconfig' );
 
 		# look for mgmt interface
-		my @ifaces = `ifconfig -s | awk '{print $1}'`;
+		my @ifaces = `$ifconfig -s | $awk '{print $1}'`;
 
 		# Network appliance
 		if ( grep ( /mgmt/, @ifaces ) )
@@ -304,9 +304,7 @@ sub getCPUTicks
 	my $ticks = -1;
 	my $file  = '/boot/config-';    # end file with the kernel version
 
-	my $uname  = &getGlobalConfiguration( "uname" );
-	my $kernel = `$uname -r`;
-	chomp ( $kernel );
+	my $kernel = &getKernelVersion();
 
 	open my $fh, '<', "${file}$kernel" or return -1;
 
@@ -339,6 +337,8 @@ Returns:
 
 sub setEnv
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	use Zevenet::Config;
 	$ENV{ http_proxy }  = &getGlobalConfiguration( 'http_proxy' )  // "";
 	$ENV{ https_proxy } = &getGlobalConfiguration( 'https_proxy' ) // "";

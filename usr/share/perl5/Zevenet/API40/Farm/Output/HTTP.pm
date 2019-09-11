@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 ###############################################################################
 #
 #    Zevenet Software License
@@ -22,44 +21,42 @@
 ###############################################################################
 
 use strict;
+use Zevenet::Farm::HTTP::Config;
 
-=begin nd
-Function: ismport
-
-	Check if the string is a valid multiport definition
-	
-Parameters:
-	port - Multiport string
-
-Returns:
-	String - "true" if port has a correct format or "false" if port has a wrong format
-	
-
-=cut
-
-sub ismport    # ($string)
+# farm parameters
+sub getHTTPOutFarm
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $string = shift;
+	require Zevenet::Farm::Config;
+	my $farmname = shift;
+	my $farm_ref = &getFarmStruct( $farmname );
+	return $farm_ref;
+}
 
-	my $validport =
-	  "((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))";
+sub getHTTPOutService
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 
-	chomp ( $string );
-	if ( $string eq "*" )
+	require Zevenet::Farm::HTTP::Service;
+	my $farmname      = shift;
+	my @services_list = ();
+
+	foreach my $service ( &getHTTPFarmServices( $farmname ) )
 	{
-		return "true";
+		my $service_ref = &getHTTPServiceStruct( $farmname, $service );
+		push @services_list, $service_ref;
 	}
-	elsif ( $string =~
-		/^($validport|$validport\:$validport)(,$validport|$validport\:$validport)*$/ )
-	{
-		return "true";
-	}
-	else
-	{
-		return "false";
-	}
+
+	return \@services_list;
+}
+
+sub getHTTPOutBackend
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
 }
 
 1;

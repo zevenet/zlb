@@ -44,24 +44,24 @@ sub create_backup
 			 "debug", "PROFILING" );
 	my $json_obj = shift;
 
-	my $desc           = "Create a backups";
-	my @requiredParams = ( "name" );
+	my $desc = "Create a backups";
 
-	my $param_msg = getValidReqParams( $json_obj, \@requiredParams );
-	if ( $param_msg )
-	{
-		&httpErrorResponse( code => 400, desc => $desc, msg => $param_msg );
-	}
+	my $params = {
+				   "name" => {
+							   'valid_format' => 'backup',
+							   'non_blank'    => 'true',
+							   'required'     => 'true',
+				   },
+	};
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
 
 	if ( &getExistsBackup( $json_obj->{ 'name' } ) )
 	{
 		my $msg = "A backup already exists with this name.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
-
-	if ( !&getValidFormat( 'backup', $json_obj->{ 'name' } ) )
-	{
-		my $msg = "The backup name has invalid characters.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -72,7 +72,7 @@ sub create_backup
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	my $msg = "Backup $json_obj->{ 'name' } was created successful.";
+	my $msg = "Backup $json_obj->{ 'name' } was created successfully.";
 	my $body = {
 				 description => $desc,
 				 params      => $json_obj->{ 'name' },
@@ -108,7 +108,7 @@ sub download_backup
 #	PUT	/system/backup/BACKUP
 sub upload_backup
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( )",
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $upload_filehandle = shift;
 	my $name              = shift;
@@ -117,7 +117,7 @@ sub upload_backup
 
 	if ( !$upload_filehandle || !$name )
 	{
-		my $msg = "It's necessary add a data binary file.";
+		my $msg = "It's necessary to add a data binary file.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 	elsif ( &getExistsBackup( $name ) )
@@ -132,9 +132,14 @@ sub upload_backup
 	}
 
 	my $error = &uploadBackup( $name, $upload_filehandle );
-	if ( $error )
+	if ( $error == 1 )
 	{
 		my $msg = "Error creating backup.";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+	elsif ( $error == 2 )
+	{
+		my $msg = "$name is not a valid backup.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -167,7 +172,7 @@ sub del_backup
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	my $msg = "The list $backup has been deleted successful.";
+	my $msg = "The list $backup has been deleted successfully.";
 	my $body = {
 				 description => $desc,
 				 success     => "true",
@@ -185,24 +190,25 @@ sub apply_backup
 	my $json_obj = shift;
 	my $backup   = shift;
 
-	my $desc        = "Apply a backup to the system";
-	my @allowParams = ( "action" );
-	my $msg         = &getValidOptParams( $json_obj, \@allowParams );
+	my $desc = "Apply a backup to the system";
 
-	if ( $msg )
-	{
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
+	my $params = {
+				   "action" => {
+								 'non_blank' => 'true',
+								 'required'  => 'true',
+								 'values'    => ['apply'],
+				   },
+	};
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
 
 	if ( !&getExistsBackup( $backup ) )
 	{
 		my $msg = "Not found $backup backup.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
-	}
-	elsif ( !&getValidFormat( 'backup_action', $json_obj->{ 'action' } ) )
-	{
-		my $msg = "Error, it's necessary add a valid action";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
 	my $error = &applyBackup( $backup );

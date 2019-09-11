@@ -42,40 +42,26 @@ sub farms_name_l4    # ( $farmname )
 	my $out_p;
 	my $out_b;
 
-	my $vip   = &getL4FarmParam( "vip",  $farmname );
-	my $vport = &getL4FarmParam( "vipp", $farmname );
-
-	if ( $vport =~ /^\d+$/ )
-	{
-		$vport = $vport + 0;
-	}
-
-	#	my @ttl = &getFarmMaxClientTime( $farmname, "" );
-	#	my $timetolimit = $ttl[0] + 0;
-
+	my $farm   = &getL4FarmStruct( $farmname );
 	my $status = &getFarmVipStatus( $farmname );
 
-	#	my $persistence = &getL4FarmParam( 'persist', $farmname );
-	#	$persistence = "" if $persistence eq 'none';
-
 	$out_p = {
-		status    => $status,
-		vip       => $vip,
-		vport     => $vport,
-		algorithm => &getL4FarmParam( 'alg', $farmname ),
-		nattype   => &getL4FarmParam( 'mode', $farmname ),
+		status      => $status,
+		vip         => $farm->{ vip },
+		vport       => $farm->{ vport },
+		algorithm   => $farm->{ lbalg },
+		nattype     => $farm->{ nattype },
+		persistence => $farm->{ persist },
+		ttl         => $farm->{ ttl } + 0,
+		protocol    => $farm->{ vproto },
 
-		#			   persistence  => $persistence,
-		protocol => &getL4FarmParam( 'proto', $farmname ),
-
-		#			   ttl          => $timetolimit,
 		farmguardian => &getFGFarm( $farmname ),
 		listener     => 'l4xnat',
 	};
 
 	if ( $eload )
 	{
-		$out_p->{ logs } = &getL4FarmParam( 'logs', $farmname ),;
+		$out_p->{ logs } = $farm->{ logs };
 	}
 
 	# Backends

@@ -23,6 +23,12 @@
 
 use strict;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
+
 my $ip_bin = &getGlobalConfiguration( 'ip_bin' );
 
 =begin nd
@@ -138,6 +144,23 @@ sub addlocalnet    # ($if_ref)
 		&zenlog( "addlocalnet: setting route in table $table", "debug", "NETWORK" )
 		  if &debug();
 
+		#if duplicated network, next
+		my $ip_local     = new NetAddr::IP( $$if_ref{ addr }, $$if_ref{ mask } );
+		my $net_local    = $ip_local->network();
+		my $if_ref_table = getInterfaceConfig( $link );
+		my $ip_table =
+		  new NetAddr::IP( $$if_ref_table{ addr }, $$if_ref_table{ mask } );
+		my $net_local_table = $ip_table->network();
+
+		if ( $net_local_table eq $net_local && $$if_ref{ name } ne $link )
+		{
+			&zenlog(
+				"The network $net and $net_local of dev $$if_ref{name} is the same than the network for $link, route is not going to be applied in table $table",
+				"error", "network"
+			);
+			next;
+		}
+
 		my $ip_cmd =
 		  "$ip_bin -$$if_ref{ip_v} route replace $net dev $$if_ref{name} src $$if_ref{addr} table $table $routeparams";
 
@@ -150,21 +173,40 @@ sub addlocalnet    # ($if_ref)
 	foreach my $iface ( @ifaces )
 	{
 		next if $iface->{ type } eq 'virtual';
+		next if $iface->{ is_slave } eq 'true';    # Is in bonding iface
+		next
+		  if (   !defined $iface->{ addr }
+			   or length $iface->{ addr } == 0 );    #IP addr doesn't exist
 		next if $iface->{ name } eq $if_ref->{ name };
 		&zenlog(
 			   "addlocalnet: into current interface: name $$iface{name} type $$iface{type}",
 			   "debug", "NETWORK" )
 		  if &debug();
 
-		my $ip    = new NetAddr::IP( $$iface{ addr }, $$iface{ mask } );
-		my $net   = $ip->network();
-		my $table = "table_$$if_ref{ name }";
+		#if duplicated network, next
+		my $ip        = new NetAddr::IP( $$iface{ addr }, $$iface{ mask } );
+		my $net       = $ip->network();
+		my $table     = "table_$$if_ref{ name }";
+		my $ip_ref    = new NetAddr::IP( $$if_ref{ addr }, $$if_ref{ mask } );
+		my $net_local = $ip_ref->network();
+
+		if ( $net eq $net_local && $$iface{ name } ne $$if_ref{ name } )
+		{
+			&zenlog(
+				"The network $net of dev $$iface{name} is the same than the network for $$if_ref{name}, the route is not going to be applied in table $table",
+				"error", "network"
+			);
+			next;
+		}
 
 		my $ip_cmd =
 		  "$ip_bin -$$iface{ip_v} route replace $net dev $$iface{name} src $$iface{addr} table $table $routeparams";
 
 		&logAndRun( $ip_cmd );
 	}
+
+	use Zevenet::Net::Core;
+	&setRuleIPtoTable( $$if_ref{ name }, $$if_ref{ addr }, "add" );
 
 	return;
 }
@@ -235,15 +277,26 @@ sub applyRule
 	my $from   = shift;
 	my $fwmark = shift;
 
+	my $prio_farm  = "28000";
+	my $prio_iface = "32000";
+
 	my $output = 0;
 
 	return -1 if ( $table eq "" );
 
+	my $prio = "";
+
+	# do not use the prio parameter to del
+	if ( $action ne 'del' )
+	{
+		$prio =
+		  ( defined $fwmark && $fwmark ne "" ) ? "prio $prio_farm" : "prio $prio_iface";
+	}
 	$from   = "from $from"     if ( defined $from   && $from ne "" );
 	$fwmark = "fwmark $fwmark" if ( defined $fwmark && $fwmark ne "" );
 
 	$output =
-	  &logAndRun( "$ip_bin -$ipv rule $action $from $fwmark lookup $table" );
+	  &logAndRun( "$ip_bin -$ipv rule $action $from $fwmark $prio lookup $table" );
 
 	return $output;
 }
@@ -343,11 +396,14 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $table, $if_ref, $gateway ) = @_;
+	my $if_announce = "";
 
 	# $gateway: The 3rd argument, '$gateway', is only used for 'global' table,
 	#           to assign a default gateway.
 
 	my $status = 0;
+
+	return 0 if ( $$if_ref{ ip_v } != 4 and $$if_ref{ ip_v } != 6 );
 
 	unless ( $$if_ref{ net } )
 	{
@@ -403,32 +459,22 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 				  "$ip_bin -$$if_ref{ip_v} route $action default via $gateway dev $$if_ref{name} $routeparams";
 				$status = &logAndRun( "$ip_cmd" );
 
-				require Tie::File;
-				tie my @contents, 'Tie::File', &getGlobalConfiguration( 'globalcfg' );
-
-				for my $line ( @contents )
+				if ( $$if_ref{ ip_v } == 6 )
 				{
-					if ( grep /^\$defaultgw/, $line )
-					{
-						if ( $$if_ref{ ip_v } == 6 )
-						{
-							$line =~ s/^\$defaultgw6=.*/\$defaultgw6=\"$gateway\"\;/g;
-							$line =~ s/^\$defaultgwif6=.*/\$defaultgwif6=\"$$if_ref{name}\"\;/g;
-						}
-						else
-						{
-							$line =~ s/^\$defaultgw=.*/\$defaultgw=\"$gateway\"\;/g;
-							$line =~ s/^\$defaultgwif=.*/\$defaultgwif=\"$$if_ref{name}\"\;/g;
-						}
-					}
+					&setGlobalConfiguration( 'defaultgw6',   $gateway );
+					&setGlobalConfiguration( 'defaultgwif6', $$if_ref{ name } );
+				}
+				else
+				{
+					&setGlobalConfiguration( 'defaultgw',   $gateway );
+					&setGlobalConfiguration( 'defaultgwif', $$if_ref{ name } );
 				}
 
-				untie @contents;
-
-				require Zevenet::Farm::L4xNAT::Config;
-				&reloadL4FarmsSNAT() if $status == 0;
+				require Zevenet::Farm::Config;
+				&reloadFarmsSourceAddress() if $status == 0;
 			}
 		}
+		$if_announce = $$if_ref{ name };
 	}
 
 	# virtual interface
@@ -436,7 +482,32 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 	{
 		my ( $toif ) = split ( /:/, $$if_ref{ name } );
 		$status = &setRule( "add", $if_ref, $toif, undef, undef );
+		$if_announce = $toif;
 	}
+
+	#if arp_announce is enabled then send garps to network
+	eval {
+		if ( $eload )
+		{
+			my $cl_status = &eload(
+									module => 'Zevenet::Cluster',
+									func   => 'getZClusterNodeStatus',
+									args   => [],
+			);
+
+			if (    &getGlobalConfiguration( 'arp_announce' ) eq "true"
+				 && $cl_status ne "backup" )
+			{
+				require Zevenet::Net::Util;
+
+				#&sendGArp($$if_ref{parent},$$if_ref{addr})
+				&zenlog( "Announcing garp $if_announce and $$if_ref{addr} " );
+				&sendGArp( $if_announce, $$if_ref{ addr } );
+			}
+
+		}
+
+	};
 
 	return $status;
 }
@@ -476,6 +547,10 @@ sub delRoutes    # ($table,$if_ref)
 
 	if ( !defined $$if_ref{ vini } || $$if_ref{ vini } eq '' )
 	{
+		#an interface is going to be deleted, delete the rule of the IP first
+		use Zevenet::Net::Core;
+		&setRuleIPtoTable( $$if_ref{ name }, $$if_ref{ addr }, "del" );
+
 		if ( $table eq "local" )
 		{
 			my $ip_cmd = "$ip_bin -$$if_ref{ip_v} route flush table table_$$if_ref{name}";
@@ -510,8 +585,8 @@ sub delRoutes    # ($table,$if_ref)
 			}
 			untie @contents;
 
-			require Zevenet::Farm::L4xNAT::Config;
-			&reloadL4FarmsSNAT() if $status == 0;
+			require Zevenet::Farm::Config;
+			&reloadFarmsSourceAddress() if $status == 0;
 
 			return $status;
 		}

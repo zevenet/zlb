@@ -47,24 +47,33 @@ sub set_snmp
 	my $json_obj = shift;
 
 	my $desc = "Post snmp";
+	my $params = {
+				   "port" => {
+							   'valid_format' => 'snmp_port',
+							   'non_blank'    => 'true',
+				   },
+				   "status" => {
+								 'valid_format' => 'snmp_status',
+								 'non_blank'    => 'true',
+				   },
+				   "ip" => {
+							 'valid_format' => 'snmp_ip',
+							 'non_blank'    => 'true',
+				   },
+				   "community" => {
+									'length'    => 32,
+									'non_blank' => 'true',
+				   },
+				   "scope" => {
+								'valid_format' => 'snmp_scope',
+								'non_blank'    => 'true',
+				   },
+	};
 
-	my @allowParams = ( "port", "status", "ip", "community", "scope" );
-	my $param_msg = &getValidOptParams( $json_obj, \@allowParams );
-
-	if ( $param_msg )
-	{
-		&httpErrorResponse( code => 400, desc => $desc, msg => $param_msg );
-	}
-
-	# Check key format
-	foreach my $key ( keys %{ $json_obj } )
-	{
-		if ( !&getValidFormat( "snmp_$key", $json_obj->{ $key } ) )
-		{
-			my $msg = "$key hasn't a correct format.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-	}
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
 
 	my $status = $json_obj->{ 'status' };
 	delete $json_obj->{ 'status' };

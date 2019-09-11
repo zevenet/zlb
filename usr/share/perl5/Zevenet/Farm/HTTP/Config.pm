@@ -467,7 +467,6 @@ sub setFarmListen    # ( $farm_name, $farmlisten )
 		if ( $filefarmhttp[$i_f] =~ /.*Cert\ \"/ && $flisten eq "https" )
 		{
 			$filefarmhttp[$i_f] =~ s/#//g;
-
 		}
 
 		#
@@ -478,7 +477,6 @@ sub setFarmListen    # ( $farm_name, $farmlisten )
 		if ( $filefarmhttp[$i_f] =~ /.*Ciphers\ \"/ && $flisten eq "https" )
 		{
 			$filefarmhttp[$i_f] =~ s/#//g;
-
 		}
 
 		# Enable 'Disable TLSv1, TLSv1_1 or TLSv1_2'
@@ -536,13 +534,13 @@ sub setFarmListen    # ( $farm_name, $farmlisten )
 		}
 
 		# Check for ECDHCurve cyphers
-		if ( $filefarmhttp[$i_f] =~ /^\#*ECDHCurve/ && $flisten eq "http" )
+		if ( $filefarmhttp[$i_f] =~ /ECDHCurve/ && $flisten eq "http" )
 		{
-			$filefarmhttp[$i_f] =~ s/.*ECDHCurve/\#ECDHCurve/;
+			$filefarmhttp[$i_f] =~ s/ECDHCurve/\#ECDHCurve/;
 		}
-		if ( $filefarmhttp[$i_f] =~ /^\#*ECDHCurve/ && $flisten eq "https" )
+		if ( $filefarmhttp[$i_f] =~ /ECDHCurve/ && $flisten eq "https" )
 		{
-			$filefarmhttp[$i_f] =~ s/.*ECDHCurve.*/ECDHCurve\t"prime256v1"/;
+			$filefarmhttp[$i_f] =~ s/#ECDHCurve/ECDHCurve/;
 		}
 
 		# Generate DH Keys if needed
@@ -926,13 +924,13 @@ sub getHTTPFarmMaxClientTime    # ($farm_name)
 =begin nd
 Function: getHTTPFarmGlobalStatus
 
-	Get the status of a farm and its backends through pound command.
+	Get the status of a farm and its backends through l7 proxy command.
 
 Parameters:
 	farmname - Farm name
 
 Returns:
-	array - Return poundctl output
+	array - Return proxyctl output
 
 =cut
 
@@ -942,9 +940,9 @@ sub getHTTPFarmGlobalStatus    # ($farm_name)
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
-	my $poundctl = &getGlobalConfiguration( 'poundctl' );
+	my $proxyctl = &getGlobalConfiguration( 'proxyctl' );
 
-	return `$poundctl -c "/tmp/$farm_name\_pound.socket"`;
+	return `$proxyctl -c "/tmp/$farm_name\_proxy.socket"`;
 }
 
 =begin nd
@@ -1178,7 +1176,7 @@ sub getHTTPFarmSocket    # ($farm_name)
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
-	return "/tmp/" . $farm_name . "_pound.socket";
+	return "/tmp/" . $farm_name . "_proxy.socket";
 }
 
 =begin nd
@@ -1202,13 +1200,13 @@ sub getHTTPFarmPid    # ($farm_name)
 
 	my $output  = -1;
 	my $piddir  = &getGlobalConfiguration( 'piddir' );
-	my $pidfile = "$piddir\/$farm_name\_pound.pid";
+	my $pidfile = "$piddir\/$farm_name\_proxy.pid";
 
 	# Get number of cores
 	my $processors = `nproc`;
 	chomp $processors;
 
-	# If the LB has one core, wait 20ms for pound child process to generate pid.
+	# If the LB has one core, wait 20ms for l7 proxy child process to generate pid.
 	select ( undef, undef, undef, 0.020 ) if ( $processors == 1 );
 
 	if ( -e $pidfile )
@@ -1257,7 +1255,7 @@ sub getHTTPFarmPidFile    # ($farm_name)
 	my ( $farm_name ) = @_;
 
 	my $piddir  = &getGlobalConfiguration( 'piddir' );
-	my $pidfile = "$piddir\/$farm_name\_pound.pid";
+	my $pidfile = "$piddir\/$farm_name\_proxy.pid";
 
 	return $pidfile;
 }
@@ -1334,7 +1332,7 @@ sub setHTTPFarmVirtualConf    # ($vip,$vip_port,$farm_name)
 	my ( $vip, $vip_port, $farm_name ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $stat          = 0;
+	my $stat          = 1;
 	my $enter         = 2;
 
 	my $lock_file = &getLockFile( $farm_name );
@@ -1348,16 +1346,21 @@ sub setHTTPFarmVirtualConf    # ($vip,$vip_port,$farm_name)
 	{
 		if ( $array[$i] =~ /Address/ )
 		{
-			$array[$i] =~ s/.*Address\ .*/\tAddress\ $vip/g;
-			$stat = $? || $stat;
+			if ( $array[$i] =~ s/.*Address\ .*/\tAddress\ $vip/ )
+			{
+				$stat = 0;
+			}
 			$enter--;
 		}
 		if ( $array[$i] =~ /Port/ and $vip_port )
 		{
-			$array[$i] =~ s/.*Port\ .*/\tPort\ $vip_port/g;
-			$stat = $? || $stat;
+			if ( $array[$i] =~ s/.*Port\ .*/\tPort\ $vip_port/ )
+			{
+				$stat = 0;
+			}
 			$enter--;
 		}
+		last if ( !$enter );
 	}
 
 	untie @array;
@@ -1385,17 +1388,17 @@ sub getHTTPFarmConfigIsOK    # ($farm_name)
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
-	my $pound         = &getGlobalConfiguration( 'pound' );
+	my $proxy         = &getGlobalConfiguration( 'proxy' );
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $pound_command = "$pound -f $configdir\/$farm_filename -c";
+	my $proxy_command = "$proxy -f $configdir\/$farm_filename -c";
 
-	my $run = `$pound_command 2>&1`;
+	my $run = `$proxy_command 2>&1`;
 	my $rc  = $?;
 
 	if ( $rc or &debug() )
 	{
 		my $message = $rc ? 'failed' : 'running';
-		&zenlog( "$message: $pound_command", "error", "LSLB" );
+		&zenlog( "$message: $proxy_command", "error", "LSLB" );
 		&zenlog( "output: $run ",            "error", "LSLB" );
 	}
 
@@ -1421,18 +1424,25 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
-	my $pound         = &getGlobalConfiguration( 'pound' );
+	my $proxy         = &getGlobalConfiguration( 'proxy' );
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $pound_command = "$pound -f $configdir\/$farm_filename -c";
+	my $proxy_command = "$proxy -f $configdir\/$farm_filename -c";
 
-	my @run = `$pound_command 2>&1`;
+	my @run = `$proxy_command 2>&1`;
 	my $rc  = $?;
-	my $msg;
 
 	return "" unless ( $rc );
 
-	$run[-1] =~ / line (\d+): /;
+	shift @run if ( $run[0] =~ /starting\.\.\./ );
+	chomp @run;
+	my $msg;
 
+	&zenlog( "Error checking $configdir\/$farm_filename." );
+	&zenlog( $run[0], "Error", "http" );
+
+	return "Error loading waf configuration" if ( $run[0] =~ /waf/i );
+
+	$run[0] =~ / line (\d+): /;
 	my $line_num = $1;
 
 	# get line
@@ -1457,10 +1467,11 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 	close $fileconf;
 
 # examples of error msg
-#	AAAhttps, /usr/local/zevenet/config/AAAhttps_pound.cfg line 36: unknown directive
-#	AAAhttps, /usr/local/zevenet/config/AAAhttps_pound.cfg line 40: SSL_CTX_use_PrivateKey_file failed - aborted
+#	AAAhttps, /usr/local/zevenet/config/AAAhttps_proxy.cfg line 36: unknown directive
+#	AAAhttps, /usr/local/zevenet/config/AAAhttps_proxy.cfg line 40: SSL_CTX_use_PrivateKey_file failed - aborted
 	$file_line =~ /\s*([\w-]+)/;
 	my $param = $1;
+	$msg = "Error in the configuration file";
 
 	# parse line
 	if ( $param eq "Cert" )
@@ -1474,11 +1485,15 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 		$srv = "in the service $srv" if ( $srv );
 		$msg = "Error in the parameter $param ${srv}";
 	}
-
-	if ( not $msg )
+	elsif ( $param )
 	{
-		if   ( &debug() ) { $msg = $run[-1]; }
-		else              { $msg = "Error in the configuration file"; }
+		$srv = "in the service $srv" if ( $srv );
+		$msg = "Error in the parameter $param ${srv}";
+	}
+
+	elsif ( &debug() )
+	{
+		$msg = $run[0];
 	}
 
 	&zenlog( "Error checking config file: $msg", 'debug' );
@@ -1583,7 +1598,7 @@ sub getHTTPFarmStruct
 		}
 		elsif ( $ciphers eq "cipherssloffloading" )
 		{
-			$ciphers = "cipherssloffloading";
+			$ciphers = "ssloffloading";
 		}
 		elsif ( $ciphers eq "cipherpci" )
 		{
@@ -1608,6 +1623,15 @@ sub getHTTPFarmStruct
 		  ( &getHTTPFarmDisableSSL( $farmname, "TLSv1_1" ) ) ? "true" : "false";
 		$farm->{ disable_tlsv1_2 } =
 		  ( &getHTTPFarmDisableSSL( $farmname, "TLSv1_2" ) ) ? "true" : "false";
+	}
+
+	if ( $eload )
+	{
+		$farm = &eload(
+						module => 'Zevenet::Farm::HTTP::Ext',
+						func   => 'get_http_farm_ee_struct',
+						args   => [$farmname, $farm],
+		);
 	}
 
 	return $farm;
@@ -1638,11 +1662,11 @@ sub getHTTPVerbCode
 	return $verb_code;
 }
 
-######### Pound Config
+######### l7 proxy Config
 
 # Reading
 
-sub parsePoundConfig
+sub parseL7ProxyConfig
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -1825,7 +1849,7 @@ sub parsePoundConfig
 	return \%conf;
 }
 
-sub getPoundConf
+sub getL7ProxyConf
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -1840,7 +1864,7 @@ sub getPoundConf
 
 	my $file = &slurpFile( "$configdir/$farmfile" );
 
-	return &parsePoundConfig( $file );
+	return &parseL7ProxyConfig( $file );
 }
 
 # Writing
@@ -1908,7 +1932,7 @@ sub print_session
 	return $session_str;
 }
 
-sub writePoundConfigToString
+sub writeL7ProxyConfigToString
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -1943,7 +1967,7 @@ Control 	"$conf->{ Control }"
 
 	if ( $listener_type eq 'HTTP' )
 	{
-		$global_str .= qq(#DHParams 	"/usr/local/zevenet/app/pound/etc/dh2048.pem"
+		$global_str .= qq(#DHParams 	"/usr/local/zevenet/app/zhttp/etc/dh2048.pem"
 #ECDHCurve	"prime256v1"
 );
 	}

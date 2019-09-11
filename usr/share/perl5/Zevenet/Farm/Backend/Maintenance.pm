@@ -39,9 +39,11 @@ Parameters:
 Returns:
 	Integer - return 0 on success or -1 on failure
 =cut
+
 sub setFarmBackendMaintenance    # ($farm_name,$backend,$mode,$service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $backend, $mode, $service ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -50,12 +52,13 @@ sub setFarmBackendMaintenance    # ($farm_name,$backend,$mode,$service)
 	if ( $farm_type eq "http" || $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Backend;
-		$output = &setHTTPFarmBackendMaintenance( $farm_name, $backend, $mode, $service );
+		$output =
+		  &setHTTPFarmBackendMaintenance( $farm_name, $backend, $mode, $service );
 	}
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Backend;
-		$output = &setL4FarmBackendMaintenance( $farm_name, $backend, $mode );
+		$output = &setL4FarmBackendStatus( $farm_name, $backend, 'maintenance', $mode );
 	}
 
 	return $output;
@@ -74,9 +77,11 @@ Parameters:
 Returns:
 	Integer - return 0 on success or -1 on failure
 =cut
+
 sub setFarmBackendNoMaintenance    # ($farm_name,$backend,$service)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $backend, $service ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
@@ -90,7 +95,7 @@ sub setFarmBackendNoMaintenance    # ($farm_name,$backend,$service)
 	elsif ( $farm_type eq "l4xnat" )
 	{
 		require Zevenet::Farm::L4xNAT::Backend;
-		$output = &setL4FarmBackendNoMaintenance( $farm_name, $backend );
+		$output = &setL4FarmBackendStatus( $farm_name, $backend, 'up', "" );
 	}
 
 	return $output;

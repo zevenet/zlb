@@ -63,45 +63,31 @@ sub modify_gateway    # ( $json_obj )
 	my $desc       = "Modify default gateway";
 	my $ip_v       = ( $ip_ver == 6 ) ? 6 : 4;
 	my $default_gw = ( $ip_v == 6 ) ? &getIPv6DefaultGW() : &getDefaultGW();
-
-	# verify ONLY ACCEPTED parameters received
-	if ( grep { $_ !~ /^(?:address|interface)$/ } keys %$json_obj )
-	{
-		my $msg = "Parameter received not recognized";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
+	my $mandatory  = 'false';
+	my $ip_format  = ( $ip_v == 6 ) ? 'IPv6_addr' : 'IPv4_addr';
 
 	# if default gateway is not configured requires address and interface
-	if ( $default_gw )
+	if ( !$default_gw )
 	{
-		# verify AT LEAST ONE parameter received
-		unless ( exists $json_obj->{ address } || exists $json_obj->{ interface } )
-		{
-			my $msg = "No parameter received to be configured";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-	}
-	else
-	{
-		unless ( exists $json_obj->{ address } && exists $json_obj->{ interface } )
-		{
-			my $msg = "Gateway requires address and interface to be configured";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
+		$mandatory = 'true';
 	}
 
-	# validate ADDRESS
-	if ( exists $json_obj->{ address } )
-	{
-		my $ip_format = ( $ip_v == 6 ) ? 'IPv6_addr' : 'IPv4_addr';
+	my $params = {
+				   "interface" => {
+									'non_blank' => 'true',
+									'required'  => $mandatory,
+				   },
+				   "address" => {
+								  'valid_format' => $ip_format,
+								  'non_blank'    => 'true',
+								  'required'     => $mandatory,
+				   },
+	};
 
-		unless (    $json_obj->{ address }
-				 && &getValidFormat( $ip_format, $json_obj->{ address } ) )
-		{
-			my $msg = "Invalid gateway address.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-	}
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
 
 	# validate INTERFACE
 	if ( exists $json_obj->{ interface } )

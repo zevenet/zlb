@@ -48,11 +48,6 @@ sub farms_name_l4    # ( $farmname )
 	my $vip   = &getL4FarmParam( "vip",  $farmname );
 	my $vport = &getL4FarmParam( "vipp", $farmname );
 
-	if ( $vport =~ /^\d+$/ )
-	{
-		$vport = $vport + 0;
-	}
-
 	my @ttl = &getFarmMaxClientTime( $farmname, "" );
 	my $timetolimit = $ttl[0] + 0;
 
@@ -70,16 +65,13 @@ sub farms_name_l4    # ( $farmname )
 
 	my $status = &getFarmVipStatus( $farmname );
 
-	my $persistence = &getL4FarmParam( 'persist', $farmname );
-	$persistence = "" if $persistence eq 'none';
-
 	$out_p = {
 			   status      => $status,
 			   vip         => $vip,
 			   vport       => $vport,
 			   algorithm   => &getL4FarmParam( 'alg', $farmname ),
 			   nattype     => &getL4FarmParam( 'mode', $farmname ),
-			   persistence => $persistence,
+			   persistence => &getL4FarmParam( 'persist', $farmname ),
 			   protocol    => &getL4FarmParam( 'proto', $farmname ),
 			   ttl         => $timetolimit,
 			   fgenabled   => $fguse,

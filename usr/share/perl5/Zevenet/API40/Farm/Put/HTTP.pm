@@ -41,31 +41,134 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 
 	my $desc = "Modify HTTP farm $farmname";
 
-	# Flags
-	my $reload_flag  = "false";
-	my $restart_flag = "false";
-	my $error        = "false";
+	my $params = {
+		"newfarmname" => {
+						   'valid_format' => 'farm_name',
+						   'non_blank'    => 'true',
+		},
+		"vport" => {
+					 'interval'  => "1,65535",
+					 'non_blank' => 'true',
+		},
+		"vip" => {
+				   'valid_format' => 'ip_addr',
+				   'non_blank'    => 'true',
+				   'format_msg'   => 'expects an IP'
+		},
+		"contimeout" => {
+						  'valid_format' => 'natural_num',
+						  'non_blank'    => 'true',
+						  'format_msg'   => 'expects a natural number'
+		},
+		"restimeout" => {
+						  'valid_format' => 'natural_num',
+						  'non_blank'    => 'true',
+						  'format_msg'   => 'expects a natural number'
+		},
+		"resurrectime" => {
+							'valid_format' => 'natural_num',
+							'non_blank'    => 'true',
+							'format_msg'   => 'expects a natural number'
+		},
+		"reqtimeout" => {
+						  'valid_format' => 'natural_num',
+						  'non_blank'    => 'true',
+						  'format_msg'   => 'expects a natural number'
+		},
+		"rewritelocation" => {
+							   'values'    => ["disabled", "enabled", "enabled-backends"],
+							   'non_blank' => 'true',
+		},
+		"httpverb" => {
+			'values' =>
+			  ["standardHTTP", "extendedHTTP", "standardWebDAV", "MSextWebDAV", "MSRPCext"],
+			'non_blank' => 'true',
+		},
+		"error414" => {
+						'regex' => ".*",
+		},
+		"error500" => {
+						'regex' => ".*",
+		},
+		"error501" => {
+						'regex' => ".*",
+		},
+		"error503" => {
+						'regex' => ".*",
+		},
+		"listener" => {
+						'values'    => ["http", "https"],
+						'non_blank' => 'true',
+		},
+		"ciphers" => {
+					   'values'    => ["all", "highsecurity", "customsecurity"],
+					   'non_blank' => 'true',
+					   'listener'  => 'https',
+		},
+		"cipherc" => {
+					   'non_blank' => 'true',
+					   'listener'  => 'https',
+		},
+		"certname" => {
+						'valid_format' => 'certificate',
+						'non_blank'    => 'true',
+						'listener'     => 'https',
+		},
+		"disable_sslv2" => {
+							 'values'    => ["true", "false"],
+							 'non_blank' => 'true',
+							 'listener'  => 'https',
+		},
+		"disable_sslv3" => {
+							 'values'    => ["true", "false"],
+							 'non_blank' => 'true',
+							 'listener'  => 'https',
+		},
+		"disable_tlsv1" => {
+							 'values'    => ["true", "false"],
+							 'non_blank' => 'true',
+							 'listener'  => 'https',
+		},
+		"disable_tlsv1_1" => {
+							   'values'    => ["true", "false"],
+							   'non_blank' => 'true',
+							   'listener'  => 'https',
+		},
+		"disable_tlsv1_2" => {
+							   'values'    => ["true", "false"],
+							   'non_blank' => 'true',
+							   'listener'  => 'https',
+		},
+	};
 
-	my $farmname_old;
-
-	# Check that the farm exists
-	if ( !&getFarmExists( $farmname ) )
+	if ( $eload )
 	{
-		my $msg = "The farm '$farmname' does not exist.";
-		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+		$params->{ logs } = {
+							  'values'    => ["true", "false"],
+							  'non_blank' => 'true',
+		};
+		$params->{ ignore_100_continue } = {
+											 'values'    => ["true", "false"],
+											 'non_blank' => 'true',
+		};
+		push @{ $params->{ ciphers }->{ values } }, "ssloffloading";
 	}
 
-	# Get current vip & vport
-	my $vip   = &getFarmVip( "vip",  $farmname );
-	my $vport = &getFarmVip( "vipp", $farmname );
-	my $changedname = "false";
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
+
+	# Get current conf
+	my $farm_st = &getFarmStruct( $farmname );
+
+	# Flags
 	my $reload_ipds = 0;
 
 	if (    exists $json_obj->{ vport }
 		 || exists $json_obj->{ vip }
 		 || exists $json_obj->{ newfarmname } )
 	{
-
 		if ( $eload )
 		{
 			$reload_ipds = 1;
@@ -85,27 +188,12 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 	}
 
 	######## Functions
-
 	# Modify Farm's Name
 	if ( exists ( $json_obj->{ newfarmname } ) )
 	{
-		unless ( &getFarmStatus( $farmname ) eq 'down' )
+		unless ( $farm_st->{ status } eq 'down' )
 		{
 			my $msg = 'Cannot change the farm name while the farm is running';
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		#Check if farmname has correct characters (letters, numbers and hyphens)
-		# FIXME: use validation regex
-		unless ( $json_obj->{ newfarmname } =~ /^[a-zA-Z0-9\-]+$/ )
-		{
-			my $msg = "Invalid newfarmname value.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		if ( $json_obj->{ newfarmname } eq $farmname )
-		{
-			my $msg = "The new farm name is the current name.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
@@ -116,119 +204,59 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		my $oldfstat = &runFarmStop( $farmname, "true" );
-		if ( $oldfstat != 0 )
-		{
-			my $msg = "The farm is not disabled, are you sure it's running?";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
 		# Change farm name
-		my $fnchange = &setNewFarmName( $farmname, $json_obj->{ newfarmname } );
-		$changedname = "true";
-
-		if ( $fnchange == -1 )
+		if ( &setNewFarmName( $farmname, $json_obj->{ newfarmname } ) )
 		{
-			my $msg =
-			  "The name of the farm can't be modified, delete the farm and create a new one.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-		elsif ( $fnchange == -2 )
-		{
-			my $msg = "Invalid newfarmname, the new name can't be empty.";
+			my $msg = "Error modifying the farm name.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		$farmname_old = $farmname;
-		$farmname     = $json_obj->{ newfarmname };
+		$farmname = $json_obj->{ newfarmname };
 	}
 
 	# Modify Backend Connection Timeout
-	if ( exists ( $json_obj->{ contimeout } ) )
+	if ( exists $json_obj->{ contimeout } )
 	{
-		if ( $json_obj->{ contimeout } !~ /^\d+$/ )
-		{
-			my $msg = ( "Invalid contimeout value." );
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		my $status = &setFarmConnTO( $json_obj->{ contimeout }, $farmname );
-		if ( $status == -1 )
+		if ( &setFarmConnTO( $json_obj->{ contimeout }, $farmname ) == -1 )
 		{
 			my $msg = "Some errors happened trying to modify the contimeout.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-
-		$restart_flag = "true";
 	}
 
 	# Modify Backend Respone Timeout
 	if ( exists ( $json_obj->{ restimeout } ) )
 	{
-		if ( $json_obj->{ restimeout } !~ /^\d+$/ )
-		{
-			my $msg = "Invalid restimeout value.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		my $status = &setFarmTimeout( $json_obj->{ restimeout }, $farmname );
-		if ( $status == -1 )
+		if ( &setFarmTimeout( $json_obj->{ restimeout }, $farmname ) == -1 )
 		{
 			my $msg = "Some errors happened trying to modify the restimeout.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-
-		$restart_flag = "true";
 	}
 
 	# Modify Frequency To Check Resurrected Backends
 	if ( exists ( $json_obj->{ resurrectime } ) )
 	{
-		if ( $json_obj->{ resurrectime } !~ /^\d+$/ )
-		{
-			my $msg = "Invalid resurrectime value.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		my $status = &setFarmBlacklistTime( $json_obj->{ resurrectime }, $farmname );
-		if ( $status == -1 )
+		if ( &setFarmBlacklistTime( $json_obj->{ resurrectime }, $farmname ) == -1 )
 		{
 			my $msg = "Some errors happened trying to modify the resurrectime.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-
-		$restart_flag = "true";
 	}
 
 	# Modify Client Request Timeout
 	if ( exists ( $json_obj->{ reqtimeout } ) )
 	{
-		if ( $json_obj->{ reqtimeout } !~ /^\d+$/ )
-		{
-			my $msg = "Invalid reqtimeout value.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		my $status = &setFarmClientTimeout( $json_obj->{ reqtimeout }, $farmname );
-		if ( $status == -1 )
+		if ( &setFarmClientTimeout( $json_obj->{ reqtimeout }, $farmname ) == -1 )
 		{
 			my $msg = "Some errors happened trying to modify the reqtimeout.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-
-		$restart_flag = "true";
 	}
 
 	# Modify Rewrite Location Headers
 	if ( exists ( $json_obj->{ rewritelocation } ) )
 	{
-		if (
-			 $json_obj->{ rewritelocation } !~ /^(?:disabled|enabled|enabled-backends)$/ )
-		{
-			my $msg = "Invalid rewritelocation value.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
 		my $rewritelocation = 0;
 		if    ( $json_obj->{ rewritelocation } eq "disabled" ) { $rewritelocation = 0; }
 		elsif ( $json_obj->{ rewritelocation } eq "enabled" )  { $rewritelocation = 1; }
@@ -237,13 +265,11 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 			$rewritelocation = 2;
 		}
 
-		my $status = &setFarmRewriteL( $farmname, $rewritelocation );
-		if ( $status == -1 )
+		if ( &setFarmRewriteL( $farmname, $rewritelocation ) == -1 )
 		{
 			my $msg = "Some errors happened trying to modify the rewritelocation.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-		$restart_flag = "true";
 	}
 
 	if ( $eload )
@@ -251,12 +277,6 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 		# Enable the log connection tracking
 		if ( exists ( $json_obj->{ logs } ) )
 		{
-			if ( $json_obj->{ logs } !~ /^(?:true|false)$/ )
-			{
-				my $msg = "Invalid logs value.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
 			my $status = &eload(
 								 module => 'Zevenet::Farm::HTTP::Ext',
 								 func   => 'setHTTPFarmLogs',
@@ -268,214 +288,166 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 				my $msg = "Some errors happened trying to modify the log parameter.";
 				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
-			$restart_flag = "true";
 		}
 
 		# Enable or disable ignore 100 continue header
-		if ( exists ( $json_obj->{ ignore_100_continue } ) )
+		if ( exists ( $json_obj->{ ignore_100_continue } )
+			 and
+			 ( $json_obj->{ ignore_100_continue } ne $farm_st->{ ignore_100_continue } )
+		  )    # this is a bugfix
 		{
-			if ( $json_obj->{ ignore_100_continue } !~ /^(?:true|false)$/ )
-			{
-				my $msg = "Invalid ignore_100_continue value.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
-			my $action = 0;
-			$action = 1 if ( $json_obj->{ ignore_100_continue } =~ /^true$/ );
-
-			my $newaction = &eload(
-									module => 'Zevenet::Farm::HTTP::Ext',
-									func   => 'getHTTPFarm100Continue',
-									args   => [$farmname],
+			my $action = ( $json_obj->{ ignore_100_continue } eq "true" ) ? 1 : 0;
+			my $status = &eload(
+								 module => 'Zevenet::Farm::HTTP::Ext',
+								 func   => 'setHTTPFarm100Continue',
+								 args   => [$farmname, $action],
 			);
 
-			if ( $newaction != $action )
+			if ( $status == -1 )
 			{
-				my $status = &eload(
-									 module => 'Zevenet::Farm::HTTP::Ext',
-									 func   => 'setHTTPFarm100Continue',
-									 args   => [$farmname, $action],
-				);
-
-				if ( $status == -1 )
-				{
-					my $msg =
-					  "Some errors happened trying to modify the ignore_100_continue parameter.";
-					&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-				}
-
-				$restart_flag = "true";
+				my $msg =
+				  "Some errors happened trying to modify the ignore_100_continue parameter.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
 		}
-
 	}
 
 	# Modify HTTP Verbs Accepted
 	if ( exists ( $json_obj->{ httpverb } ) )
 	{
-		my $httpverb = &getHTTPVerbCode( $json_obj->{ httpverb } );
-
-		unless ( defined $httpverb )
-		{
-			my $msg = "Invalid httpverb value.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		my $status = &setFarmHttpVerb( $httpverb, $farmname );
-		if ( $status == -1 )
+		my $code = &getHTTPVerbCode( $json_obj->{ httpverb } );
+		if ( &setFarmHttpVerb( $code, $farmname ) == -1 )
 		{
 			my $msg = "Some errors happened trying to modify the httpverb.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-
-		$restart_flag = "true";
 	}
 
 	#Modify Error 414
 	if ( exists ( $json_obj->{ error414 } ) )
 	{
-		my $status = &setFarmErr( $farmname, $json_obj->{ error414 }, "414" );
-		if ( $status == -1 )
+		if ( &setFarmErr( $farmname, $json_obj->{ error414 }, "414" ) == -1 )
 		{
 			my $msg = "Some errors happened trying to modify the error414.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-
-		$restart_flag = "true";
 	}
 
 	#Modify Error 500
 	if ( exists ( $json_obj->{ error500 } ) )
 	{
-		my $status = &setFarmErr( $farmname, $json_obj->{ error500 }, "500" );
-		if ( $status == -1 )
+		if ( &setFarmErr( $farmname, $json_obj->{ error500 }, "500" ) == -1 )
 		{
 			my $msg = "Some errors happened trying to modify the error500.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-
-		$restart_flag = "true";
 	}
 
 	#Modify Error 501
 	if ( exists ( $json_obj->{ error501 } ) )
 	{
-		my $status = &setFarmErr( $farmname, $json_obj->{ error501 }, "501" );
-		if ( $status == -1 )
+		if ( &setFarmErr( $farmname, $json_obj->{ error501 }, "501" ) == -1 )
 		{
 			my $msg = "Some errors happened trying to modify the error501.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-
-		$restart_flag = "true";
 	}
 
 	#Modify Error 503
 	if ( exists ( $json_obj->{ error503 } ) )
 	{
-		my $status = &setFarmErr( $farmname, $json_obj->{ error503 }, "503" );
-		if ( $status == -1 )
+		if ( &setFarmErr( $farmname, $json_obj->{ error503 }, "503" ) == -1 )
 		{
 			my $msg = "Some errors happened trying to modify the error503.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-
-		$restart_flag = "true";
 	}
 
 	# Modify Farm Listener
 	if ( exists ( $json_obj->{ listener } ) )
 	{
-		if ( $json_obj->{ listener } !~ /^(?:http|https)$/ )
-		{
-			my $msg = "Invalid listener value.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		my $status = &setFarmListen( $farmname, $json_obj->{ listener } );
-		if ( $status == -1 )
+		if ( &setFarmListen( $farmname, $json_obj->{ listener } ) == -1 )
 		{
 			my $msg = "Some errors happened trying to modify the listener.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		$restart_flag = "true";
+		$farm_st->{ listener } = $json_obj->{ listener };    # update listener type
+	}
+
+	# Discard parameters of the HTTPS listener when it is not configured
+	if ( $farm_st->{ listener } ne "https" )
+	{
+		foreach my $key ( keys %{ $params } )
+		{
+			if (     exists $json_obj->{ $key }
+				 and exists $params->{ $key }->{ listener }
+				 and $params->{ $key }->{ listener } eq 'https' )
+			{
+				my $msg =
+				  "The farm listener has to be 'HTTPS' to configure the parameter '$key'.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
 	}
 
 	# Modify HTTPS Params
-	my $farmtype = &getFarmType( $farmname );
-
-	if ( $farmtype eq "https" )
+	if ( $farm_st->{ listener } eq "https" )
 	{
 		require Zevenet::Farm::HTTP::HTTPS;
+
+		# Cipher groups
+		# API parameter => library parameter
+		my %c = (
+				  all            => "cipherglobal",
+				  customsecurity => "ciphercustom",
+				  highsecurity   => "cipherpci",
+				  ssloffloading  => "cipherssloffloading",
+		);
+		my $ciphers_lib;
 
 		# Modify Ciphers
 		if ( exists ( $json_obj->{ ciphers } ) )
 		{
-			# Cipher groups
-			# API parameter => library parameter
-			my %c = (
-					  all            => "cipherglobal",
-					  customsecurity => "ciphercustom",
-					  highsecurity   => "cipherpci",
-					  ssloffloading  => "cipherssloffloading",
-			);
+			$ciphers_lib = $c{ $json_obj->{ ciphers } };
 
-			if ( !&getValidFormat( 'ciphers', $json_obj->{ ciphers } ) )
+			my $ssloff = &eload( module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
+								 func   => 'getFarmCipherSSLOffLoadingSupport', );
+
+			unless ( $ssloff )
 			{
-				my $msg = "Invalid ciphers value.";
+				&zenlog( "The CPU does not support SSL offloading.", "warning", "system" );
+			}
+
+			if ( &setFarmCipherList( $farmname, $ciphers_lib ) == -1 )
+			{
+				my $msg = "Error modifying ciphers.";
 				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
 
-			my $ciphers = $c{ $json_obj->{ ciphers } };
-
-			if ( $ciphers eq "cipherssloffloading" )
-			{
-				unless ( $eload )
-				{
-					my $msg = "SSL offloading cipher profile not available.";
-					&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-				}
-
-				my $ssloff = &eload( module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
-									 func   => 'getFarmCipherSSLOffLoadingSupport', );
-
-				unless ( $ssloff )
-				{
-					my $msg = "The CPU does not support SSL offloading.";
-					&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-				}
-			}
-
-			my $status = &setFarmCipherList( $farmname, $ciphers );
-			$restart_flag = "true" if ( $status != -1 );
+			$farm_st->{ ciphers } = $json_obj->{ ciphers };    # update ciphers value
 		}
 
-		# Get ciphers value
-		my $cipher = &getFarmCipherSet( $farmname );
-
-		if ( $cipher eq "ciphercustom" )
+		# Modify Customized Ciphers
+		if ( exists ( $json_obj->{ cipherc } ) )
 		{
-			# Modify Customized Ciphers
-			if ( exists ( $json_obj->{ cipherc } ) )
+			$ciphers_lib = $c{ $farm_st->{ ciphers } };
+
+			if ( $farm_st->{ ciphers } eq "customsecurity" )
 			{
-				my $cipherc = $json_obj->{ cipherc };
-				$cipherc =~ s/\ //g;
-
-				if ( $cipherc eq '' )
-				{
-					my $msg = "Invalid cipherc, can't be blank.";
-					&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-				}
-
-				my $status = &setFarmCipherList( $farmname, $cipher, $cipherc );
-				if ( $status == -1 )
+				$json_obj->{ cipherc } =~ s/\ //g;
+				if (
+					 &setFarmCipherList( $farmname, $ciphers_lib, $json_obj->{ cipherc } ) == -1 )
 				{
 					my $msg = "Some errors happened trying to modify the cipherc.";
 					&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 				}
-
-				$restart_flag = "true";
+			}
+			else
+			{
+				my $msg =
+				  "'ciphers' has to be 'customsecurity' to set the 'cipherc' parameter.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
 		}
 
@@ -483,6 +455,15 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 		if ( exists ( $json_obj->{ certname } ) )
 		{
 			my $status;
+			my $configdir = &getGlobalConfiguration( 'configdir' );
+
+			if ( !-f "$configdir/$json_obj->{ certname }" )
+			{
+				my $msg =
+				  "The certificate $json_obj->{ certname } has to be uploaded to use it in a farm.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+
 			if ( $eload )
 			{
 				$status = &eload(
@@ -501,12 +482,10 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 				my $msg = "Some errors happened trying to modify the certname.";
 				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
-
-			$restart_flag = "true";
 		}
 
 		# Disable security protocol
-		# API parameter => pound parameter
+		# API parameter => l7 proxy parameter
 		my %ssl_proto_hash = (
 							   "disable_sslv2"   => "SSLv2",
 							   "disable_sslv3"   => "SSLv3",
@@ -520,47 +499,23 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 							"true"  => 1,
 		);
 
+		my $action;
+		my $ssl_proto;
 		foreach my $key_ssl ( keys %ssl_proto_hash )
 		{
-			if ( grep { $key_ssl eq $_ } keys %{ $json_obj } )
+			next if ( !exists $json_obj->{ $key_ssl } );
+			next
+			  if ( $json_obj->{ $key_ssl } eq $farm_st->{ $key_ssl } )
+			  ;    # skip when the farm already has the request value
+
+			$action = $bool_to_int{ $json_obj->{ $key_ssl } };
+			$ssl_proto = $ssl_proto_hash{ $key_ssl } if exists $ssl_proto_hash{ $key_ssl };
+
+			if ( &setHTTPFarmDisableSSL( $farmname, $ssl_proto, $action ) == -1 )
 			{
-				my $action;
-				my $ssl_proto;
-
-				$action = $bool_to_int{ $json_obj->{ $key_ssl } }
-				  if exists $bool_to_int{ $json_obj->{ $key_ssl } };
-
-				$ssl_proto = $ssl_proto_hash{ $key_ssl } if exists $ssl_proto_hash{ $key_ssl };
-
-				if ( not defined $action )
-				{
-					my $msg = "Error, the value is not valid for parameter $key_ssl.";
-					&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-				}
-
-				if ( $action != &getHTTPFarmDisableSSL( $farmname, $ssl_proto ) )
-				{
-					my $status = &setHTTPFarmDisableSSL( $farmname, $ssl_proto, $action );
-
-					if ( $status == -1 )
-					{
-						my $msg = "Some errors happened trying to modify the certname.";
-						&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-					}
-
-					$restart_flag = "true";
-				}
+				my $msg = "Some errors happened trying to modify $key_ssl.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
-		}
-	}
-	else
-	{
-		if (    exists ( $json_obj->{ ciphers } )
-			 || exists ( $json_obj->{ cipherc } )
-			 || exists ( $json_obj->{ certname } ) )
-		{
-			my $msg = "To modify ciphers, chiperc or certname, listener must be https.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}
 
@@ -575,150 +530,59 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 		}
 	}
 
-	if ( exists ( $json_obj->{ vport } ) )
+	# Modify vip and vport
+	if ( exists ( $json_obj->{ vip } ) or exists ( $json_obj->{ vport } ) )
 	{
-		if ( !$json_obj->{ vport } =~ /^\d+$/ )
+		my $vip   = $json_obj->{ vip }   // $farm_st->{ vip };
+		my $vport = $json_obj->{ vport } // $farm_st->{ vport };
+
+		if ( &setFarmVirtualConf( $vip, $vport, $farmname ) )
 		{
-			my $msg = "Invalid port value.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			my $msg = "Could not set the virtual configuration.";
+			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-	}
-
-	# Modify only vip
-	if ( exists ( $json_obj->{ vip } ) && !exists ( $json_obj->{ vport } ) )
-	{
-		my $status = &setFarmVirtualConf( $json_obj->{ vip }, $vport, $farmname );
-		if ( $status == -1 )
-		{
-			my $msg = "Invalid vip value.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		$restart_flag = "true";
-	}
-
-	# Modify only vport
-	if ( exists ( $json_obj->{ vport } ) && !exists ( $json_obj->{ vip } ) )
-	{
-		my $status = &setFarmVirtualConf( $vip, $json_obj->{ vport }, $farmname );
-		if ( $status == -1 )
-		{
-			my $msg = "Invalid port value.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		$restart_flag = "true";
-	}
-
-	# Modify both vip & vport
-	if ( exists ( $json_obj->{ vip } ) && exists ( $json_obj->{ vport } ) )
-	{
-		my $status =
-		  &setFarmVirtualConf( $json_obj->{ vip }, $json_obj->{ vport }, $farmname );
-		if ( $status == -1 )
-		{
-			my $msg = "Invalid port or vip value.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		$restart_flag = "true";
 	}
 
 	&zenlog( "Success, some parameters have been changed in farm $farmname.",
 			 "info", "LSLB" );
 
-	# set numeric values to numeric type
-	for my $key ( keys %{ $json_obj } )
+	# Return the received json object updated.
+	require Zevenet::API40::Farm::Output::HTTP;
+
+	#~ my $farm_upd = &getFarmStruct( $farmname );
+	#~ foreach my $key ( keys %{ $json_obj } )
+	#~ {
+	#~ $json_obj->{ $key } = $farm_upd->{ $key };
+	#~ }
+
+	my $out_obj = &getHTTPOutFarm( $farmname );
+
+	if ( $reload_ipds and $eload )
 	{
-		if ( $json_obj->{ $key } =~ /^\d+$/ )
-		{
-			$json_obj->{ $key } += 0;
-		}
-	}
+		&eload(
+				module => 'Zevenet::IPDS::Base',
+				func   => 'runIPDSStartByFarm',
+				args   => [$farmname],
+		);
 
-	if ( $json_obj->{ listener } eq 'https' )
-	{
-		# certlist
-		my @certlist;
-		my @cnames;
-
-		if ( $eload )
-		{
-			@cnames = &eload(
-							  module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
-							  func   => 'getFarmCertificatesSNI',
-							  args   => [$farmname],
-			);
-		}
-		else
-		{
-			# Make a list of a single element
-			@cnames = ( &getFarmCertificate( $farmname ) );
-		}
-
-		my $elem = scalar @cnames;
-
-		for ( my $i = 0 ; $i < $elem ; $i++ )
-		{
-			push @certlist, { file => $cnames[$i], id => $i + 1 };
-		}
-
-		$json_obj->{ certlist } = \@certlist;
-
-		# cipherlist
-		unless ( exists $json_obj->{ cipherc } )
-		{
-			$json_obj->{ cipherc } = &getFarmCipherList( $farmname );
-		}
-
-		# cipherset
-		unless ( exists $json_obj->{ ciphers } )
-		{
-			chomp ( $json_obj->{ ciphers } = &getFarmCipherSet( $farmname ) );
-
-			if ( $json_obj->{ ciphers } eq "cipherglobal" )
-			{
-				$json_obj->{ ciphers } = "all";
-			}
-		}
-
-		# disabled protocols
-		$json_obj->{ disable_sslv2 } =
-		  ( &getHTTPFarmDisableSSL( $farmname, "SSLv2" ) ) ? "true" : "false";
-		$json_obj->{ disable_sslv3 } =
-		  ( &getHTTPFarmDisableSSL( $farmname, "SSLv3" ) ) ? "true" : "false";
-		$json_obj->{ disable_tlsv1 } =
-		  ( &getHTTPFarmDisableSSL( $farmname, "TLSv1" ) ) ? "true" : "false";
-		$json_obj->{ disable_tlsv1_1 } =
-		  ( &getHTTPFarmDisableSSL( $farmname, "TLSv1_1" ) ) ? "true" : "false";
-		$json_obj->{ disable_tlsv1_2 } =
-		  ( &getHTTPFarmDisableSSL( $farmname, "TLSv1_2" ) ) ? "true" : "false";
-	}
-
-	if ( $reload_ipds )
-	{
-		if ( $eload )
-		{
-			&eload(
-					module => 'Zevenet::IPDS::Base',
-					func   => 'runIPDSStartByFarm',
-					args   => [$farmname],
-			);
-
-			&eload(
-					module => 'Zevenet::Cluster',
-					func   => 'runZClusterRemoteManager',
-					args   => ['ipds', 'start', $farmname],
-			);
-		}
+		&eload(
+				module => 'Zevenet::Cluster',
+				func   => 'runZClusterRemoteManager',
+				args   => ['ipds', 'start', $farmname],
+		);
 	}
 
 	my $body = {
 				 description => $desc,
-				 params      => $json_obj,
+				 params      => $out_obj,
 	};
 
-	if ( $restart_flag eq "true" && &getFarmStatus( $farmname ) ne 'down' )
+	if ( exists $json_obj->{ newfarmname } )
+	{
+		$body->{ params }->{ newfarmname } = $json_obj->{ newfarmname };
+	}
+
+	if ( $farm_st->{ status } ne 'down' )
 	{
 		&setFarmRestart( $farmname );
 		$body->{ status } = 'needed restart';

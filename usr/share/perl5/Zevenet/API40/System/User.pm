@@ -199,7 +199,7 @@ sub set_system_user
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
-	my $msg = "Settings was changed successful.";
+	my $msg = "Settings was changed successfully.";
 	my $body = { description => $desc, message => $msg };
 
 	&httpResponse( { code => 200, body => $body } );
