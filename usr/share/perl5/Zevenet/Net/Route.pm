@@ -23,6 +23,12 @@
 
 use strict;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
+
 my $ip_bin = &getGlobalConfiguration( 'ip_bin' );
 
 =begin nd
@@ -150,6 +156,10 @@ sub addlocalnet    # ($if_ref)
 	foreach my $iface ( @ifaces )
 	{
 		next if $iface->{ type } eq 'virtual';
+		next if $iface->{ is_slave } eq 'true';    # Is in bonding iface
+		next
+		  if (   !defined $iface->{ addr }
+			   or length $iface->{ addr } == 0 );    #IP addr doesn't exist
 		next if $iface->{ name } eq $if_ref->{ name };
 		&zenlog(
 			   "addlocalnet: into current interface: name $$iface{name} type $$iface{type}",
@@ -239,8 +249,11 @@ sub applyRule
 
 	return -1 if ( $table eq "" );
 
-	$from   = "from $from"     if ( defined $from   && $from ne "" );
-	$fwmark = "fwmark $fwmark" if ( defined $fwmark && $fwmark ne "" );
+	my $prio_id = "28000";
+
+	$from = "from $from" if ( defined $from && $from ne "" );
+	$fwmark = "fwmark $fwmark prio $prio_id"
+	  if ( defined $fwmark && $fwmark ne "" );
 
 	$output =
 	  &logAndRun( "$ip_bin -$ipv rule $action $from $fwmark lookup $table" );
@@ -343,11 +356,14 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $table, $if_ref, $gateway ) = @_;
+	my $if_announce = "";
 
 	# $gateway: The 3rd argument, '$gateway', is only used for 'global' table,
 	#           to assign a default gateway.
 
 	my $status = 0;
+
+	return 0 if ( $$if_ref{ ip_v } != 4 and $$if_ref{ ip_v } != 6 );
 
 	unless ( $$if_ref{ net } )
 	{
@@ -396,39 +412,28 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 				&zenlog(
 						 "Applying $table routes in stack IPv$$if_ref{ip_v} with gateway \""
 						   . &getGlobalConfiguration( 'defaultgw' ) . "\"",
-						 "info",
-						 "NETWORK"
+						 "info", "NETWORK"
 				);
 				my $ip_cmd =
 				  "$ip_bin -$$if_ref{ip_v} route $action default via $gateway dev $$if_ref{name} $routeparams";
 				$status = &logAndRun( "$ip_cmd" );
 
-				require Tie::File;
-				tie my @contents, 'Tie::File', &getGlobalConfiguration( 'globalcfg' );
-
-				for my $line ( @contents )
+				if ( $$if_ref{ ip_v } == 6 )
 				{
-					if ( grep /^\$defaultgw/, $line )
-					{
-						if ( $$if_ref{ ip_v } == 6 )
-						{
-							$line =~ s/^\$defaultgw6=.*/\$defaultgw6=\"$gateway\"\;/g;
-							$line =~ s/^\$defaultgwif6=.*/\$defaultgwif6=\"$$if_ref{name}\"\;/g;
-						}
-						else
-						{
-							$line =~ s/^\$defaultgw=.*/\$defaultgw=\"$gateway\"\;/g;
-							$line =~ s/^\$defaultgwif=.*/\$defaultgwif=\"$$if_ref{name}\"\;/g;
-						}
-					}
+					&setGlobalConfiguration( 'defaultgw6',   $gateway );
+					&setGlobalConfiguration( 'defaultgwif6', $$if_ref{ name } );
+				}
+				else
+				{
+					&setGlobalConfiguration( 'defaultgw',   $gateway );
+					&setGlobalConfiguration( 'defaultgwif', $$if_ref{ name } );
 				}
 
-				untie @contents;
-
-				require Zevenet::Farm::L4xNAT::Config;
-				&reloadL4FarmsSNAT() if $status == 0;
+				require Zevenet::Farm::Config;
+				&reloadFarmsSourceAddress() if $status == 0;
 			}
 		}
+		$if_announce = $$if_ref{ name };
 	}
 
 	# virtual interface
@@ -436,7 +441,32 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 	{
 		my ( $toif ) = split ( /:/, $$if_ref{ name } );
 		$status = &setRule( "add", $if_ref, $toif, undef, undef );
+		$if_announce = $toif;
 	}
+
+	#if arp_announce is enabled then send garps to network
+	eval {
+		if ( $eload )
+		{
+			my $cl_status = &eload(
+									module => 'Zevenet::Cluster',
+									func   => 'getZClusterNodeStatus',
+									args   => [],
+			);
+
+			if (    &getGlobalConfiguration( 'arp_announce' ) eq "true"
+				 && $cl_status ne "backup" )
+			{
+				require Zevenet::Net::Util;
+
+				#&sendGArp($$if_ref{parent},$$if_ref{addr})
+				&zenlog( "Announcing garp $if_announce and $$if_ref{addr} " );
+				&sendGArp( $if_announce, $$if_ref{ addr } );
+			}
+
+		}
+
+	};
 
 	return $status;
 }
@@ -510,8 +540,8 @@ sub delRoutes    # ($table,$if_ref)
 			}
 			untie @contents;
 
-			require Zevenet::Farm::L4xNAT::Config;
-			&reloadL4FarmsSNAT() if $status == 0;
+			require Zevenet::Farm::Config;
+			&reloadFarmsSourceAddress() if $status == 0;
 
 			return $status;
 		}

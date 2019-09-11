@@ -59,10 +59,10 @@ if ( !defined $ARGV[0] )
 }
 
 # declare global variables
-my $farmname = "$ARGV[0]";
-my $service  = '';
-my $fservice = '';
-my $zcluster_send_action = "/usr/local/zevenet/app/zbin/zcluster-send-action";
+my $farmname             = "$ARGV[0]";
+my $service              = '';
+my $fservice             = '';
+my $zcluster_send_action = "/usr/local/zevenet/bin/zcluster-send-action";
 
 # validate FARM TYPE
 my $type = &getFarmType( $farmname );
@@ -150,7 +150,7 @@ my $filepid = "/var/run/$pidfile";
 
 # get farm port to use it if a backend has not defined the port field
 require Zevenet::Farm::Config;
-my $farm_st = &getFarmStruct($farmname);
+my $farm_st = &getFarmStruct( $farmname );
 
 #Ask for the farm type
 $type = 'http' if $type eq 'https';
@@ -189,9 +189,9 @@ while ( 1 )
 	# Collect HTTP/S farm variables values
 	if ( $type eq 'http' )
 	{
-		system ( "$poundctl -c $portadmin 2>&1 >/dev/null" );
+		my $err = system ( "$poundctl -c $portadmin 2>&1 >/dev/null" );
 
-		if ( $? != 0 )
+		if ( $err != 0 )
 		{
 			my $msg = "Farm $farmname is down, abort.";
 
@@ -230,7 +230,8 @@ while ( 1 )
 		{
 			$backendid[$i]   = $l_serv->{ id };
 			$backendserv[$i] = $l_serv->{ ip };
-			$backendport[$i] = $l_serv->{ port } // $farm_st->{vport}; # use farm port if backend port is not defined
+			$backendport[$i] = $l_serv->{ port }
+			  // $farm_st->{ vport };    # use farm port if backend port is not defined
 			$backendstatus[$i] = $l_serv->{ status };
 			$i++;
 		}
@@ -277,8 +278,8 @@ while ( 1 )
 		my $command = $check_cmd_tpl;
 
 		# substitute HOST and PORT variables for this backend's values
-		$command =~ s/HOST/$backendserv[$j]/;
-		$command =~ s/PORT/$backendport[$j]/;
+		$command =~ s/HOST/$backendserv[$j]/g;
+		$command =~ s/PORT/$backendport[$j]/g;
 
 		#execute the binary to check
 		$command = "$libexec_dir/$command";
@@ -338,7 +339,8 @@ while ( 1 )
 				&setL4FarmBackendStatus( $farmname, $backendid[$j], 'up' );
 				$auxLog = " in farm: '$farmname'";
 
-				system ( "$zcluster_send_action farm restart $farmname &" ) if -f $zcluster_send_action;
+				system ( "$zcluster_send_action farm restart $farmname &" )
+				  if -f $zcluster_send_action;
 			}
 
 			$backendstatus[$j] = 'active';
@@ -371,9 +373,11 @@ while ( 1 )
 			{
 				&setL4FarmBackendStatus( $farmname, $backendid[$j], 'fgDOWN' );
 				$auxLog = " in farm: '$farmname'";
-				&setL4FarmBackendsSessionsRemove( $farmname, $backendid[$j] ) if ( $cutConns eq 'true' );
+				&setL4FarmBackendsSessionsRemove( $farmname, $backendid[$j] )
+				  if ( $cutConns eq 'true' );
 
-				system ( "$zcluster_send_action farm restart $farmname &" ) if -f $zcluster_send_action;
+				system ( "$zcluster_send_action farm restart $farmname &" )
+				  if -f $zcluster_send_action;
 			}
 
 			$backendstatus[$j] = 'fgDOWN';

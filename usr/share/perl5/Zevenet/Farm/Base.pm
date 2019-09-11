@@ -229,7 +229,8 @@ sub getFarmVipStatus    # ($farm_name)
 	{
 		$up_flag          = 1 if $be->{ 'status' } eq "up";
 		$maintenance_flag = 1 if $be->{ 'status' } eq "maintenance";
-		$down_flag        = 1 if $be->{ 'status' } eq "down";
+		$down_flag        = 1
+		  if ( $be->{ 'status' } eq "down" || $be->{ 'status' } eq "fgDOWN" );
 
 		# if there is a backend up and another down, the status is 'problem'
 		last if ( $down_flag and $up_flag );
@@ -439,16 +440,56 @@ sub getNumberOfFarmTypeRunning
 	return $counter;
 }
 
+=begin nd
+Function: getFarmListByVip
+
+	Returns a list of farms that have the same IP address.
+
+Parameters:
+	ip - ip address
+
+Returns:
+	Array - List of farm names
+=cut
+
 sub getFarmListByVip
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $ip = shift;
-	my @out;
+	my $ip  = shift;
+	my @out = ();
 
 	foreach my $farm ( &getFarmNameList() )
 	{
 		if ( &getFarmVip( 'vip', $farm ) eq $ip )
+		{
+			push @out, $farm;
+		}
+	}
+	return @out;
+}
+
+=begin nd
+Function: getFarmRunning
+
+	Returns the farms are currently running in the system.
+
+Parameters:
+	none - .
+
+Returns:
+	Array - List of farm names
+=cut
+
+sub getFarmRunning
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my @out = ();
+
+	foreach my $farm ( &getFarmNameList() )
+	{
+		if ( &getFarmStatus( $farm ) eq 'up' )
 		{
 			push @out, $farm;
 		}

@@ -29,11 +29,13 @@ use Regexp::IPv6 qw($IPv6_re);
 # \w matches the 63 characters [a-zA-Z0-9_] (most of the time)
 #
 
-my $UNSIGNED8BITS = qr/(?:25[0-5]|2[0-4]\d|[01]?\d\d?)/;           # (0-255)
-my $UNSIGNED7BITS = qr/(?:[0-9]{1,2}|10[0-9]|11[0-9]|12[0-8])/;    # (0-128)
-my $ipv6_word     = qr/(?:[A-Fa-f0-9]+){1,4}/;
+my $UNSIGNED8BITS = qr/(?:25[0-5]|2[0-4]\d|(?!0)[1]?\d\d?|0)/;       # (0-255)
+my $UNSIGNED7BITS = qr/(?:[0-9]{1,2}|10[0-9]|11[0-9]|12[0-8])/;      # (0-128)
+my $HEXCHAR       = qr/(?:[A-Fa-f0-9])/;
+my $ipv6_word     = qr/(?:$HEXCHAR+){1,4}/;
 my $ipv4_addr     = qr/(?:$UNSIGNED8BITS\.){3}$UNSIGNED8BITS/;
 my $ipv6_addr     = $IPv6_re;
+my $mac_addr      = qr/(?:$HEXCHAR$HEXCHAR\:){5}$HEXCHAR$HEXCHAR/;
 my $ipv4v6        = qr/(?:$ipv4_addr|$ipv6_addr)/;
 my $boolean       = qr/(?:true|false)/;
 my $enable        = qr/(?:enable|disable)/;
@@ -99,16 +101,18 @@ my %format_re = (
 	'ssh_listen'     => qr/(?:$ipv4v6|\*)/,
 	'snmp_status'    => $boolean,
 	'snmp_ip'        => qr/(?:$ipv4v6|\*)/,
+	'snmp_community' => qr{.+},
 	'snmp_port'      => $port_range,
-	'snmp_community' => qr{[\w]+},
 	'snmp_scope'     => qr{(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}},    # ip/mask
 	'ntp'            => qr{[\w\.\-]+},
+	'http_proxy' => qr{\S*},    # use any character except the spaces
 
 	# farms
 	'farm_name'             => qr/[a-zA-Z0-9\-]+/,
 	'farm_profile'          => qr/HTTP|GSLB|L4XNAT|DATALINK/,
 	'backend'               => qr/\d+/,
 	'service'               => $service,
+	'http_service'          => qr/[a-zA-Z0-9\-]+/,
 	'gslb_service'          => qr/[a-zA-Z0-9][\w\-]*/,
 	'farm_modules'          => qr/(?:gslb|dslb|lslb)/,
 	'service_position'      => qr/\d+/,
@@ -150,6 +154,7 @@ my %format_re = (
 	'resource_data_NAPTR' => qr/.+/,              # all characters allow
 
 	# interfaces ( WARNING: length in characters < 16  )
+	'mac_addr'         => $mac_addr,
 	'nic_interface'    => $nic_if,
 	'bond_interface'   => $bond_if,
 	'vlan_interface'   => $vlan_if,
@@ -225,12 +230,12 @@ my %format_re = (
 	'waf_audit_log'  => qr/(?:$boolean|)/,
 	'waf_skip'       => qr/[0-9]+/,
 	'waf_skip_after' => qr/\w+/,
-	'waf_action'     => qr/(?:allow|block|redirect|pass|deny)/,
 	'waf_set_status' => qr/(?:$boolean|detection)/,
 
 	# certificates filenames
 	'certificate' => qr/\w[\w\.\(\)\@ \-]*\.(?:pem|csr)/,
 	'cert_pem'    => qr/\w[\w\.\(\)\@ \-]*\.pem/,
+	'cert_name'   => qr/[a-zA-Z0-9\-]+/,
 	'cert_csr'    => qr/\w[\w\.\-]*\.csr/,
 	'cert_dh2048' => qr/\w[\w\.\-]*_dh2048\.pem/,
 
@@ -349,9 +354,10 @@ sub getValidPort    # ( $ip, $port, $profile )
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $ip      = shift;    # mandatory for HTTP, GSLB or no profile
-	my $port    = shift;
-	my $profile = shift;    # farm profile, optional
+	my $ip       = shift;    # mandatory for HTTP, GSLB or no profile
+	my $port     = shift;
+	my $profile  = shift;    # farm profile, optional
+	my $farmname = shift;    # farm profile, optional
 
 	#~ &zenlog("getValidPort( ip:$ip, port:$port, profile:$profile )");# if &debug;
 	require Zevenet::Net::Validate;
@@ -363,7 +369,8 @@ sub getValidPort    # ( $ip, $port, $profile )
 	elsif ( $profile =~ /^(?:L4XNAT)$/i )
 	{
 		require Zevenet::Farm::L4xNAT::Validate;
-		return &ismport( $port ) eq 'true';
+		return &ismport( $port ) eq 'true'
+		  && &checkport( $ip, $port, $farmname ) eq 'false';
 	}
 	elsif ( $profile =~ /^(?:DATALINK)$/i )
 	{
@@ -382,6 +389,8 @@ sub getValidPort    # ( $ip, $port, $profile )
 
 =begin nd
 Function: getValidOptParams
+
+[DEPRECATED]: It is used untill the API 3.2. Now, use checkZAPIParams
 
 	Check parameters when all params are optional
 
@@ -432,6 +441,8 @@ sub getValidOptParams    # ( \%json_obj, \@allowParams )
 
 =begin nd
 Function: getValidReqParams
+
+[DEPRECATED]: It is used untill the API 3.2. Now, use checkZAPIParams
 
 	Check parameters when there are required params
 
@@ -523,9 +534,12 @@ Parameters:
 			"interval" 	: "1,65535",	# it is possible define strings matchs ( non implement). For example: "ports" = "1-65535", "log_level":"1-3", ...
 										# ",10" indicates that the value has to be less than 10 but without low limit
 										# "10," indicates that the value has to be more than 10 but without high limit
+										# The values of the interval has to be integer numbers
 			"exceptions"	: [ "zapi", "webgui", "root" ],	# The parameter can't have got any of the listed values
 			"values" : ["priority", "weight"],		# list of possible values for a parameter
+			"length" : 32,				# it is the maximum string size for the value
 			"regex"	: "/\w+,\d+/",		# regex format
+			"ref"	: "array|hash",		# the expected input must be an array or hash ref
 			"valid_format"	: "farmname",		# regex stored in Validate.pm file, it checks with the function getValidFormat
 			"function" : \&func,		# function of validating, the input parameter is the value of the argument. The function has to return 0 or 'false' when a error exists
 			"format_msg"	: "must have letters and digits",	# used message when a value is not correct
@@ -549,149 +563,349 @@ sub checkZAPIParams
 			 "debug", "PROFILING" );
 	my $json_obj  = shift;
 	my $param_obj = shift;
+	my $err_msg;
 
-	my @rec_keys      = keys %{ $json_obj };
-	my @expect_params = keys %{ $param_obj };
+	my @rec_keys = keys %{ $json_obj };
 
-	# Almost 1 parameter
-	return "At least a parameters is expected." if ( !keys %{ $json_obj } );
+	# Returns a help with the expected input parameters
+	if ( !@rec_keys )
+	{
+		&httpResponseHelp( $param_obj );
+	}
 
 	# All required parameters must exist
-	my @miss_params;
+	my @expect_params = keys %{ $param_obj };
 
-	foreach my $param ( @expect_params )
-	{
-		next if ( !exists $param_obj->{ $param }->{ 'required' } );
-		if ( $param_obj->{ $param }->{ 'required' } eq 'true' )
-		{
-			push @miss_params, $param if ( !grep ( /^$param$/, keys %{ $json_obj } ) );
-		}
-	}
-	return
-	  &putArrayAsText( \@miss_params,
-				   "The required parameter<sp>s</sp> <pl> <bs>is<|>are</bp> missing." )
-	  if ( @miss_params );
+	$err_msg = &checkParamsRequired( \@rec_keys, \@expect_params, $param_obj );
+	return $err_msg if ( $err_msg );
 
 	# All sent parameters are correct
-	my @non_valid;
-	foreach my $param ( @rec_keys )
-	{
-		push @non_valid, $param if ( !grep ( /^$param$/, keys %{ $param_obj } ) );
-	}
-	return
-	  &putArrayAsText( \@non_valid,
-		"The parameter<sp>s</sp> <pl> <bs>is<|>are</bp> not correct for this call. Please, try with: "
-		  . join ( ', ', @expect_params ) )
-	  if ( @non_valid );
+	$err_msg = &checkParamsInvalid( \@rec_keys, \@expect_params );
+	return $err_msg if ( $err_msg );
 
 	# check for each parameter
 	foreach my $param ( @rec_keys )
 	{
-		# if blank value is allowed
-		if ( $param_obj->{ $param }->{ 'non_blank' } eq 'true' )
+		my $custom_msg =
+		  ( exists $param_obj->{ $param }->{ format_msg } )
+		  ? "$param $param_obj->{ $param }->{ format_msg }"
+		  : "The parameter '$param' has not a valid value.";
+
+		if ( $json_obj->{ $param } eq '' or not defined $json_obj->{ $param } )
 		{
-			return "The parameter $param can't be in blank."
-			  if ( $json_obj->{ $param } eq '' );
+			# if blank value is allowed
+			if ( $param_obj->{ $param }->{ 'non_blank' } eq 'true' )
+			{
+				return "The parameter '$param' can't be in blank.";
+			}
+
+			# parameter validated, pass to next one
+			next;
 		}
 
-		if ( exists $param_obj->{ $param }->{ 'values' } )
+		if (
+			( exists $param_obj->{ $param }->{ 'values' } )
+			and (
+				!grep ( /^$json_obj->{ $param }$/, @{ $param_obj->{ $param }->{ 'values' } } ) )
+		  )
 		{
-			return "The parameter $param expects once of the following values: "
-			  . join ( ', ', @{ $param_obj->{ $param }->{ 'values' } } )
-			  if (
-				  !grep ( /^$json_obj->{ $param }$/, @{ $param_obj->{ $param }->{ 'values' } } )
-			  );
+			return
+			  "The parameter '$param' expects once of the following values: '"
+			  . join ( "', '", @{ $param_obj->{ $param }->{ 'values' } } ) . "'";
+		}
+
+		# the input has to be a ref
+		my $r = ref $json_obj->{ $param } // '';
+		if ( exists $param_obj->{ $param }->{ 'ref' } )
+		{
+			if ( $r !~ /^$param_obj->{ $param }->{ 'ref' }$/i )
+			{
+				return
+				  "The parameter '$param' expects a '$param_obj->{ $param }->{ref}' reference as input";
+			}
+		}
+		elsif ( $r eq 'ARRAY' or $r eq 'HASH' )
+		{
+			return "The parameter '$param' does not expect a $r as input";
 		}
 
 		# getValidFormat funcion:
-		if ( exists $param_obj->{ $param }->{ 'valid_format' } )
+		if (
+			 ( exists $param_obj->{ $param }->{ 'valid_format' } )
+			 and (
+				   !&getValidFormat(
+									 $param_obj->{ $param }->{ 'valid_format' },
+									 $json_obj->{ $param }
+				   )
+			 )
+		  )
 		{
-			if (
-				 !&getValidFormat(
-								   $param_obj->{ $param }->{ 'valid_format' },
-								   $json_obj->{ $param }
-				 )
-			  )
-			{
+			return $custom_msg;
+		}
 
-				if ( exists $param_obj->{ $param }->{ format_msg } )
-				{
-					return "$param $param_obj->{ $param }->{ format_msg }";
-				}
-				else
-				{
-					return "The parameter $param has not a valid value.";
-				}
+		if (
+			( exists $param_obj->{ $param }->{ 'values' } )
+			and (
+				!grep ( /^$json_obj->{ $param }$/, @{ $param_obj->{ $param }->{ 'values' } } ) )
+		  )
+		{
+			return "The parameter '$param' expects one of the following values: "
+			  . join ( "', '", @{ $param_obj->{ $param }->{ 'values' } } );
+		}
+
+		# length
+		if ( exists $param_obj->{ $param }->{ 'length' } )
+		{
+			my $data_length = length ( $json_obj->{ $param } );
+			if ( $data_length > $param_obj->{ $param }->{ 'length' } )
+			{
+				return
+				  "The maximum length for '$param' is '$param_obj->{ $param }->{ 'length' }'";
 			}
 		}
 
 		# intervals
 		if ( exists $param_obj->{ $param }->{ 'interval' } )
 		{
-			if ( $param_obj->{ $param }->{ 'interval' } =~ /,/ )
-			{
-				my ( $low_limit, $high_limit ) =
-				  split ( ',', $param_obj->{ $param }->{ 'interval' } );
-				my $low_str =
-				  ( $low_limit ) ? "$param has to be greater than or equal to $low_limit" : "";
-				my $high_str =
-				  ( $high_limit ) ? "$param has to be lower than or equal to $high_limit" : "";
-				my $msg = $low_str if $low_str;
-
-				if ( $high_str )
-				{
-					$msg .= ". " if $msg;
-					$msg .= $high_str;
-				}
-				return $msg
-				  if (    ( $json_obj->{ $param } !~ /^\d*$/ )
-					   || ( $json_obj->{ $param } > $high_limit )
-					   || ( $json_obj->{ $param } > $high_limit ) );
-			}
-			else
-			{
-				die "Expected a interval string, got: $param_obj->{ $param }->{ 'interval' }";
-			}
+			$err_msg = &checkParamsInterval( $param_obj->{ $param }->{ 'interval' },
+											 $param, $json_obj->{ $param } );
+			return $err_msg if $err_msg;
 		}
 
 		# exceptions
-		if ( exists $param_obj->{ $param }->{ 'exceptions' } )
+		if (
+			 ( exists $param_obj->{ $param }->{ 'exceptions' } )
+			 and (
+				   grep ( /^$json_obj->{ $param }$/,
+						  @{ $param_obj->{ $param }->{ 'exceptions' } } ) )
+		  )
 		{
 			return
-			  "The value $json_obj->{ $param } is a reserved word of the parameter $param."
-			  if (
-				   grep ( /^$json_obj->{ $param }$/,
-						  @{ $param_obj->{ $param }->{ 'exceptions' } } ) );
+			  "The value '$json_obj->{ $param }' is a reserved word of the parameter '$param'.";
 		}
 
-		# aditionals
-
 		# regex
-		if ( exists $param_obj->{ $param }->{ 'regex' } )
+		if (    ( exists $param_obj->{ $param }->{ 'regex' } )
+			and ( ( $json_obj->{ $param } !~ /$param_obj->{ $param }->{ 'regex' }/ ) ) )
 		{
-			return "The value $json_obj->{ $param } is not valid for the parameter $param."
-			  if ( $json_obj->{ $param } !~ /$param_obj->{ $param }->{ 'regex' }/ );
+			return
+			  "The value '$json_obj->{ $param }' is not valid for the parameter '$param'.";
 		}
 
 		if ( exists $param_obj->{ $param }->{ 'function' } )
 		{
 			my $result =
 			  &{ $param_obj->{ $param }->{ 'function' } }( $json_obj->{ $param } );
-			if ( !$result or $result eq 'false' )
-			{
-				if ( exists $param_obj->{ $param }->{ format_msg } )
-				{
-					return "$param $param_obj->{ $param }->{ format_msg }";
-				}
-				else
-				{
-					return "The parameter $param has not a valid value.";
-				}
-			}
+
+			return $custom_msg if ( !$result or $result eq 'false' );
 		}
 	}
 
 	return;
+}
+
+=begin nd
+Function: checkParamsInterval
+
+	Check parameters when there are required params. The value has to be a integer number
+
+Parameters:
+	Interval - String with the expected interval. The low and high limits must be splitted with a comma character ','
+	Parameter - Parameter name
+	Value - Parameter value
+
+Returns:
+	String - It returns a string with the error message or undef on success
+
+=cut
+
+sub checkParamsInterval
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $interval, $param, $value ) = @_;
+	my $err_msg;
+
+	if ( $interval =~ /,/ )
+	{
+		my ( $low_limit, $high_limit ) = split ( ',', $interval );
+
+		my $msg = "";
+		if ( defined $low_limit and defined $high_limit and length $high_limit )
+		{
+			$msg =
+			  "'$param' has to be an integer number between '$low_limit' and '$high_limit'";
+		}
+		elsif ( defined $low_limit )
+		{
+			$msg =
+			  "'$param' has to be an integer number greater than or equal to '$low_limit'";
+		}
+		elsif ( defined $high_limit )
+		{
+			$msg =
+			  "'$param' has to be an integer number lower than or equal to '$high_limit'";
+		}
+
+		$err_msg = $msg
+		  if (    ( $value !~ /^\d*$/ )
+			   || ( $value > $high_limit and length $high_limit )
+			   || ( $value < $low_limit  and length $low_limit ) );
+	}
+	else
+	{
+		die "Expected a interval string, got: $interval";
+	}
+
+	return $err_msg;
+}
+
+=begin nd
+Function: checkParamsInvalid
+
+	Check if some of the sent parameters is invalid for the current API call
+
+Parameters:
+	Receive Parameters - It is the list of sent parameters in the API call
+	Expected parameters - It is the list of expected parameters for a API call
+
+Returns:
+	String - It returns a string with the error message or undef on success
+
+=cut
+
+sub checkParamsInvalid
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $rec_keys, $expect_params ) = @_;
+	my $err_msg;
+	my @non_valid;
+
+	foreach my $param ( @{ $rec_keys } )
+	{
+		push @non_valid, "'$param'" if ( !grep ( /^$param$/, @{ $expect_params } ) );
+	}
+
+	if ( @non_valid )
+	{
+		$err_msg = &putArrayAsText( \@non_valid,
+			"The parameter<sp>s</sp> <pl> <bs>is<|>are</bp> not correct for this call. Please, try with: '"
+			  . join ( "', '", @{ $expect_params } )
+			  . "'" );
+	}
+
+	return $err_msg;
+}
+
+=begin nd
+Function: checkParamsRequired
+
+	Check if all the mandatory parameters has been sent in the current API call
+
+Parameters:
+	Receive Parameters - It is the list of sent parameters in the API call
+	Expected parameters - It is the list of expected parameters for a API call
+	Model - It is the struct with all allowed parameters and its possible values and options
+
+Returns:
+	String - It returns a string with the error message or undef on success
+
+=cut
+
+sub checkParamsRequired
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $rec_keys, $expect_params, $param_obj ) = @_;
+	my @miss_params;
+	my $err_msg;
+
+	foreach my $param ( @{ $expect_params } )
+	{
+		next if ( !exists $param_obj->{ $param }->{ 'required' } );
+
+		if ( $param_obj->{ $param }->{ 'required' } eq 'true' )
+		{
+			push @miss_params, "'$param'"
+			  if ( !grep ( /^$param$/, @{ $rec_keys } ) );
+		}
+	}
+
+	if ( @miss_params )
+	{
+		$err_msg = &putArrayAsText( \@miss_params,
+					   "The required parameter<sp>s</sp> <pl> <bs>is<|>are</bp> missing." );
+	}
+	return $err_msg;
+}
+
+=begin nd
+Function: httpResponseHelp
+
+	This function sends a response to client with the expected input parameters model.
+
+	This function returns a 400 HTTP error code
+
+Parameters:
+	Model - It is the struct with all allowed parameters and its possible values and options
+
+Returns:
+	None - .
+
+=cut
+
+sub httpResponseHelp
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $param_obj  = shift;
+	my $resp_param = [];
+
+	# build the output
+	foreach my $p ( keys %{ $param_obj } )
+	{
+		my $param->{ name } = $p;
+		if ( exists $param_obj->{ $p }->{ valid_format } )
+		{
+			$param->{ format } = $param_obj->{ $p }->{ valid_format };
+		}
+		if ( exists $param_obj->{ $p }->{ values } )
+		{
+			$param->{ possible_values } = $param_obj->{ $p }->{ values };
+		}
+		if ( exists $param_obj->{ $p }->{ interval } )
+		{
+			my ( $ll, $hl ) = split ( ',', $param_obj->{ $p }->{ values } );
+			$ll = '-' if ( !defined $ll );
+			$hl = '-' if ( !defined $hl );
+			$param->{ interval } = "Expects a value between '$ll' and '$hl'.";
+		}
+		if ( exists $param_obj->{ $p }->{ non_blank }
+			 and $param_obj->{ $p }->{ non_blank } eq 'true' )
+		{
+			push @{ $param->{ options } }, "non_blank";
+		}
+		if ( exists $param_obj->{ $p }->{ required }
+			 and $param_obj->{ $p }->{ required } eq 'true' )
+		{
+			push @{ $param->{ options } }, "required";
+		}
+		if ( exists $param_obj->{ $p }->{ format_msg } )
+		{
+			$param->{ description } = $param_obj->{ $p }->{ format_msg };
+		}
+
+		push @{ $resp_param }, $param;
+	}
+
+	my $msg = "No parameter has been sent. Please, try with:";
+	my $body = {
+				 description => $msg,
+				 params      => $resp_param,
+	};
+
+	return &httpResponse( { code => 400, body => $body } );
 }
 
 =begin nd
@@ -763,7 +977,7 @@ sub putArrayAsText
 		$msg =~ s/<bs>.+<\|>(.+)<\/bp>/$1/g;
 
 		my $lastItem = pop @array;
-		my $list = join ( ', ', @array );
+		my $list = join ( ", ", @array );
 		$list .= " and $lastItem";
 
 		# put list

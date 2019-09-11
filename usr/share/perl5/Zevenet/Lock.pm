@@ -27,6 +27,9 @@ use Fcntl ':flock';    #use of lock functions
 
 require Zevenet::Log;
 
+my $lock_file = undef;
+my $lock_fh   = undef;
+
 # generate a lock file based on a input path
 sub getLockFile
 {
@@ -94,6 +97,9 @@ Function: openlock
 	't' and 'b' are mutually exclusive.
 
 	If neither 't' or 'b' are used on the mode parameter, the default Perl mode is used.
+
+	Take in mind, if you are executing process in parallel, if any of them remove the tmp locking file,
+	the resource will be unlocked.
 
 Parameters:
 	path - Absolute or relative path to the file to be opened.
@@ -179,6 +185,8 @@ sub ztielock    # ($file_name)
 
 sub copyLock
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $ori = shift;
 	my $dst = shift;
 
@@ -194,6 +202,51 @@ sub copyLock
 	close $fhDst;
 
 	return 0;
+}
+
+=begin nd
+Function: lockResource
+
+	lock or release an API resource.
+
+	Usage:
+
+		$handleArray = &tielock($file, $oper);
+
+	Examples:
+
+		$handleArray = &tielock("test.dat", "l");
+
+Parameters:
+	resource - Path to file.
+	operation - l (lock), u (unlock), ud (unlock, delete the lock file), r (read)
+
+Bugs:
+	Not used yet.
+=cut
+
+sub lockResource
+{
+	my $resource = shift;
+	my $oper     = shift;    # l (lock), r (release), rd (release, delete)
+
+	if ( $oper =~ /l/ )
+	{
+		$lock_file = &getLockFile( $resource );
+		$lock_fh = &openlock( $lock_file, 'w' );
+	}
+	elsif ( $oper =~ /u/ )
+	{
+		close $lock_fh;
+		unlink $lock_file if ( $oper =~ /d/ );
+	}
+	elsif ( $oper =~ /r/ )
+	{
+		$lock_file = &getLockFile( $resource );
+		$lock_fh = &openlock( $lock_file, 'r' );
+	}
+
+	return;
 }
 
 1;

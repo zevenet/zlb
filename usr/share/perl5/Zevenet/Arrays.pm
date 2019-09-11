@@ -41,6 +41,8 @@ Returns:
 
 sub moveByIndex
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $list, $ori_index, $dst_index ) = @_;
 
 	my $elem = $list->[$ori_index];
@@ -50,6 +52,27 @@ sub moveByIndex
 
 	# add item
 	splice ( @{ $list }, $dst_index, 0, $elem );
+}
+
+sub getARRIndex
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $list, $item ) = @_;
+	my $ind;
+
+	my $id = 0;
+	foreach my $it ( @{ $list } )
+	{
+		if ( $it eq $item )
+		{
+			$ind = $id;
+			last;
+		}
+		$id++;
+	}
+
+	return $ind;
 }
 
 1;

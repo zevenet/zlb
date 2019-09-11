@@ -480,6 +480,15 @@ sub setFGObject
 	$out = &setTinyObj( $fg_conf, $fg_name, $key, $value );
 	$out = &runFGStart( $fg_name ) if $restart;
 
+	if ( $eload )
+	{
+		$out += &eload(
+						module => 'Zevenet::Farm::GSLB::FarmGuardian',
+						func   => 'updateGSLBFg',
+						args   => [$fg_name],
+		);
+	}
+
 	return $out;
 }
 
@@ -565,16 +574,23 @@ sub linkFGFarm
 	{
 		my $template = &getFGObject( $fg_name, 'template' );
 		$out = &setTinyObj( $fg_conf, $fg_name, $template );
+		return $out if $out;
 	}
+
 	$out = &setTinyObj( $fg_conf, $fg_name, 'farms', $farm_tag, 'add' );
+	return $out if $out;
 
-	$out |= &runFGFarmStart( $farm, $srv ) if ( &getFarmStatus( $farm ) eq 'up' );
-
-# the gslb fg is put in the start process, then, it is necessary to restart the farm
-	if ( &getFarmType( $farm ) eq 'gslb' )
+	if ( &getFarmType( $farm ) eq 'gslb' and $eload )
 	{
-		require Zevenet::Farm::Action;
-		&setFarmRestart( $farm );
+		$out = &eload(
+					   module => 'Zevenet::Farm::GSLB::FarmGuardian',
+					   func   => 'linkGSLBFg',
+					   args   => [$fg_name, $farm, $srv],
+		);
+	}
+	elsif ( &getFarmStatus( $farm ) eq 'up' )
+	{
+		$out = &runFGFarmStart( $farm, $srv );
 	}
 
 	return $out;
@@ -609,15 +625,22 @@ sub unlinkFGFarm
 	require Zevenet::Log;
 
 	my $farm_tag = ( $srv ) ? "${farm}_$srv" : "$farm";
-	my $out = &runFGFarmStop( $farm, $srv );
+	my $out;
 
-	$out = &setTinyObj( $fg_conf, $fg_name, 'farms', $farm_tag, 'del' ) if !$out;
+	$out = &setTinyObj( $fg_conf, $fg_name, 'farms', $farm_tag, 'del' );
+	return $out if $out;
 
-# the gslb fg is put in the start process, then, it is necessary to restart the farm
-	if ( &getFarmType( $farm ) eq 'gslb' )
+	if ( ( $type eq 'gslb' ) and $eload )
 	{
-		require Zevenet::Farm::Action;
-		&setFarmRestart( $farm );
+		$out = &eload(
+					   module => 'Zevenet::Farm::GSLB::FarmGuardian',
+					   func   => 'unlinkGSLBFg',
+					   args   => [$farm, $srv],
+		);
+	}
+	else
+	{
+		$out = &runFGFarmStop( $farm, $srv );
 	}
 
 	return $out;

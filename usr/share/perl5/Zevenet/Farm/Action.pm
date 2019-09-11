@@ -147,6 +147,9 @@ sub runFarmStart    # ($farm_name, $writeconf)
 				args   => [$farm_name],
 		);
 
+		require Zevenet::Farm::Config;
+		&reloadFarmsSourceAddressByFarm( $farm_name );
+
 		&eload(
 				module => 'Zevenet::Cluster',
 				func   => 'zClusterFarmUp',
@@ -363,9 +366,6 @@ sub runFarmDelete    # ($farm_name)
 		elsif ( $farm_type eq "l4xnat" )
 		{
 			require Zevenet::Farm::L4xNAT::Factory;
-
-			# delete nf marks
-			&delMarks( $farm_name, "" );
 			&runL4FarmDelete( $farm_name );
 		}
 	}

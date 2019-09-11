@@ -45,15 +45,26 @@ sub modify_datalink_farm    # ( $json_obj, $farmname )
 	my $error          = "false";
 	my $status;
 
-	# Check parameters
-	foreach my $key ( keys %$json_obj )
-	{
-		unless ( grep { $key eq $_ } qw(newfarmname algorithm vip) )
-		{
-			my $msg = "The parameter $key is invalid.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-	}
+	my $params = {
+				   "newfarmname" => {
+									  'valid_format' => 'farm_name',
+									  'non_blank'    => 'true',
+				   },
+				   "algorithm" => {
+									'values'    => ['prio', 'weight'],
+									'non_blank' => 'true',
+				   },
+				   "vip" => {
+							  'valid_format' => 'ip_addr',
+							  'non_blank'    => 'true',
+							  'format_msg'   => 'expects an IP'
+				   },
+	};
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
 
 	# Modify Farm's Name
 	if ( exists ( $json_obj->{ newfarmname } ) )
@@ -64,57 +75,29 @@ sub modify_datalink_farm    # ( $json_obj, $farmname )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		if ( $json_obj->{ newfarmname } =~ /^$/ )
+		#Check if the new farm's name alredy exists
+		if ( &getFarmExists( $json_obj->{ newfarmname } ) )
 		{
-			my $msg = "Invalid newfarmname, can't be blank.";
+			my $msg = "The farm $json_obj->{newfarmname} already exists, try another name.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		if ( $json_obj->{ newfarmname } ne $farmname )
+		#Change farm name
+		require Zevenet::Farm::Action;
+		my $fnchange = &setNewFarmName( $farmname, $json_obj->{ newfarmname } );
+		if ( $fnchange == -1 )
 		{
-			#Check if farmname has correct characters (letters, numbers and hyphens)
-			if ( $json_obj->{ newfarmname } !~ /^[a-zA-Z0-9\-]*$/ )
-			{
-				my $msg = "Invalid newfarmname.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
-			#Check if the new farm's name alredy exists
-			if ( &getFarmExists( $json_obj->{ newfarmname } ) )
-			{
-				my $msg = "The farm $json_obj->{newfarmname} already exists, try another name.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
-			#Change farm name
-			require Zevenet::Farm::Action;
-			my $fnchange = &setNewFarmName( $farmname, $json_obj->{ newfarmname } );
-			if ( $fnchange == -1 )
-			{
-				my $msg =
-				  "The name of the farm can't be modified, delete the farm and create a new one.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-
-			$farmname = $json_obj->{ newfarmname };
+			my $msg =
+			  "The name of the farm can't be modified, delete the farm and create a new one.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
+
+		$farmname = $json_obj->{ newfarmname };
 	}
 
 	# Modify Load Balance Algorithm
 	if ( exists ( $json_obj->{ algorithm } ) )
 	{
-		if ( $json_obj->{ algorithm } =~ /^$/ )
-		{
-			my $msg = "Invalid algorithm, can't be blank.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		unless ( $json_obj->{ algorithm } =~ /^(weight|prio)$/ )
-		{
-			my $msg = "Invalid algorithm.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
 		$status = &setDatalinkFarmAlgorithm( $json_obj->{ algorithm }, $farmname );
 		if ( $status == -1 )
 		{
@@ -128,35 +111,17 @@ sub modify_datalink_farm    # ( $json_obj, $farmname )
 	# Modify Virtual IP and Interface
 	if ( exists ( $json_obj->{ vip } ) )
 	{
-		if ( $json_obj->{ vip } =~ /^$/ )
+		my $fdev = &getInterfaceOfIp( $json_obj->{ vip } );
+		if ( !defined $fdev )
 		{
-			my $msg = "Invalid vip, can't be blank.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		if ( $json_obj->{ vip } !~ /^[a-zA-Z0-9.]+/ )
-		{
-			my $msg = "Invalid vip.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		if ( !defined $json_obj->{ vip } || $json_obj->{ vip } eq "" )
-		{
-			my $msg = "Invalid Virtual IP value.";
+			my $msg = "$json_obj->{ vip } has to be configured in some interface.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
 		# interface must be running
 		if ( !grep { $_ eq $json_obj->{ vip } } &listallips() )
 		{
-			my $msg = "An available virtual IP must be set.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		my $fdev = &getInterfaceOfIp( $json_obj->{ vip } );
-		if ( !defined $fdev )
-		{
-			my $msg = "Invalid Interface value.";
+			my $msg = "The IP has to be UP to be used as VIP.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
@@ -164,7 +129,7 @@ sub modify_datalink_farm    # ( $json_obj, $farmname )
 		  &setDatalinkFarmVirtualConf( $json_obj->{ vip }, $fdev, $farmname );
 		if ( $status == -1 )
 		{
-			my $msg = "It's not possible to change the farm virtual IP and interface.";
+			my $msg = "It is not possible to change the farm virtual IP and interface.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 

@@ -28,6 +28,7 @@ use Zevenet::Farm::L4xNAT::Action;
 use Zevenet::Farm::L4xNAT::Stats;
 use Zevenet::Farm::L4xNAT::Factory;
 use Zevenet::Farm::L4xNAT::Backend;
+use Zevenet::Farm::L4xNAT::Service;
 use Zevenet::Farm::L4xNAT::Validate;
 
 1;

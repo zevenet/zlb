@@ -22,10 +22,17 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 use Zevenet::Farm::L4xNAT::Action;
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
+
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 =begin nd
 Function: runL4FarmCreate
@@ -42,7 +49,7 @@ Returns:
 
 =cut
 
-sub runL4FarmCreate    # ($vip,$farm_name,$vip_port)
+sub runL4FarmCreate
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -55,14 +62,14 @@ sub runL4FarmCreate    # ($vip,$farm_name,$vip_port)
 	require Zevenet::Farm::L4xNAT::Action;
 	require Zevenet::Farm::L4xNAT::Config;
 
-	$vip_port = 80 if not defined $vip_port;
+	$vip_port = "80" if not defined $vip_port;
+	$vip_port = ""   if ( $vip_port eq "*" );
 
-	$output = &httpNLBRequest(
+	$output = &sendL4NlbCmd(
 		{
-		   farm       => $farm_name,
-		   configfile => "$farm_filename",
-		   method     => "PUT",
-		   uri        => "/farms",
+		   farm   => $farm_name,
+		   file   => "$farm_filename",
+		   method => "POST",
 		   body =>
 			 qq({"farms" : [ { "name" : "$farm_name", "virtual-addr" : "$vip", "virtual-ports" : "$vip_port", "protocol" : "tcp", "mode" : "snat", "scheduler" : "weight", "state" : "up" } ] })
 		}
@@ -87,7 +94,7 @@ Returns:
 
 =cut
 
-sub runL4FarmDelete    # ($farm_name)
+sub runL4FarmDelete
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -102,8 +109,7 @@ sub runL4FarmDelete    # ($farm_name)
 
 	my $farmfile = &getFarmFile( $farm_name );
 
-	$output = &httpNLBRequest(
-			   { farm => $farm_name, method => "DELETE", uri => "/farms/$farm_name" } );
+	$output = &sendL4NlbCmd( { farm => $farm_name, method => "DELETE" } );
 
 	unlink ( "$configdir/$farmfile" ) if ( -f "$configdir/$farmfile" );
 

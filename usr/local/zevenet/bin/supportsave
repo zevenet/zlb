@@ -21,6 +21,17 @@
 #
 ###############################################################################
 
+GLOBALCONF="/usr/local/zevenet/config/global.conf"
+
+if [ -f "/usr/local/zevenet/bin/load_global_conf" ];
+then
+	source /usr/local/zevenet/bin/load_global_conf
+	load_global_conf
+else
+	echo "Error loading the envirovement"
+fi
+NFTBIN=$nft_bin
+
 tmp_name=`/bin/date +%Y%m%d_%H%M`
 hostname=`hostname`
 home_dir="/usr/local/zevenet"
@@ -36,7 +47,7 @@ backup_dir="${prefix}/${ss_dir}"
 config_paths=`perl -MZevenet::Config -e 'print getGlobalConfiguration("backupfor");'`;
 zbindir=`perl -MZevenet::Config -e 'print getGlobalConfiguration("zbindir");'`;
 
-monitoring_paths="${home_dir}/app/zenrrd/rrd ${home_dir}/logs /var/log/messages* /var/log/syslog* /var/log/cherokee* ${home_dir}/node_status";
+monitoring_paths="${home_dir}/app/zenrrd/rrd ${home_dir}/logs /var/log/messages* /var/log/syslog* /var/log/letsencrypt /var/log/cherokee* ${home_dir}/node_status /var/log/apt";
 
 
 echo "Saving information for support in the path ${backup_dir}.tar.gz"
@@ -69,6 +80,10 @@ echo -e "\n--- CPU information ---"     >> $backup_dir/system_resources.txt
 cat /proc/cpuinfo                       >> $backup_dir/system_resources.txt
 echo -e "\n--- TOP information ---"     >> $backup_dir/system_resources.txt
 /usr/bin/top -b -n1                     >> $backup_dir/system_resources.txt
+echo -e "\n--- Resolv config ---"	>> $backup_dir/system_resources.txt
+cat /etc/resolv.conf 			>> $backup_dir/system_resources.txt
+echo -e "\n---Kernel Version ---"	>> $backup_dir/system_resources.txt
+uname -a				>> $backup_dir/system_resources.txt
 
 echo "- Partitions"
 /bin/df -h                              >> $backup_dir/partitions.txt 2>&1
@@ -78,7 +93,7 @@ ${zbindir}/zenntp                    	>> $backup_dir/ntp_test.txt 2>&1
 
 echo "- Sessions Table"
 ${home_dir}/app/ssyncd/bin/ssyncdctl show http	>> $backup_dir/sessions_http.txt 2>&1
-${home_dir}/app/ssyncd/bin/ssyncdctl show recent	>> $backup_dir/sessions_recent.txt 2>&1
+${home_dir}/app/ssyncd/bin/ssyncdctl show nft	>> $backup_dir/sessions_nft.txt 2>&1
 
 if [[ -d ${home_dir}/lib/Zevenet/RBAC ]];
 then
@@ -87,6 +102,12 @@ then
 	cp /etc/passwd                         $backup_dir/
 fi
 
+echo "- Subscription"
+cat /etc/apt/apt.conf			>> $backup_dir/apt.conf.txt
+cat /etc/apt/sources.list		>> $backup_dir/sources.list.txt
+for i in `ls /etc/apt/sources.list.d/`; do
+	cat /etc/apt/sources.list.d/$i 				>> $backup_dir/sources.list.d.$i.txt
+done
 
 echo "Saving network information:"
 ##################################
@@ -96,8 +117,15 @@ echo "- Interfaces"
 /sbin/ip link show                      >> $backup_dir/ip_link.txt
 /sbin/ip addr show                      >> $backup_dir/ip_addr.txt
 
+echo "- Bondings"
+for i in  `ls /proc/net/bonding/`
+do
+	echo ">>>>Interface $i"		>> $backup_dir/bonding_system.txt
+	cat /proc/net/bonding/$i	>> $backup_dir/bonding_system.txt
+done
+
 echo "- Routes"
-for i in `cat /etc/iproute2/rt_tables  | grep "table_" | awk {'print $2'}`
+for i in `cat /etc/iproute2/rt_tables  | grep "table_" | grep -v '^#' | awk {'print $2'}`
 do
     echo "ip route list table $i"       >> $backup_dir/route.txt
     /sbin/ip route list table $i        >> $backup_dir/route.txt
@@ -114,59 +142,32 @@ echo "netstat -nr"                      >> $backup_dir/netstat.txt
 /bin/netstat -nr                        >> $backup_dir/netstat.txt
 
 echo "- Netfilter"
-ISNFT=`readlink -f /usr/share/perl5/Zevenet/Farm/L4xNAT | grep nft`
+echo "List nftables ruleset "			>> $backup_dir/nftables.txt
+$NFTBIN list ruleset		>> $backup_dir/nftables.txt
 
-if [ -z "$ISNFT" ]; then
+CURL=`which curl`
+echo "nftlb daemon farms data"			>> $backup_dir/nftlb.txt
+$CURL --noproxy "*" --connect-timeout 10 -s -H "Key: HoLa" http://127.0.0.1:27/farms >> $backup_dir/nftlb.txt
+echo "nftlb daemon policies data"		>> $backup_dir/nftlb.txt
+$CURL --noproxy "*" --connect-timeout 10 -s -H "Key: HoLa" http://127.0.0.1:27/policies >> $backup_dir/nftlb.txt
 
-	echo "Filter table "                    >> $backup_dir/netfilter.txt
-	/sbin/iptables -nL -t filter            >> $backup_dir/netfilter.txt
-	echo -e "\nNAT table "                  >> $backup_dir/netfilter.txt
-	/sbin/iptables -nL -t nat               >> $backup_dir/netfilter.txt
-	echo -e "\nMangle table "               >> $backup_dir/netfilter.txt
-	/sbin/iptables -nL -t mangle            >> $backup_dir/netfilter.txt
-	echo -e "\nRaw table "                  >> $backup_dir/netfilter.txt
-	/sbin/iptables -nL -t raw               >> $backup_dir/netfilter.txt
+echo "- Reverse Proxy"
+poundctl="/usr/local/zevenet/app/pound/sbin/poundctl"
+for i in `ls /tmp/*_pound.socket 2>/dev/null`
+do
+	echo "Farm $i"	>> $backup_dir/pound_status.txt
+	$poundctl -c $i >> $backup_dir/pound_status.txt
+done
 
-	echo "- xt_recent"
-	if [ -e /proc/net/xt_recent/ ];
-	then
-		for file in $(ls -1 /proc/net/xt_recent/); do
-			echo "Recent table for $file"   >> $backup_dir/recent.txt
-			cat /proc/net/xt_recent/$file   >> $backup_dir/recent.txt
-		done
-	fi
-
-	if [ -f /sbin/ipset ]; then
-		echo "- ipset"
-		/sbin/ipset save                    >> $backup_dir/ipset_tables.txt 2>&1
-	fi
-
-else
-
-	NFTBIN=`which nft`
-	echo "List nftables ruleset "			>> $backup_dir/nftables.txt
-	$NFTBIN list ruleset					>> $backup_dir/nftables.txt
-
-fi
 
 echo "- ARP table"
 /usr/sbin/arp -n                        >> $backup_dir/arp_table.txt
-if [ -z "$ISNFT" ]; then
-
-	if [ -f /sbin/arptables ];
-	then
-		echo "- ARP filtering"
-		/sbin/arptables -nL                      >> $backup_dir/arp_filtering.txt
-	fi
-
-fi
 
 echo "- nf_conntrack"
 if [ -f /usr/sbin/conntrack ];
 then
     /usr/sbin/conntrack -L              >> $backup_dir/conntrack.txt 2>&1
 fi
-
 
 if [ -f /etc/zevenet_version ]; then
 	/bin/cp /etc/zevenet_version $backup_dir/template_version
@@ -184,6 +185,12 @@ echo "Saving monitoring files"
 ##############################
 /bin/cp ${home_dir}/www/*.pem $backup_dir 2>/dev/null
 /bin/tar zcf $backup_dir/monitoring.tar.gz $monitoring_paths 2>/dev/null
+
+if [ -f /usr/local/zevenet/bin/enterprise.bin ]; then
+	echo "Saving monitoring files"
+	/usr/local/zevenet/bin/supportsave_ext $backup_dir
+	# copiar al dir
+fi
 
 
 echo "Packing supportsave"

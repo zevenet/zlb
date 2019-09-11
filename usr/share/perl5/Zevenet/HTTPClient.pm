@@ -53,6 +53,9 @@ Returns:
 
 sub execHTTRequest
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
 	# enable one:
 	# return &execHTTRequestModule(@_);
 	return &execHTTRequestCmd( @_ );
@@ -130,8 +133,8 @@ sub execHTTRequestModule
 
 sub execHTTRequestCmd
 {
-	#~ &zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-	#~ "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $params = shift;
 
 	my $out->{ error } = 1;

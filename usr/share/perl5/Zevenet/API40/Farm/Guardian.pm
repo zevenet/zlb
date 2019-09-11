@@ -130,8 +130,8 @@ sub create_farmguardian
 							   'required'     => 'true',
 							   'valid_format' => 'fg_name',
 				   },
-				   "parent" => {
-								 'valid_format' => 'fg_name',
+				   "copy_from" => {
+									'valid_format' => 'fg_name',
 				   },
 	};
 
@@ -140,24 +140,24 @@ sub create_farmguardian
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
-	if ( exists $json_obj->{ parent }
-		 and not &getFGExists( $json_obj->{ parent } ) )
+	if ( exists $json_obj->{ copy_from }
+		 and not &getFGExists( $json_obj->{ copy_from } ) )
 	{
-		my $msg = "The parent farm guardian $json_obj->{ parent } does not exist.";
+		my $msg = "The parent farm guardian $json_obj->{ copy_from } does not exist.";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	if ( not exists $json_obj->{ parent } ) { &createFGBlank( $fg_name ); }
-	elsif ( &getFGExistsTemplate( $json_obj->{ parent } ) )
+	if ( not exists $json_obj->{ copy_from } ) { &createFGBlank( $fg_name ); }
+	elsif ( &getFGExistsTemplate( $json_obj->{ copy_from } ) )
 	{
-		&createFGTemplate( $fg_name, $json_obj->{ parent } );
+		&createFGTemplate( $fg_name, $json_obj->{ copy_from } );
 	}
-	else { &createFGConfig( $fg_name, $json_obj->{ parent } ); }
+	else { &createFGConfig( $fg_name, $json_obj->{ copy_from } ); }
 
 	my $out = &getZapiFG( $fg_name );
 	if ( $out )
 	{
-		my $msg = "The farm guardian $fg_name has been created successfully";
+		my $msg = "The farm guardian $fg_name has been created successfully.";
 		my $body = {
 					 description => $desc,
 					 params      => $out,
@@ -312,7 +312,7 @@ sub delete_farmguardian
 			);
 		}
 
-		my $msg = "$fg_name has been deleted successful.";
+		my $msg = "$fg_name has been deleted successfully.";
 		my $body = {
 					 description => $desc,
 					 success     => "true",

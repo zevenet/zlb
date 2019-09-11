@@ -48,19 +48,18 @@ sub set_ntp
 
 	my $desc = "Post ntp";
 
-	my @allowParams = ( "server" );
-	my $param_msg = &getValidOptParams( $json_obj, \@allowParams );
+	my $params = {
+				   "server" => {
+								 'valid_format' => 'ntp',
+								 'non_blank'    => 'true',
+								 'required'     => 'true',
+				   },
+	};
 
-	if ( $param_msg )
-	{
-		&httpErrorResponse( code => 400, desc => $desc, msg => $param_msg );
-	}
-
-	if ( !&getValidFormat( "ntp", $json_obj->{ 'server' } ) )
-	{
-		my $msg = "NTP hasn't a correct format.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
 
 	my $error = &setGlobalConfiguration( 'ntp', $json_obj->{ 'server' } );
 

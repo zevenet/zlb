@@ -44,7 +44,9 @@ sub certificates    # ()
 
 	foreach my $cert ( @certificates )
 	{
-		push @out, &getCertInfo( $cert, $configdir );
+		my $cert = &getCertInfo( "$configdir/$cert" );
+		delete $cert->{ key };
+		push @out, $cert;
 	}
 
 	my $body = {
@@ -145,41 +147,49 @@ sub create_csr
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	$json_obj->{ name }         = &getCleanBlanc( $json_obj->{ name } );
-	$json_obj->{ fqdn }         = &getCleanBlanc( $json_obj->{ fqdn } );
-	$json_obj->{ division }     = &getCleanBlanc( $json_obj->{ division } );
-	$json_obj->{ organization } = &getCleanBlanc( $json_obj->{ organization } );
-	$json_obj->{ locality }     = &getCleanBlanc( $json_obj->{ locality } );
-	$json_obj->{ state }        = &getCleanBlanc( $json_obj->{ state } );
-	$json_obj->{ country }      = &getCleanBlanc( $json_obj->{ country } );
-	$json_obj->{ mail }         = &getCleanBlanc( $json_obj->{ mail } );
+	my $params = {
+		"name" => {
+					'valid_format' => 'cert_name',
+					'non_blank'    => 'true',
+					'required'     => 'true',
+		},
+		"division" => {
+						'non_blank' => 'true',
+						'required'  => 'true',
+		},
+		"organization" => {
+							'non_blank' => 'true',
+							'required'  => 'true',
+		},
+		"locality" => {
+						'non_blank' => 'true',
+						'required'  => 'true',
+		},
+		"state" => {
+					 'non_blank' => 'true',
+					 'required'  => 'true',
+		},
+		"country" => {
+					   'non_blank' => 'true',
+					   'required'  => 'true',
+		},
+		"mail" => {
+					'non_blank' => 'true',
+					'required'  => 'true',
+		},
+		"fqdn" => {
+			'function'  => \&checkFQDN,
+			'non_blank' => 'true',
+			'required'  => 'true',
+			'format_msg' =>
+			  "FQDN is not valid. It must be as these examples: domain.com, mail.domain.com, or *.domain.com. Try again.",
+		},
+	};
 
-	if (    $json_obj->{ name } =~ /^$/
-		 || $json_obj->{ fqdn } =~ /^$/
-		 || $json_obj->{ division } =~ /^$/
-		 || $json_obj->{ organization } =~ /^$/
-		 || $json_obj->{ locality } =~ /^$/
-		 || $json_obj->{ state } =~ /^$/
-		 || $json_obj->{ country } =~ /^$/
-		 || $json_obj->{ mail } =~ /^$/ )
-	{
-		my $msg = "Fields can not be empty. Try again.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
-
-	if ( &checkFQDN( $json_obj->{ fqdn } ) eq "false" )
-	{
-		my $msg =
-		  "FQDN is not valid. It must be as these examples: domain.com, mail.domain.com, or *.domain.com. Try again.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
-
-	if ( $json_obj->{ name } !~ /^[a-zA-Z0-9\-]*$/ )
-	{
-		my $msg =
-		  "Certificate Name is not valid. Only letters, numbers and '-' chararter are allowed. Try again.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
 
 	my $error = &createCSR(
 							$json_obj->{ name },
@@ -201,8 +211,6 @@ sub create_csr
 	}
 
 	my $message = "Certificate $json_obj->{ name } created";
-	&zenlog( $message, "info", "LSLB" );
-
 	my $body = {
 				 description => $desc,
 				 success     => "true",
@@ -301,6 +309,13 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 	unless ( $eload ) { require Zevenet::Farm::HTTP::HTTPS; }
 
 	my $desc = "Add certificate to farm '$farmname'";
+	my $params = {
+				   "file" => {
+							   'valid_format' => 'cert_pem',
+							   'non_blank'    => 'true',
+							   'required'     => 'true',
+				   },
+	};
 
 	# Check if the farm exists
 	if ( !&getFarmExists( $farmname ) )
@@ -309,15 +324,18 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
-	my $configdir   = &getGlobalConfiguration( 'configdir' );
-	my $cert_pem_re = &getValidFormat( 'cert_pem' );
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
+
+	my $configdir = &getGlobalConfiguration( 'configdir' );
 
 	# validate certificate filename and format
-	unless ( -f $configdir . "/" . $json_obj->{ file }
-			 && &getValidFormat( 'cert_pem', $json_obj->{ file } ) )
+	unless ( -f $configdir . "/" . $json_obj->{ file } )
 	{
-		my $msg = "Invalid certificate name, please insert a valid value.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		my $msg = "The certificate does not exist.";
+		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
 	my $cert_in_use;
@@ -341,7 +359,6 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	# FIXME: Show error if the certificate is already in the list
 	my $status;
 	if ( $eload )
 	{
@@ -432,6 +449,13 @@ sub delete_farm_certificate    # ( $farmname, $certfilename )
 	if ( !$number )
 	{
 		my $msg = "Certificate is not used by the farm.";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+
+	if ( @certSNI == 1 or ( $number == @certSNI ) )
+	{
+		my $msg =
+		  "The certificate '$certfilename' could not be deleted, the farm needs one certificate at least.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 

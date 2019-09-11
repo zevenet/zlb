@@ -255,10 +255,8 @@ sub sendGArp    # ($if,$ip)
 	}
 	elsif ( $ip_v == 6 )
 	{
-		my $arpsend_bin = '/usr/sbin/arpsend';
-
-		#~ my $arpsend_bin = &getGlobalConfiguration( 'arping_bin' );
-		my $arping_cmd = "$arpsend_bin -U -i $ip $iface[0]";
+		my $arpsend_bin = &getGlobalConfiguration( 'arpsend_bin' );
+		my $arping_cmd  = "$arpsend_bin -U -i $ip $iface[0]";
 
 		&zenlog( "$arping_cmd", "info", "NETWORK" );
 		system ( "$arping_cmd >/dev/null &" );

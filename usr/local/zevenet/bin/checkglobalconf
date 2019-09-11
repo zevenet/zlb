@@ -41,7 +41,8 @@ my $tag       = '#update';
 unless ( -f $gc_fn )
 {
 	copy( $gc_tpl_fn, $gc_fn );
-	exit 0;
+	my $err = system( "sed -E 's/;$tag\$/;/g' -i $gc_fn" );
+	exit $err;
 }
 
 open my $gc_tmp, '>', $gc_tmp_fn;

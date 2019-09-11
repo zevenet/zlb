@@ -23,43 +23,31 @@
 
 use strict;
 
-=begin nd
-Function: ismport
-
-	Check if the string is a valid multiport definition
-	
-Parameters:
-	port - Multiport string
-
-Returns:
-	String - "true" if port has a correct format or "false" if port has a wrong format
-	
-
-=cut
-
-sub ismport    # ($string)
+# expects a hash. the keys are the zapi parameters and the value the lib parameters
+sub createTRANSLATE
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $string = shift;
+	my $dictionary = shift;
+	my %translator = ();
 
-	my $validport =
-	  "((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))";
+	$translator{ api } = $dictionary;
 
-	chomp ( $string );
-	if ( $string eq "*" )
+	foreach my $key ( keys %{ $dictionary } )
 	{
-		return "true";
+		$translator{ lib }->{ $dictionary->{ $key } } = $key;
 	}
-	elsif ( $string =~
-		/^($validport|$validport\:$validport)(,$validport|$validport\:$validport)*$/ )
-	{
-		return "true";
-	}
-	else
-	{
-		return "false";
-	}
+
+	return \%translator;
+}
+
+sub getTRANSLATEInputs
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $tr     = shift;
+	my @values = sort keys ( %{ $tr->{ api } } );
+	return \@values;
 }
 
 1;
