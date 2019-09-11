@@ -32,32 +32,24 @@
 #	-d 			enable debug mode
 #	-h			print help
 
-# debug
-#~ use strict;
-#~ use warnings;
-#~ #use Data::Dumper qw(Dumper);
-#~ #open STDERR, '>>', "/usr/local/zevenet/logs/zenloadbalancer.log";
-#~ require "/usr/local/zevenet/config/global.conf";
-# end debug
-
 use strict;
 use warnings;
 use Time::HiRes qw(ualarm usleep clock_gettime CLOCK_REALTIME);
 use Zevenet::Log;
 use Zevenet::Config;
 use Zevenet::Farm::Core;
-use Zevenet::Farm::Base;
 use Zevenet::Farm::Config;
+use Zevenet::Farm::Base;
 use Zevenet::Farm::Backend;
+require Zevenet::Nft;
 
 my $conntrack = &getGlobalConfiguration('conntrack');
-my $fcondition = "/proc/net/nf_condition";
-my $pidfile    = "/var/run/l4sd.pid";
+my $pidfile = &getGlobalConfiguration('l4sdpid');
 my $algorithm  = "leastconn";
 
-my $g_param = 60000 * 1000;
-my $n_param = 250 * 1000;
-my $l_param = 250 * 1000;
+my $g_param = 60 * 1000 * 1000;
+my $n_param = 3 * 1000 * 1000;
+my $l_param = 3 * 1000 * 1000;
 
 my $pid = $$;
 
@@ -193,11 +185,10 @@ my $counter_l = $l_param;
 
 my %farms;
 my %connsperfarm;
-my %markperbck;
 
 while ()
 {
-	my $min;
+	my $min = 0;
 
 	local $SIG{ ALRM } = sub { };
 
@@ -220,54 +211,47 @@ while ()
 		};
 	}
 
-	# TODO: Read l4 configuration, backends
+	# Read l4 configuration, backends
 	if ( $min == $counter_g || $init == 1 )
 	{
 		if ( $debug ) { printf "Executing G()\n"; }
 
-		%farms      = ();
-		%markperbck = ();
-		my @files = &getFarmList();
+		%farms    = ();
+		my @files = &getFarmsByType( "l4xnat" );
 
-		if ( scalar ( @files ) > -1 )
+		if ( scalar ( @files ) <= 0 )
 		{
-			foreach my $file ( @files )
+			&sigTERMHandler;
+		}
+
+		foreach my $file ( @files )
+		{
+			my $fname  = &getFarmName( $file );
+			my $falg   = &getFarmAlgorithm( $fname );
+			my $fstate = &getFarmStatus( $fname );
+
+			if ( $falg eq $algorithm && $fstate eq 'up' )
 			{
-				my $fname  = &getFarmName( $file );
-				my $ftype  = &getFarmType( $fname );
-				my $falg   = &getFarmAlgorithm( $fname );
-				my $fstate = &getFarmStatus( $fname );
+				my $backends = &getFarmServers( $fname );
 
-				if ( $ftype eq 'l4xnat' && $falg eq $algorithm && $fstate eq 'up' )
+				foreach my $l_serv ( @{ $backends } )
 				{
-					my $backends = &getFarmServers( $fname );
+					my $server = $l_serv->{ id };
+					my $mark   = $l_serv->{ tag };
+					my $status = $l_serv->{ status };
 
-					foreach my $l_serv ( @{ $backends } )
+					if ( $status eq "up" )
 					{
-						my $server = $l_serv->{ ip };
-						my $mark   = $l_serv->{ tag };
-						my $status = $l_serv->{ status };
-
-						if ( $status eq "up" )
-						{
-							$farms{ $fname }{ $server } = $mark;
-						}
-						if ( $status eq "maintenance" || $status eq 'fgDOWN' )
-						{
-								# Write condition 0
-								&zenlog( "l4sd: Disabling backend $server in $fcondition/\_$fname\_$mark\_ due to $status mode \n" );
-								open my $fo, '>', "$fcondition/\_$fname\_$mark\_";
-								print $fo '0';
-								close $fo;
-						}
+						$farms{ $fname }{ $server } = $mark;
 					}
 				}
 			}
 		}
 
-		#print "--------------\n";
-		#print Dumper \%farms;
-		#print "--------------\n";
+		if ( keys %farms <= 0 )
+		{
+			&sigTERMHandler;
+		}
 
 		# Print
 		if ( $debug )
@@ -282,7 +266,7 @@ while ()
 		}
 	}
 
-	# TODO: Parse connections
+	# Parse connections
 	if ( $min == $counter_n || $init == 1 )
 	{
 		if ( $debug ) { printf "Executing N()\n"; }
@@ -294,16 +278,18 @@ while ()
 		{
 			for my $farm ( keys %farms )
 			{
+				$connsperfarm{ $farm }{ total } = 0;
+
 				foreach my $back ( keys %{ $farms{ $farm } } )
 				{
-					next if ( defined $connsperfarm{ $back } );
+					next if ( defined $connsperfarm{ $farm }{ $back } );
 
-					my @cmd_output = `$conntrack -L -m $farms{ $farm }{ $back } 2>&1 >/dev/null`;
+					my @cmd_output = `$conntrack -L -m $farms{ $farm }{ $back }/0x7fffffff 2>&1 >/dev/null`;
 					my $nestab = ( split ( ' ', $cmd_output[-1] ) )[3];
 
-					# common
 					@cmd_output = ();
-					$connsperfarm{ $back } = $nestab;
+					$connsperfarm{ $farm }{ $back } = $nestab;
+					$connsperfarm{ $farm }{ total } += int($nestab);
 				}
 			}
 		}
@@ -311,14 +297,17 @@ while ()
 		# Print
 		if ( $debug )
 		{
-			for my $back ( keys %connsperfarm )
+			for my $farm ( keys %connsperfarm )
 			{
-				print "$back: $connsperfarm{$back}\n";
+				for my $back ( keys %{ $connsperfarm{ $farm } } )
+				{
+					print "bck $back: $connsperfarm{$farm}{$back}\n";
+				}
 			}
 		}
 	}
 
-	# TODO: algorithm logic and set the condition
+	# Algorithm logic and set the condition
 	if ( $min == $counter_l || $init == 1 )
 	{
 		my $num_farms = scalar ( keys %farms );
@@ -334,54 +323,21 @@ while ()
 			# for every farm check the least connection backend
 			foreach my $fname ( keys %farms )
 			{
-				my $leastip   = '';
-				my $leastmask = '';
-
-				# pick the backend with less connections
 				foreach my $bck ( keys %{ $farms{ $fname } } )
 				{
-					if ( $leastip eq '' )
+					if ( $connsperfarm{ $fname }{ total } > 0 )
 					{
-						$leastip   = $bck;
-						$leastmask = $farms{ $fname }{ $bck };
-					}
-					else
-					{
-						if ( $connsperfarm{ $bck } < $connsperfarm{ $leastip } )
-						{
-							$leastip   = $bck;
-							$leastmask = $farms{ $fname }{ $bck };
-						}
-					}
-				}
+						my $newweight = int( ( 10 - ( $connsperfarm{ $fname }{ $bck } / $connsperfarm{ $fname }{ total } ) * 10 ) + 0.5 );
+						printf "Setting new weight: $fname - $bck - $newweight \n" if ( $debug );
+						#~ &setL4FarmServer( $fname, $bck, undef, undef, $newweight, undef, undef, undef, undef );
 
-				if ( $debug ) { printf "Least $fname: $leastip $leastmask\n"; }
-
-				# set the condition value for very backend
-				# enable the backend with less connections first to avoid closing connections
-				if ( $leastmask ne '' )
-				{
-					# Write condition 1
-					open my $fo, '>', "$fcondition/\_$fname\_$leastmask\_";
-					print $fo '1';
-					close $fo;
-				}
-
-				# set the condition value for very backend
-				# disable the rest of backends
-				foreach my $bck ( keys %{ $farms{ $fname } } )
-				{
-					if ( $debug )
-					{
-						printf "Setting condition: $fcondition/\_$fname\_$farms{$fname}{$bck}\_ \n";
-					}
-
-					if ( $leastmask ne $farms{ $fname }{ $bck } )
-					{
-						# Write condition 0
-						open my $fo, '>', "$fcondition/\_$fname\_$farms{$fname}{$bck}\_";
-						print $fo '0';
-						close $fo;
+						httpNlbRequest(
+							{
+							   method => "PUT",
+							   uri    => "/farms",
+							   body   => qq({"farms" : [ { "name" : "$fname", "backends" : [ { "name" : "bck$bck", "weight" : "$newweight" } ] } ] })
+							}
+						);
 					}
 				}
 			}

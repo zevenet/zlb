@@ -163,10 +163,10 @@ sub setFarmServer    # $output ($farm_name,$service,$bk_id,$bk_params)
 		$output =
 		  &setL4FarmServer( $farm_name, $ids,
 							$bk->{ ip },
-							$bk->{ port },
+							$bk->{ port } // "",
 							$bk->{ weight },
 							$bk->{ priority },
-							$bk->{ max_conns } );
+							$bk->{ max_conns } // "" );
 	}
 	elsif ( $farm_type eq "http" || $farm_type eq "https" )
 	{

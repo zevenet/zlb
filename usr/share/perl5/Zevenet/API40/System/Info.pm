@@ -23,14 +23,20 @@
 
 use strict;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
+
+require Zevenet::System;
+
 # show license
 sub get_license
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $format = shift;
-
-	require Zevenet::System;
 
 	my $desc = "Get license";
 	my $licenseFile;
@@ -60,8 +66,6 @@ sub get_supportsave
 			 "debug", "PROFILING" );
 	my $desc = "Get supportsave file";
 
-	require Zevenet::System;
-
 	my $ss_filename = &getSupportSave();
 
 	&httpDownloadResponse( desc => $desc, dir => '/tmp', file => $ss_filename );
@@ -73,7 +77,6 @@ sub get_version
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	require Zevenet::SystemInfo;
-	require Zevenet::Certificate;
 
 	my $desc    = "Get version";
 	my $zevenet = &getGlobalConfiguration( 'version' );
@@ -93,6 +96,88 @@ sub get_version
 	my $body = { description => $desc, params => $params };
 
 	&httpResponse( { code => 200, body => $body } );
+}
+
+# GET /system/info
+sub get_system_info
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	require Zevenet::SystemInfo;
+	require Zevenet::User;
+	require Zevenet::Zapi;
+
+	my $desc = "Get the system information";
+
+	my $zevenet       = &getGlobalConfiguration( 'version' );
+	my $lang          = &getGlobalConfiguration( 'lang' );
+	my $kernel        = &getKernelVersion();
+	my $hostname      = &getHostname();
+	my $date          = &getDate();
+	my $applicance    = &getApplianceVersion();
+	my $user          = &getUser();
+	my @zapi_versions = &listZapiVersions();
+	my $edition       = ( $eload ) ? "enterprise" : "community";
+
+	my $params = {
+				   'system_date'             => $date,
+				   'appliance_version'       => $applicance,
+				   'kernel_version'          => $kernel,
+				   'zevenet_version'         => $zevenet,
+				   'hostname'                => $hostname,
+				   'user'                    => $user,
+				   'supported_zapi_versions' => \@zapi_versions,
+				   'last_zapi_version'       => $zapi_versions[-1],
+				   'edition'                 => $edition,
+				   'language'                => $lang,
+	};
+
+	if ( $eload )
+	{
+		$params = &eload(
+						  module => 'Zevenet::System::Ext',
+						  func   => 'setSystemExtendZapi',
+						  args   => [$params],
+		);
+	}
+
+	my $body = { description => $desc, params => $params };
+	&httpResponse( { code => 200, body => $body } );
+}
+
+#  POST /system/language
+sub set_language
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $json_obj = shift;
+
+	my $desc = "Modify the WebGUI language";
+
+	my $params = {
+				   "language" => {
+								   'required' => 'true',
+				   },
+	};
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
+
+	# Check allowed parameters
+	my $error_msg = &setGlobalConfiguration( 'lang', $json_obj->{ language } );
+
+	&httpResponse(
+				   {
+					 code => 200,
+					 body => {
+							   description => $desc,
+							   params      => { language => &getGlobalConfiguration( 'lang' ) }
+					 }
+				   }
+	);
 }
 
 1;

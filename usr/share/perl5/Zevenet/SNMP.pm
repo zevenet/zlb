@@ -39,20 +39,24 @@ Returns:
 See Also:
 	zapi/v3/system.cgi, <setSnmpdStatus>
 =cut
+
 sub setSnmpdStatus    # ($snmpd_status)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
 	# get 'true' string to start, or a 'false' string to stop
 	my ( $snmpd_status ) = @_;
 
 	my $return_code = -1;
-	my $systemctl = &getGlobalConfiguration('systemctl');
-	my $updatercd = &getGlobalConfiguration('updatercd');
+	my $systemctl   = &getGlobalConfiguration( 'systemctl' );
+	my $updatercd   = &getGlobalConfiguration( 'updatercd' );
+	my $snmpd_srv   = &getGlobalConfiguration( 'snmpd_service' );
 
 	if ( $snmpd_status eq 'true' )
 	{
 		&zenlog( "Starting snmp service", "info", "SYSTEM" );
-		my @run = system("$updatercd snmpd enable");
+		my @run = system ( "$updatercd snmpd enable" );
 
 		if ( -f $systemctl )
 		{
@@ -60,13 +64,13 @@ sub setSnmpdStatus    # ($snmpd_status)
 		}
 		else
 		{
-			$return_code = system ( "/etc/init.d/snmpd start > /dev/null" );
+			$return_code = system ( "$snmpd_srv start > /dev/null" );
 		}
 	}
 	elsif ( $snmpd_status eq 'false' )
 	{
 		&zenlog( "Stopping snmp service", "info", "SYSTEM" );
-		my @run = system("$updatercd snmpd disable");
+		my @run = system ( "$updatercd snmpd disable" );
 
 		if ( -f $systemctl )
 		{
@@ -74,7 +78,7 @@ sub setSnmpdStatus    # ($snmpd_status)
 		}
 		else
 		{
-			$return_code = system ( "/etc/init.d/snmpd stop > /dev/null" );
+			$return_code = system ( "$snmpd_srv stop > /dev/null" );
 		}
 	}
 	else
@@ -101,10 +105,12 @@ Returns:
 See Also:
 	zapi/v3/system.cgi
 =cut
+
 sub getSnmpdStatus    # ()
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
-	my $pidof = &getGlobalConfiguration('pidof');
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $pidof       = &getGlobalConfiguration( 'pidof' );
 	my $status      = `$pidof snmpd`;
 	my $return_code = $?;
 
@@ -144,12 +150,14 @@ Returns:
 See Also:
 	zapi/v3/system.cgi
 =cut
+
 sub getSnmpdConfig    # ()
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	require Tie::File;
 
-	my $snmpdconfig_file = &getGlobalConfiguration('snmpdconfig_file');
+	my $snmpdconfig_file = &getGlobalConfiguration( 'snmpdconfig_file' );
 
 	tie my @config_file, 'Tie::File', $snmpdconfig_file;
 
@@ -163,6 +171,7 @@ sub getSnmpdConfig    # ()
 	  split ( /\s+/, $config_file[1] );
 
 	$snmpd_ip = '*' if ( $snmpd_ip eq '0.0.0.0' );
+
 	# Close file
 	untie @config_file;
 
@@ -190,12 +199,14 @@ Returns:
 See Also:
 	zapi/v3/system.cgi
 =cut
+
 sub setSnmpdConfig    # ($snmpd_conf)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $snmpd_conf ) = @_;
 
-	my $snmpdconfig_file = &getGlobalConfiguration('snmpdconfig_file');
+	my $snmpdconfig_file = &getGlobalConfiguration( 'snmpdconfig_file' );
 
 	my $ip = $snmpd_conf->{ ip };
 	$ip = '0.0.0.0' if ( $snmpd_conf->{ ip } eq '*' );

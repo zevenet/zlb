@@ -38,7 +38,7 @@ DELETE qr{^/session$} => \&session_logout;
 
 sub session_login
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( )",
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $desc    = "Login to new session";
 	my $session = CGI::Session->new( &getCGI() );
@@ -81,9 +81,10 @@ sub session_login
 	my ( $header ) = split ( "\r\n", $session->header() );
 	my ( undef, $session_cookie ) = split ( ': ', $header );
 	my $body;
-	$body->{ host } = &getHostname();
-	$body->{ user } = $username;
-	$body->{ key }  = &keycert() if defined ( &keycert );
+	$body->{ host }    = &getHostname();
+	$body->{ user }    = $username;
+	$body->{ key }     = &keycert() if defined ( &keycert );
+	$body->{ version } = &getGlobalConfiguration( "version" );
 
 	&zenlog( "Login successful for user: $username", "info", $LOG_TAG );
 	&httpResponse(

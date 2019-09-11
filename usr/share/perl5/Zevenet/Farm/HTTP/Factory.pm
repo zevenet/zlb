@@ -23,7 +23,7 @@
 
 use strict;
 
-my $configdir = &getGlobalConfiguration('configdir');
+my $configdir = &getGlobalConfiguration( 'configdir' );
 
 =begin nd
 Function: runHTTPFarmCreate
@@ -40,9 +40,11 @@ Returns:
 	Integer - return 0 on success or different of 0 on failure
 
 =cut
+
 sub runHTTPFarmCreate    # ( $vip, $vip_port, $farm_name, $farm_type )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $vip, $vip_port, $farm_name, $farm_type ) = @_;
 
 	require Tie::File;
@@ -52,13 +54,14 @@ sub runHTTPFarmCreate    # ( $vip, $vip_port, $farm_name, $farm_type )
 	my $output = -1;
 
 	#copy template modyfing values
-	my $poundtpl = &getGlobalConfiguration('poundtpl');
-	my $pound_conf_file = "$configdir/${farm_name}_pound.cfg";
-	&zenlog( "Copying pound template ($poundtpl) to $pound_conf_file", "info", "LSLB" );
-	copy( $poundtpl, $pound_conf_file );
+	my $proxytpl        = &getGlobalConfiguration( 'proxytpl' );
+	my $proxy_conf_file = "$configdir/${farm_name}_proxy.cfg";
+	&zenlog( "Copying proxy template ($proxytpl) to $proxy_conf_file",
+			 "info", "LSLB" );
+	copy( $proxytpl, $proxy_conf_file );
 
 	#modify strings with variables
-	tie my @file, 'Tie::File', $pound_conf_file;
+	tie my @file, 'Tie::File', $proxy_conf_file;
 
 	foreach my $line ( @file )
 	{
@@ -89,18 +92,19 @@ sub runHTTPFarmCreate    # ( $vip, $vip_port, $farm_name, $farm_type )
 	print $f_err "The service is not available. Please try again later.\n";
 	close $f_err;
 
-	my $pound = &getGlobalConfiguration('pound');
-	my $piddir = &getGlobalConfiguration('piddir');
+	my $proxy  = &getGlobalConfiguration( 'proxy' );
+	my $piddir = &getGlobalConfiguration( 'piddir' );
 
 	#run farm
 	&zenlog(
-		"Running $pound -f $configdir\/$farm_name\_pound.cfg -p $piddir\/$farm_name\_pound.pid", "info", "LSLB"
+		"Running $proxy -f $configdir\/$farm_name\_proxy.cfg -p $piddir\/$farm_name\_proxy.pid",
+		"info", "LSLB"
 	);
 
 	require Zevenet::System;
 
 	&zsystem(
-		"$pound -f $configdir\/$farm_name\_pound.cfg -p $piddir\/$farm_name\_pound.pid 2>/dev/null"
+		"$proxy -f $configdir\/$farm_name\_proxy.cfg -p $piddir\/$farm_name\_proxy.pid 2>/dev/null"
 	);
 	$output = $?;
 

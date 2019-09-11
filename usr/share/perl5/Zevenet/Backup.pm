@@ -40,9 +40,11 @@ Returns:
 See Also:
 	<getExistsBackup>, zapi/v3/system.cgi
 =cut
+
 sub getBackup
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my @backups;
 	my $backupdir = &getGlobalConfiguration( 'backupdir' );
 	my $backup_re = &getValidFormat( 'backup' );
@@ -62,6 +64,7 @@ sub getBackup
 
 		my $datetime_string = ctime( stat ( $filepath )->mtime );
 		$datetime_string = `date -d "${datetime_string}" +%F"  "%T" "%Z -u`;
+		chomp ( $datetime_string );
 		push @backups, { 'name' => $line, 'date' => $datetime_string };
 
 	}
@@ -84,9 +87,11 @@ Returns:
 See Also:
 	zapi/v3/system.cgi
 =cut
+
 sub getExistsBackup
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $name = shift;
 	my $find;
 
@@ -115,9 +120,11 @@ Returns:
 See Also:
 	zapi/v3/system.cgi
 =cut
+
 sub createBackup
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $name      = shift;
 	my $zenbackup = &getGlobalConfiguration( 'zenbackup' );
 	my $error     = system ( "$zenbackup $name -c 2> /dev/null" );
@@ -146,9 +153,11 @@ Returns:
 See Also:
 	zapi/v3/system.cgi
 =cut
+
 sub downloadBackup
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $backup = shift;
 	my $error;
 
@@ -160,11 +169,13 @@ sub downloadBackup
 	{
 		my $cgi = &getCGI();
 		print $cgi->header(
-							-type            					=> 'application/x-download',
-							-attachment      					=> $backup,
-							'Content-length' 				   	=> -s "$backupdir/$backup",
-							'Access-Control-Allow-Origin'      	=> "https://$ENV{ HTTP_HOST }/",
-						  	'Access-Control-Allow-Credentials' 	=> 'true',
+						   -type                         => 'application/x-download',
+						   -attachment                   => $backup,
+						   'Content-length'              => -s "$backupdir/$backup",
+						   'Access-Control-Allow-Origin' => ( exists $ENV{ HTTP_ZAPI_KEY } )
+						   ? '*'
+						   : "https://$ENV{ HTTP_HOST }/",
+						   'Access-Control-Allow-Credentials' => 'true',
 		);
 
 		binmode $download_fh;
@@ -189,26 +200,32 @@ Parameters:
 	upload_filehandle - File handle or file content.
 
 Returns:
+	2     - The file is not a .tar.gz
 	1     - on failure.
-	undef - on success.
+	0 - on success.
 
 See Also:
 	zapi/v3/system.cgi
 =cut
+
 sub uploadBackup
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 
 	my $filename          = shift;
 	my $upload_filehandle = shift;
 
 	my $error;
 	my $backupdir = &getGlobalConfiguration( 'backupdir' );
-	$filename = "backup-$filename.tar.gz";
+	my $tar       = &getGlobalConfiguration( 'tar' );
 
-	if ( !-f "$backupdir/$filename" )
+	$filename = "backup-$filename.tar.gz";
+	my $filepath = "$backupdir/$filename";
+
+	if ( !-f $filepath )
 	{
-		open ( my $disk_fh, '>', "$backupdir/$filename" ) or die "$!";
+		open ( my $disk_fh, '>', $filepath ) or die "$!";
 
 		binmode $disk_fh;
 
@@ -219,7 +236,22 @@ sub uploadBackup
 	}
 	else
 	{
-		$error = 1;
+		return 1;
+	}
+
+	# check the file, looking for the global.conf config file
+	my $config_path = &getGlobalConfiguration( 'globalcfg' );
+
+	# remove the first slash
+	$config_path =~ s/^\///;
+
+	$error = &logAndRun( "$tar -tf $filepath $config_path" );
+
+	if ( $error )
+	{
+		&zenlog( "$filename looks being a not valid backup", 'error', 'backup' );
+		unlink $filepath;
+		return 2;
 	}
 
 	return $error;
@@ -240,11 +272,13 @@ Returns:
 See Also:
 	zapi/v3/system.cgi
 =cut
+
 sub deleteBackup
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
-	my $file      = shift;
-	$file      = "backup-$file.tar.gz";
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $file = shift;
+	$file = "backup-$file.tar.gz";
 	my $backupdir = &getGlobalConfiguration( "backupdir" );
 	my $filepath  = "$backupdir/$file";
 	my $error;
@@ -272,33 +306,45 @@ Parameters:
 	backup - Backup name.
 
 Returns:
-	integer - ERRNO or return code of restarting load balancing service.
+	integer - 0 on success or another value on failure.
 
 See Also:
 	zapi/v3/system.cgi
 =cut
+
 sub applyBackup
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $backup = shift;
 	my $error;
 	my $tar  = &getGlobalConfiguration( 'tar' );
 	my $file = &getGlobalConfiguration( 'backupdir' ) . "/backup-$backup.tar.gz";
 
+	&zenlog( "Restoring backup $file", "info", "SYSTEM" );
 	my @eject = `$tar -xvzf $file -C /`;
+	my $error = $?;
+
+	if ( $error )
+	{
+		&zenlog( "The backup $file could not be extracted", "error", "SYSTEM" );
+		return $error;
+	}
+
 	unlink '/zevenet_version';
 
-	&zenlog( "Restoring backup $file", "info", "SYSTEM" );
 	&zenlog( "unpacking files: @eject", "info", "SYSTEM" );
-	$error = system ( "/etc/init.d/zevenet restart 2> /dev/null" );
+	$error = &logAndRun( "/etc/init.d/zevenet restart" );
 
 	if ( !$error )
 	{
-		&zenlog( "Backup applied and Zen Load Balancer restarted...", "info", "SYSTEM" );
+		&zenlog( "Backup applied and Zevenet Load Balancer restarted...",
+				 "info", "SYSTEM" );
 	}
 	else
 	{
-		&zenlog( "Problem restarting Zen Load Balancer service", "info", "SYSTEM" );
+		&zenlog( "Problem restarting Zevenet Load Balancer service", "error",
+				 "SYSTEM" );
 	}
 
 	return $error;

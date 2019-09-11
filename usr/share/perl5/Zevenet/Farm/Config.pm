@@ -280,7 +280,6 @@ Returns:
 
 See Also:
 	<_runDatalinkFarmStart>
-	l4sd
 
 	zapi/v3/get_l4.cgi
 	zapi/v3/get_datalink.cgi
@@ -429,13 +428,14 @@ sub setFarmVirtualConf    # ($vip,$vip_port,$farm_name)
 	}
 	elsif ( $farm_type eq "l4xnat" )
 	{
+		$stat = 0;
 		require Zevenet::Farm::L4xNAT::Config;
-		if ( $vip )
+		if ( $vip ne "" )
 		{
 			$stat = &setL4FarmParam( 'vip', $vip, $farm_name );
 		}
 		return $stat if ( $stat != 0 );
-		if ( $vip_port )
+		if ( $vip_port ne "" )
 		{
 			$stat = &setL4FarmParam( 'vipp', $vip_port, $farm_name );
 		}
@@ -637,8 +637,11 @@ sub getFarmStruct
 	}
 	elsif ( $farmType =~ /gslb/ )
 	{
-		require Zevenet::Farm::GSLB::Config;
-		$farm = &getGSLBFarmStruct( $farmName );
+		$farm = &eload(
+						module => 'Zevenet::Farm::GSLB::Config',
+						func   => 'getGSLBFarmStruct',
+						args   => [$farmName],
+		);
 	}
 
 	# elsif ( $farmType =~ /datalink/ )
@@ -689,6 +692,93 @@ sub getFarmPlainInfo    # ($farm_name)
 	}
 
 	return \@content;
+}
+
+=begin nd
+Function: reloadFarmsSourceAddress
+
+        Reload source address rules of farms (l4 in NAT mode and HTTP)
+
+Parameters:
+        none
+
+Returns:
+        none
+
+TODO:
+		HTTP farms not yet supported
+
+FIXME:
+		one source address per farm, not for backend
+=cut
+
+sub reloadFarmsSourceAddress
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	require Zevenet::Farm::Core;
+
+	for my $farm_name ( &getFarmNameList() )
+	{
+		&reloadFarmsSourceAddressByFarm( $farm_name );
+	}
+}
+
+=begin nd
+Function: reloadFarmsSourceAddress
+
+        Reload source address rules of a certain farm (l4 in NAT mode and HTTP)
+
+Parameters:
+        farm_name - name of the farm to apply the source address
+
+Returns:
+        none
+
+TODO:
+		HTTP farms not yet supported
+
+FIXME:
+		one source address per farm, not for backend
+=cut
+
+sub reloadFarmsSourceAddressByFarm
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	require Zevenet::Farm::Core;
+	require Zevenet::Farm::Base;
+
+	my $farm_name = shift;
+	my $farm_type = &getFarmType( $farm_name );
+
+	return if $farm_type ne 'l4xnat';
+	return if &getFarmStatus( $farm_name ) ne 'up';
+
+	my $farm_ref = &getL4FarmStruct( $farm_name );
+	return if $farm_ref->{ nattype } ne 'nat';
+
+	if ( $eload )
+	{
+		&eload(
+				module => 'Zevenet::Net::Floating',
+				func   => 'setFloatingSourceAddr',
+				args   => [$farm_ref, undef],
+		);
+
+		# reload the backend source address
+		foreach my $bk ( @{ $farm_ref->{ servers } } )
+		{
+			&eload(
+					module => 'Zevenet::Net::Floating',
+					func   => 'setFloatingSourceAddr',
+					args   => [$farm_ref, $bk],
+			);
+		}
+	}
+
 }
 
 1;

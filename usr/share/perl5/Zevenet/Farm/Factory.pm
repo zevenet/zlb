@@ -24,7 +24,10 @@
 use strict;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 =begin nd
 Function: runFarmCreate
@@ -48,7 +51,8 @@ FIXME:
 
 sub runFarmCreate    # ($farm_type,$vip,$vip_port,$farm_name,$fdev)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_type, $vip, $vip_port, $farm_name, $fdev ) = @_;
 
 	my $output        = -1;
@@ -63,7 +67,7 @@ sub runFarmCreate    # ($farm_type,$vip,$vip_port,$farm_name,$fdev)
 
 	&zenlog( "running 'Create' for $farm_name farm $farm_type", "info", "LSLB" );
 
-	if ( $farm_type =~ /^HTTP[S]?$/i )
+	if ( $farm_type =~ /^HTTPS?$/i )
 	{
 		require Zevenet::Farm::HTTP::Factory;
 		$output = &runHTTPFarmCreate( $vip, $vip_port, $farm_name, $farm_type );

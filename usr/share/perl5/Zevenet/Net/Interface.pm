@@ -61,6 +61,7 @@ Variable: $if_ref
 	$if_ref->{ parent }   - Interface which this interface is based/depends on.
 	$if_ref->{ float }    - Floating interface selected for this interface. For routing interfaces only.
 	$if_ref->{ is_slave } - Whether the NIC interface is a member of a Bonding interface. For NIC interfaces only.
+	$if_ref->{ dhcp }     - The DHCP service is enabled or not for the current interface.
 
 See also:
 	<getInterfaceConfig>, <setInterfaceConfig>, <getSystemInterface>
@@ -107,114 +108,88 @@ sub getInterfaceConfig    # \%iface ($if_name, $ip_version)
 	my $configdir       = &getGlobalConfiguration( 'configdir' );
 	my $config_filename = "$configdir/if_${if_name}_conf";
 
-	if ( open my $file, '<', "$config_filename" )
-	{
-		my @lines = grep { !/^(\s*#|$)/ } <$file>;
+	require Config::Tiny;
+	my $fileHandler = Config::Tiny->new();
+	$fileHandler = Config::Tiny->read( $config_filename )
+	  if ( -f $config_filename );
 
-		for my $line ( @lines )
-		{
-			my ( undef, $ip ) = split ';', $line;
-
-			if ( defined $ip )
-			{
-				$ip_version =
-				    ( $ip =~ /:/ )  ? 6
-				  : ( $ip =~ /\./ ) ? 4
-				  :                   undef;
-			}
-
-			if ( defined $ip_version && !$if_line )
-			{
-				$if_line = $line;
-			}
-			elsif ( $line =~ /^status=/ )
-			{
-				$if_status = $line;
-				$if_status =~ s/^status=//;
-				chomp $if_status;
-			}
-		}
-		close $file;
-	}
-
-	# includes !$if_status to avoid warning
-	if ( !$if_line && ( !$if_status || $if_status !~ /up/ ) )
-	{
-		return;
-	}
-
-	chomp ( $if_line );
-	my @if_params = split ( ';', $if_line );
-
-	# Example: eth0;10.0.0.5;255.255.255.0;up;10.0.0.1;
+	#Return undef if the file doesn't exists and the iface is not a NIC
+	return undef
+	  if ( !-f $config_filename and $if_name =~ /\.|\:/ );
 
 	require IO::Socket;
 	my $socket = IO::Socket::INET->new( Proto => 'udp' );
 
-	my %iface;
+	my $iface = {};
 
-	$iface{ name }    = shift @if_params // $if_name;
-	$iface{ addr }    = shift @if_params;
-	$iface{ mask }    = shift @if_params;
-	$iface{ gateway } = shift @if_params;                            # optional
-	$iface{ status }  = $if_status;
-	$iface{ dev }     = $if_name;
-	$iface{ vini }    = undef;
-	$iface{ vlan }    = undef;
-	$iface{ mac }     = undef;
-	$iface{ type }    = &getInterfaceType( $if_name );
-	$iface{ parent }  = &getParentInterfaceName( $iface{ name } );
-	$iface{ ip_v } =
-	  ( $iface{ addr } =~ /:/ ) ? '6' : ( $iface{ addr } =~ /\./ ) ? '4' : 0;
-	$iface{ net } =
-	  &getAddressNetwork( $iface{ addr }, $iface{ mask }, $iface{ ip_v } );
+	$iface->{ name } = $fileHandler->{ $if_name }->{ name } // $if_name;
+	$iface->{ addr } = $fileHandler->{ $if_name }->{ addr }
+	  if ( length $fileHandler->{ $if_name }->{ addr } );
+	$iface->{ mask } = $fileHandler->{ $if_name }->{ mask }
+	  if ( length $fileHandler->{ $if_name }->{ mask } );
+	$iface->{ gateway } = $fileHandler->{ $if_name }->{ gateway }
+	  if ( length $fileHandler->{ $if_name }->{ gateway } );    # optional
+	$iface->{ status } = $fileHandler->{ $if_name }->{ status };
+	$iface->{ dev }    = $if_name;
+	$iface->{ vini }   = undef;
+	$iface->{ vlan }   = undef;
+	$iface->{ mac }    = $fileHandler->{ $if_name }->{ mac } // undef;
+	$iface->{ type }   = &getInterfaceType( $if_name );
+	$iface->{ parent } = &getParentInterfaceName( $iface->{ name } );
+	$iface->{ ip_v } =
+	  ( $iface->{ addr } =~ /:/ ) ? '6' : ( $iface->{ addr } =~ /\./ ) ? '4' : 0;
+	$iface->{ net } =
+	  &getAddressNetwork( $iface->{ addr }, $iface->{ mask }, $iface->{ ip_v } );
+	$iface->{ dhcp } = $fileHandler->{ $if_name }->{ dhcp } // 'false'
+	  if ( $eload );
 
-	if ( $iface{ dev } =~ /:/ )
+	if ( $iface->{ dev } =~ /:/ )
 	{
-		( $iface{ dev }, $iface{ vini } ) = split ':', $iface{ dev };
+		( $iface->{ dev }, $iface->{ vini } ) = split ':', $iface->{ dev };
 	}
 
-	if ( !$iface{ name } )
+	if ( !$iface->{ name } )
 	{
-		$iface{ name } = $if_name;
+		$iface->{ name } = $if_name;
 	}
 
-	if ( $iface{ dev } =~ /./ )
+	if ( $iface->{ dev } =~ /./ )
 	{
 		# dot must be escaped
-		( $iface{ dev }, $iface{ vlan } ) = split '\.', $iface{ dev };
+		( $iface->{ dev }, $iface->{ vlan } ) = split '\.', $iface->{ dev };
 	}
 
-	$iface{ mac } = $socket->if_hwaddr( $iface{ dev } );
+	$iface->{ mac } = $socket->if_hwaddr( $iface->{ dev } )
+	  if ( !defined $iface->{ mac } );
 
 	# Interfaces without ip do not get HW addr via socket,
 	# in those cases get the MAC from the OS.
-	unless ( $iface{ mac } )
+	unless ( $iface->{ mac } )
 	{
 		open my $fh, '<', "/sys/class/net/$if_name/address";
-		chomp ( $iface{ mac } = <$fh> );
+		chomp ( $iface->{ mac } = <$fh> );
 		close $fh;
 	}
 
 	# complex check to avoid warnings
 	if (
 		 (
-		      !exists ( $iface{ vini } )
-		   || !defined ( $iface{ vini } )
-		   || $iface{ vini } eq ''
+		      !exists ( $iface->{ vini } )
+		   || !defined ( $iface->{ vini } )
+		   || $iface->{ vini } eq ''
 		 )
-		 && $iface{ addr }
+		 && $iface->{ addr }
 	  )
 	{
 		require Config::Tiny;
 		my $float = Config::Tiny->read( &getGlobalConfiguration( 'floatfile' ) );
 
-		$iface{ float } = $float->{ _ }->{ $iface{ name } } // '';
+		$iface->{ float } = $float->{ _ }->{ $iface->{ name } } // '';
 	}
 
 	state $saved_bond_slaves = 0;
 
-	if ( $eload && $iface{ type } eq 'nic' )
+	if ( $eload && $iface->{ type } eq 'nic' )
 	{
 		# not die if the appliance has not a certificate
 		eval {
@@ -227,22 +202,22 @@ sub getInterfaceConfig    # \%iface ($if_name, $ip_version)
 			}
 		};
 
-		$iface{ is_slave } =
-		  ( grep { $iface{ name } eq $_ } @TMP::bond_slaves ) ? 'true' : 'false';
+		$iface->{ is_slave } =
+		  ( grep { $iface->{ name } eq $_ } @TMP::bond_slaves ) ? 'true' : 'false';
 	}
 
 	# for virtual interface, overwrite mask and gw with parent values
-	if ( $iface{ type } eq 'vini' )
+	if ( $iface->{ type } eq 'vini' )
 	{
-		my $if_parent = &getInterfaceConfig( $iface{ parent } );
-		$iface{ mask }    = $if_parent->{ mask };
-		$iface{ gateway } = $if_parent->{ gateway };
+		my $if_parent = &getInterfaceConfig( $iface->{ parent } );
+		$iface->{ mask }    = $if_parent->{ mask };
+		$iface->{ gateway } = $if_parent->{ gateway };
 	}
 
 	#~ &zenlog(
 	#~ "getInterfaceConfig( $if_name ) returns " . Dumper \%iface );
 
-	return \%iface;
+	return $iface;
 }
 
 =begin nd
@@ -262,87 +237,98 @@ See Also:
 
 # returns 1 if it was successful
 # returns 0 if it wasn't successful
+
 sub setInterfaceConfig    # $bool ($if_ref)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $if_ref = shift;
-
+	require Config::Tiny;
+	my $fileHandle = Config::Tiny->new;
 	if ( ref $if_ref ne 'HASH' )
 	{
 		&zenlog( "Input parameter is not a hash reference", "warning", "NETWORK" );
 		return;
 	}
-
+	use Data::Dumper;
 	&zenlog( "setInterfaceConfig: " . Dumper $if_ref, "debug", "NETWORK" )
 	  if &debug() > 2;
-	my @if_params = ( 'name', 'addr', 'mask', 'gateway' );
+	my @if_params = ( 'status', 'name', 'addr', 'mask', 'gateway', 'mac', 'dhcp' );
 
-	my $if_line         = join ( ';', @{ $if_ref }{ @if_params } ) . ';';
 	my $configdir       = &getGlobalConfiguration( 'configdir' );
 	my $config_filename = "$configdir/if_$$if_ref{ name }_conf";
 
-	if ( $if_ref->{ addr } && !$if_ref->{ ip_v } )
-	{
-		require Zevenet::Net::Validate;
-		$if_ref->{ ip_v } = &ipversion( $if_ref->{ addr } );
-	}
-
+	# create file if it is not exist
 	if ( !-f $config_filename )
 	{
-		open my $fh, '>', $config_filename;
-		print $fh "status=up\n";
-		close $fh;
+		require Zevenet::File;
+		return 0 if ( &createFile( $config_filename ) );
 	}
 
-	# Example: eth0;10.0.0.5;255.255.255.0;up;10.0.0.1;
-	require Tie::File;
+	$fileHandle = Config::Tiny->read( $config_filename );
 
-	if ( tie my @file_lines, 'Tie::File', "$config_filename" )
+	foreach my $field ( @if_params )
 	{
-		require Zevenet::Net::Validate;
-		my $ip_line_found = 0;
-
-		for my $line ( @file_lines )
-		{
-			# skip commented and empty lines
-			if ( grep { /^(\s*#|$)/ } $line )
-			{
-				next;
-			}
-
-			my ( undef, $ip ) = split ';', $line;
-
-			#if ( $$if_ref{ ip_v } eq &ipversion( $ip ) && !$ip_line_found )
-			if ( defined ( $ip ) && !$ip_line_found )
-			{
-				# replace line
-				$line          = $if_line;
-				$ip_line_found = 'true';
-			}
-			elsif ( $line =~ /^status=/ )
-			{
-				$line = "status=$$if_ref{status}";
-			}
-		}
-
-		if ( !$ip_line_found )
-		{
-			push ( @file_lines, $if_line );
-		}
-
-		untie @file_lines;
+		$fileHandle->{ $if_ref->{ name } }->{ $field } = $if_ref->{ $field };
 	}
-	else
+
+	if ( ! exists $fileHandle->{status} )
 	{
-		&zenlog( "$config_filename: $!", "info", "NETWORK" );
-
-		# returns zero on failure
-		return 0;
+		$fileHandle->{ $if_ref->{ name } }->{ status } = $if_ref->{ status } // "up";
 	}
+
+	return 0
+	  unless ( $fileHandle->write( $config_filename ) );
 
 	# returns a true value on success
 	return 1;
+}
+
+=begin nd
+Function: cleanInterfaceConfig
+
+	remove the configuration information of a interface from its config file
+
+Parameters:
+	if_ref - Reference to a network interface hash.
+
+Returns:
+	Integer - 0 on success, or another value on failure.
+
+=cut
+
+sub cleanInterfaceConfig
+{
+	my $if_ref    = shift;
+	my $configdir = &getGlobalConfiguration( 'configdir' );
+	my $file      = "$configdir/if_$$if_ref{name}\_conf";
+	my $err       = 0;
+
+	if ( !-f $file )
+	{
+		&zenlog( "The file $file has not been found", "info", "NETWORK" );
+		return 1;
+	}
+
+	require Config::Tiny;
+	my $fileHandler = Config::Tiny->new();
+	$fileHandler = Config::Tiny->read( $file );
+	$fileHandler->{ $if_ref->{ name } } = {
+							  mask   => "",
+							  status => $fileHandler->{ $if_ref->{ name } }->{ status },
+							  addr   => "",
+							  mac    => $if_ref->{ mac },
+							  gateway => "",
+							  dhcp    => "false"
+	};
+
+	$fileHandler->write( "$file" );
+	if ( $$if_ref{ name } ne $$if_ref{ dev } )
+	{
+		unlink ( $file ) or return 1;
+	}
+
+	return $err;
 }
 
 =begin nd
@@ -415,18 +401,11 @@ sub getConfigInterfaceList
 				my $if_name = $1;
 				my $if_ref;
 
-				#~ $if_ref = &getInterfaceConfig( $if_name, 4 );
 				$if_ref = &getInterfaceConfig( $if_name );
-				if ( $$if_ref{ addr } )
+				if ( defined $if_ref )
 				{
 					push @configured_interfaces, $if_ref;
 				}
-
-				#~ $if_ref = &getInterfaceConfig( $if_name, 6 );
-				#~ if ( $$if_ref{ addr } )
-				#~ {
-				#~ push @configured_interfaces, $if_ref;
-				#~ }
 			}
 		}
 
@@ -1008,8 +987,7 @@ sub getInterfaceTypeList
 			if ( $list_type eq &getInterfaceType( $if_name ) )
 			{
 				my $output_if = &getInterfaceConfig( $if_name );
-
-				if ( !$output_if || !$output_if->{ mac } )
+				if ( !$output_if || !$output_if->{ mac } || $output_if->{ is_slave } eq 'true' )
 				{
 					$output_if = &getSystemInterface( $if_name );
 				}
@@ -1184,6 +1162,54 @@ sub getLinkNameList
 	closedir $if_dir;
 
 	return @if_list;
+}
+
+=begin nd
+Function: getInterfaceByIp
+
+	Ask for the name of the interface using the IP address
+
+Parameters:
+	IP - IP address
+
+Returns:
+	String - Interface name
+
+=cut
+
+sub getInterfaceByIp
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $ip = shift;
+
+	require Zevenet::Net::Validate;
+
+	my $output   = "";
+	my $ip_ver   = &ipversion( $ip );
+	my $addr_ref = NetAddr::IP->new( $ip );
+
+	foreach my $if_ref ( @{ &getConfigInterfaceList() } )
+	{
+		# IPv4
+		if ( $ip_ver == 4 && $if_ref->{ ip_v } == 4 && $if_ref->{ addr } eq $ip )
+		{
+			$output = $if_ref->{ name };
+			last;
+		}
+
+		# IPv6
+		if ( $ip_ver == 6 && $if_ref->{ ip_v } == 6 )
+		{
+			if ( NetAddr::IP->new( $if_ref->{ addr } ) eq $addr_ref )
+			{
+				$output = $if_ref->{ name };
+				last;
+			}
+		}
+	}
+
+	return $output;
 }
 
 =begin nd
@@ -1401,6 +1427,8 @@ sub get_interface_list_struct
 		};
 
 		$if_conf->{ alias } = $alias->{ $if_ref->{ name } } if $eload;
+		$if_conf->{ dhcp } = $if_ref->{ dhcp }
+		  if ( $eload and $if_ref->{ type } ne 'virtual' );
 
 		if ( $if_ref->{ type } eq 'nic' )
 		{
@@ -1477,6 +1505,7 @@ sub get_nic_struct
 
 		$interface->{ alias }    = $alias->{ $if_ref->{ name } } if $eload;
 		$interface->{ is_slave } = $if_ref->{ is_slave }         if $eload;
+		$interface->{ dhcp }     = $if_ref->{ dhcp }             if $eload;
 	}
 
 	return $interface;
@@ -1527,8 +1556,9 @@ sub get_nic_list_struct
 						mac     => $if_ref->{ mac },
 		};
 
-		$if_conf->{ alias } = $alias->{ $if_ref->{ name } } if $eload;
-		$if_conf->{ is_slave } = $if_ref->{ is_slave } if $eload;
+		$if_conf->{ alias }    = $alias->{ $if_ref->{ name } } if $eload;
+		$if_conf->{ is_slave } = $if_ref->{ is_slave }         if $eload;
+		$if_conf->{ dhcp } = $if_ref->{ dhcp } // 'false' if $eload;
 		$if_conf->{ is_cluster } = 'true' if $cluster_if eq $if_ref->{ name };
 
 		# include 'has_vlan'
@@ -1592,6 +1622,7 @@ sub get_vlan_struct
 	};
 
 	$output->{ alias } = $alias->{ $interface->{ name } } if $eload;
+	$output->{ dhcp } = $interface->{ dhcp } // 'false' if $eload;
 
 	return $output;
 }
@@ -1642,6 +1673,7 @@ sub get_vlan_list_struct
 		};
 
 		$if_conf->{ alias } = $alias->{ $if_ref->{ name } } if $eload;
+		$if_conf->{ dhcp } = $if_ref->{ dhcp } // 'false' if $eload;
 		$if_conf->{ is_cluster } = 'true'
 		  if $cluster_if && $cluster_if eq $if_ref->{ name };
 
@@ -1738,6 +1770,153 @@ sub get_virtual_list_struct
 	}
 
 	return \@output_list;
+}
+
+=begin nd
+Function: setInterfaceConfig
+
+	Store a network interface configuration.
+
+Parameters:
+	if_ref - Reference to a network interface hash.
+	params - Reference to the hash of params to modify.
+
+Returns:
+	boolean - 0 on success, or 1 on failure.
+
+=cut
+
+sub setVlan    # if_ref
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $if_ref = shift;
+	my $params = shift;
+	my $err    = 0;
+
+	require Zevenet::Net::Core;
+	require Zevenet::Net::Route;
+
+	my $oldIf_ref = &getInterfaceConfig( $if_ref->{ name } );
+
+	if ( $if_ref->{ dhcp } eq "true" )
+	{
+		$if_ref->{ addr }    = "";
+		$if_ref->{ net }     = "";
+		$if_ref->{ mask }    = "";
+		$if_ref->{ gateway } = "";
+	}
+
+	if ( length $if_ref->{ mac } == 0 )
+	{
+		my $parent_if_name = &getParentInterfaceName( $if_ref->{ name } );
+		my $parent_config  = &getInterfaceConfig( $parent_if_name );
+
+		$if_ref->{ mac } = $parent_config->{ mac };
+	}
+
+	# Creating a new interface
+	if ( !defined $oldIf_ref )
+	{
+		$err = &createVlan( $if_ref );
+		return 1 if ( $err );
+	}
+
+	# Modifying
+	my $oldAddr;
+
+	# Add new IP, netmask and gateway
+	if ( exists $if_ref->{ addr } and length $if_ref->{ addr } > 0 )
+	{
+		return 1 if &addIp( $if_ref );
+		return 1 if &writeRoutes( $if_ref->{ name } );
+
+		$oldAddr = $oldIf_ref->{ addr };
+	}
+
+	my $state = &upIf( $if_ref, 'writeconf' );
+	return 1 if ( !&setInterfaceConfig( $if_ref ) );
+
+	if ( $state == 0 )
+	{
+		$if_ref->{ status } = "up";
+
+		if ( $if_ref->{ addr } > 0 )
+		{
+			return 1 if &applyRoutes( "local", $if_ref );
+		}
+	}
+
+	if ( $eload && exists $params->{ mac } )
+	{
+		return 1
+		  if (
+			   &eload(
+					   module => 'Zevenet::Net::Mac',
+					   func   => 'addMAC',
+					   args   => [$if_ref->{ name }, $if_ref->{ mac }]
+			   )
+		  );
+	}
+
+	# if the GW is changed, change it in all appending virtual interfaces
+	if ( exists $if_ref->{ gateway } and length $if_ref->{ gateway } > 0 )
+	{
+		foreach my $appending ( &getInterfaceChild( $if_ref->{ vlan } ) )
+		{
+			my $app_config = &getInterfaceConfig( $appending );
+			$app_config->{ gateway } = $params->{ gateway };
+			&setInterfaceConfig( $app_config );
+		}
+	}
+
+	# put all dependant interfaces up
+	require Zevenet::Net::Util;
+	&setIfacesUp( $if_ref->{ name }, "vini" );
+
+	if ( $oldAddr )
+	{
+		require Zevenet::Farm::Base;
+		my @farms = &getFarmListByVip( $oldAddr );
+
+		# change farm vip,
+		if ( @farms )
+		{
+			require Zevenet::Farm::Config;
+			&setAllFarmByVip( $params->{ ip }, \@farms );
+		}
+	}
+
+	return 0;
+}
+
+sub createVlan
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $if_ref = shift;
+
+	require Zevenet::Net::Core;
+
+	my $err = 0;
+
+	$err = &createIf( $if_ref );    # Create interface
+
+	if ( !$err )
+	{
+		$err = 2 if ( !&setInterfaceConfig( $if_ref ) );
+	}
+
+	if ( $err )
+	{
+		&zenlog( "The vlan $if_ref->{name} could not be created", "error", "NETWORK" );
+	}
+	else
+	{
+		&zenlog( "The vlan $if_ref->{name} was created properly", "info", "NETWORK" );
+	}
+
+	return $err;
 }
 
 1;

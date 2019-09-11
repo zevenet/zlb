@@ -279,7 +279,9 @@ sub httpResponse    # ( \%hash ) hash_keys->( $code, %headers, $body )
 
 	# Headers included in _ALL_ the responses, any method, any URI, sucess or error
 	my @headers = (
-					'Access-Control-Allow-Origin'      => "https://$ENV{ HTTP_HOST }/",
+					  'Access-Control-Allow-Origin' => ( exists $ENV{ HTTP_ZAPI_KEY } )
+					? '*'
+					: "https://$ENV{ HTTP_HOST }/",
 					'Access-Control-Allow-Credentials' => 'true',
 					'Cache-Control'                    => 'no-cache',
 					'Expires'                          => '-1',
@@ -530,6 +532,8 @@ sub httpDownloadResponse
 
 sub buildAPIParams
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $out_b     = shift;
 	my $api_keys  = shift;
 	my $translate = shift;
@@ -552,6 +556,8 @@ sub buildAPIParams
 
 sub buildBackendAPIParams
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $out_b     = shift;
 	my $api_keys  = shift;
 	my $translate = shift;

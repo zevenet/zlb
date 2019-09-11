@@ -22,6 +22,8 @@
 ###############################################################################
 
 use strict;
+
+use Zevenet::API40::HTTP;
 use Zevenet::Farm::Core;
 use Zevenet::Farm::Base;
 use Zevenet::Net::Validate;
@@ -79,13 +81,10 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 	if ( $type eq 'l4xnat' )
 	{
 		$params->{ "port" } = {
-								'function'   => \&isValidPortNumber,
-								'format_msg' => 'expects an port or port range'
+								'valid_format' => 'port',
+								'format_msg'   => 'expects a port or port range'
 		};
-		$params->{ "max_conns" } = {
-									 'valid_format' => 'natural_num',
-									 'format_msg'   => 'expects a natural number'
-		};
+		$params->{ "max_conns" } = { 'interval' => '0,' };
 	}
 	else
 	{
@@ -93,16 +92,6 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 									 'non_black' => 'true',
 									 'required'  => 'true'
 		};
-	}
-
-	# Disabled temporality
-	foreach my $pa ( 'port', 'max_conns' )
-	{
-		if ( exists $json_obj->{ $pa } )
-		{
-			my $msg = "$pa is not implemented yet.";
-			&httpErrorResponse( code => 406, desc => $desc, msg => $msg );
-		}
 	}
 
 	# Check allowed parameters
@@ -178,6 +167,27 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 	# Initial parameters
 	my $desc = "New service backend";
 
+	my $params = {
+				   "weight" => {
+								 'interval' => '1,9',
+				   },
+				   "timeout" => {
+								  'valid_format' => 'natural_num',
+				   },
+				   "ip" => {
+							 'valid_format' => 'ip_addr',
+							 'non_blank'    => 'true',
+							 'format_msg'   => 'expects an IP',
+							 'required'     => 'true',
+				   },
+				   "port" => {
+							   'valid_format' => 'port',
+							   'format_msg'   => 'expects a port',
+							   'non_blank'    => 'true',
+							   'required'     => 'true',
+				   },
+	};
+
 	# Check that the farm exists
 	if ( !&getFarmExists( $farmname ) )
 	{
@@ -210,19 +220,9 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 
 	# validate SERVICE
 	my @services = &getHTTPFarmServices( $farmname );
-	my $found    = 0;
-
-	foreach my $farmservice ( @services )
-	{
-		if ( $service eq $farmservice )
-		{
-			$found = 1;
-			last;
-		}
-	}
 
 	# Check if the provided service is configured in the farm
-	if ( $found == 0 )
+	unless ( grep ( /^$service$/, @services ) )
 	{
 		my $msg = "Invalid service name, please insert a valid value.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -236,51 +236,24 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	# validate IP
-	unless ( defined $json_obj->{ ip }
-			 && &getValidFormat( 'ip_addr', $json_obj->{ ip } ) )
-	{
-		my $msg = "Invalid backend IP value, please insert a valid value.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
-
-	# validate PORT
-	unless ( &isValidPortNumber( $json_obj->{ port } ) eq 'true' )
-	{
-		&zenlog( "Invalid IP address and port for a backend, ir can't be blank.",
-				 "error", "FARMS" );
-
-		my $msg = "Invalid port for a backend.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
-
-	# validate WEIGHT
-	unless ( !defined ( $json_obj->{ weight } )
-			 || $json_obj->{ weight } =~ /^[1-9]$/ )
-	{
-		my $msg = "Invalid weight value for a backend, it must be 1-9.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
-
-	# validate TIMEOUT
-	unless ( !defined ( $json_obj->{ timeout } )
-		   || ( $json_obj->{ timeout } =~ /^\d+$/ && $json_obj->{ timeout } != 0 ) )
-	{
-		my $msg =
-		  "Invalid timeout value for a backend, it must be empty or greater than 0.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
 
 	# get an ID for the new backend
 	my $id = &getHTTPFarmBackendAvailableID( $farmname, $service );
 
 # First param ($id) is an empty string to let function autogenerate the id for the new backend
-	my $status = &setHTTPFarmServer( "",
+	my $status = &setHTTPFarmServer(
+									 "",
 									 $json_obj->{ ip },
 									 $json_obj->{ port },
 									 $json_obj->{ weight },
 									 $json_obj->{ timeout },
-									 $farmname, $service, );
+									 $farmname,
+									 $service,
+	);
 
 	# check if there was an error adding a new backend
 	if ( $status == -1 )
@@ -464,24 +437,11 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 								'function'   => \&isValidPortNumber,
 								'format_msg' => 'expects an port or port range'
 		};
-		$params->{ "max_conns" } = {
-									 'valid_format' => 'natural_num',
-									 'format_msg'   => 'expects a natural number'
-		};
+		$params->{ "max_conns" } = { 'interval' => '0,' };
 	}
 	else
 	{
 		$params->{ "interface" } = { 'non_black' => 'true', };
-	}
-
-	# Disabled temporality
-	foreach my $pa ( 'port', 'max_conns' )
-	{
-		if ( exists $json_obj->{ $pa } )
-		{
-			my $msg = "$pa is not implemented yet.";
-			&httpErrorResponse( code => 406, desc => $desc, msg => $msg );
-		}
 	}
 
 	# Check allowed parameters
@@ -490,7 +450,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 	  if ( $error_msg );
 
 	$backend->{ ip } = $json_obj->{ ip } if exists $json_obj->{ ip };
-	$backend->{ vport } = $json_obj->{ port }
+	$backend->{ port } = $json_obj->{ port }
 	  if exists $json_obj->{ port };    # l4xnat
 	$backend->{ weight } = $json_obj->{ weight } if exists $json_obj->{ weight };
 	$backend->{ priority } = $json_obj->{ priority }
@@ -551,6 +511,25 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 
 	my $desc = "Modify service backend";
 
+	my $params = {
+				   "weight" => {
+								 'interval' => '1,9',
+				   },
+				   "timeout" => {
+								  'valid_format' => 'natural_num',
+				   },
+				   "ip" => {
+							 'valid_format' => 'ip_addr',
+							 'non_blank'    => 'true',
+							 'format_msg'   => 'expects an IP',
+				   },
+				   "port" => {
+							   'function'   => \&isValidPortNumber,
+							   'format_msg' => 'expects a port',
+							   'non_blank'  => 'true',
+				   },
+	};
+
 	# Check that the farm exists
 	if ( !&getFarmExists( $farmname ) )
 	{
@@ -605,57 +584,18 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
-	# validate BACKEND new ip
-	if ( exists ( $json_obj->{ ip } ) )
-	{
-		unless (    $json_obj->{ ip }
-				 && &getValidFormat( 'IPv4_addr', $json_obj->{ ip } ) )
-		{
-			my $msg = "Invalid IP.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		$be->{ ip } = $json_obj->{ ip };
-	}
-
-	# validate BACKEND new port
-	if ( exists ( $json_obj->{ port } ) )
-	{
-		unless ( &isValidPortNumber( $json_obj->{ port } ) eq 'true' )
-		{
-			my $msg = "Invalid port.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		$be->{ port } = $json_obj->{ port };
-	}
-
-	# validate BACKEND weight
-	if ( exists ( $json_obj->{ weight } ) )
-	{
-		unless ( $json_obj->{ weight } =~ /^[1-9]$/ )
-		{
-			my $msg = "Invalid weight.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		$be->{ weight } = $json_obj->{ weight };
-	}
-
-	# validate BACKEND timeout
-	if ( exists ( $json_obj->{ timeout } ) )
-	{
-		unless ( $json_obj->{ timeout } eq ''
-			   || ( $json_obj->{ timeout } =~ /^\d+$/ && $json_obj->{ timeout } != 0 ) )
-		{
-			my $msg = "Invalid timeout.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		$be->{ timeout } = $json_obj->{ timeout };
-	}
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
 
 	# apply BACKEND change
+
+	$be->{ ip }      = $json_obj->{ ip }      // $be->{ ip };
+	$be->{ port }    = $json_obj->{ port }    // $be->{ port };
+	$be->{ weight }  = $json_obj->{ weight }  // $be->{ weight };
+	$be->{ timeout } = $json_obj->{ timeout } // $be->{ timeout };
+
 	my $status = &setHTTPFarmServer( $id_server,
 									 $be->{ ip },
 									 $be->{ port },
@@ -750,8 +690,14 @@ sub delete_backend    # ( $farmname, $id_server )
 	&eload(
 			module => 'Zevenet::Cluster',
 			func   => 'runZClusterRemoteManager',
+			args   => ['farm', 'delete', $farmname, 'backend', $id_server],
+	) if ( $eload && $type eq 'l4xnat' );
+
+	&eload(
+			module => 'Zevenet::Cluster',
+			func   => 'runZClusterRemoteManager',
 			args   => ['farm', 'restart', $farmname],
-	) if ( $eload );
+	) if ( $eload && $type eq 'datalink' );
 
 	my $message = "Backend removed";
 	my $body = {
@@ -862,6 +808,8 @@ sub delete_service_backend    # ( $farmname, $service, $id_server )
 
 sub validateDatalinkBackendIface
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $backend = shift;
 	my $msg;
 
@@ -877,8 +825,8 @@ sub validateDatalinkBackendIface
 		$msg = "It is not possible to configure vlan interface for datalink backends";
 	}
 	elsif (
-			!&getNetValidate( $iface_ref->{ addr }, $iface_ref->{ mask }, $backend->{ ip }
-			)
+		  !&getNetValidate( $iface_ref->{ addr }, $iface_ref->{ mask }, $backend->{ ip }
+		  )
 	  )
 	{
 		$msg =

@@ -42,6 +42,23 @@ sub new_vini    # ( $json_obj )
 	my $vlan_re        = &getValidFormat( 'vlan_interface' );
 	my $virtual_tag_re = &getValidFormat( 'virtual_tag' );
 
+	my $params = {
+				   "name" => {
+							   'valid_format' => 'virt_interface',
+							   'required'     => 'true',
+							   'non_blank'    => 'true',
+				   },
+				   "ip" => {
+							 'valid_format' => 'ip_addr',
+							 'required'     => 'true',
+				   },
+	};
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
+
 	# virtual_name = pather_name + . + virtual_tag
 	# size < 16: size = pather_name:virtual_name
 	if ( length $json_obj->{ name } > 15 )
@@ -63,14 +80,6 @@ sub new_vini    # ( $json_obj )
 	$json_obj->{ parent } =~ /^($nic_re)(?:\.($vlan_tag_re))?$/;
 	$json_obj->{ dev }  = $1;
 	$json_obj->{ vlan } = $2;
-
-	# validate IP
-	unless ( defined ( $json_obj->{ ip } )
-			 && &getValidFormat( 'ip_addr', $json_obj->{ ip } ) )
-	{
-		my $msg = "Invalid IP address.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
 
 	require Zevenet::Net::Validate;
 	$json_obj->{ ip_v } = ipversion( $json_obj->{ ip } );
@@ -124,6 +133,7 @@ sub new_vini    # ( $json_obj )
 	$if_ref->{ addr }    = $json_obj->{ ip };
 	$if_ref->{ gateway } = "" if !$if_ref->{ gateway };
 	$if_ref->{ type }    = 'virtual';
+	$if_ref->{ dhcp }    = 'false';
 
 	unless (
 		 &getNetValidate( $if_parent->{ addr }, $if_ref->{ mask }, $if_ref->{ addr } ) )
@@ -331,18 +341,24 @@ sub actions_interface_virtual    # ( $json_obj, $virtual )
 	my $desc = "Action on virtual interface";
 	my $ip_v = 4;
 
+	my $params = {
+				   "action" => {
+								 'non_blank' => 'true',
+								 'required'  => 'true',
+								 'values'    => ['up', 'down'],
+				   },
+	};
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
+
 	# validate VLAN
 	unless ( grep { $virtual eq $_->{ name } } &getInterfaceTypeList( 'virtual' ) )
 	{
 		my $msg = "Virtual interface not found";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
-	}
-
-	# reject not accepted parameters
-	if ( grep { $_ ne 'action' } keys %$json_obj )
-	{
-		my $msg = "Only the parameter 'action' is accepted";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
 	my $if_ref = &getInterfaceConfig( $virtual, $ip_v );
@@ -409,11 +425,6 @@ sub actions_interface_virtual    # ( $json_obj, $virtual )
 			);
 		}
 	}
-	else
-	{
-		my $msg = "Action accepted values are: 'up' or 'down'";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
 
 	my $body = {
 				 description => $desc,
@@ -437,25 +448,25 @@ sub modify_interface_virtual    # ( $json_obj, $virtual )
 	my $if_ref = &getInterfaceConfig( $virtual );
 	my @farms;
 
-	my @allowParams = ( "ip", "force" );
+	my $params = {
+				   "ip" => {
+							 'valid_format' => 'ip_addr',
+				   },
+				   "force" => {
+								'non_blank' => 'true',
+								'values'    => ['true'],
+				   },
+	};
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
 
 	unless ( $if_ref )
 	{
 		my $msg = "Virtual interface not found";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
-	}
-
-	if ( my $msg = &getValidOptParams( $json_obj, \@allowParams ) )
-	{
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
-
-	# Check address errors
-	unless ( defined ( $json_obj->{ ip } )
-			 && &getValidFormat( 'ip_addr', $json_obj->{ ip } ) )
-	{
-		my $msg = "Invalid IP address.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
 	my @child = &getInterfaceChild( $virtual );
@@ -496,7 +507,6 @@ sub modify_interface_virtual    # ( $json_obj, $virtual )
 	}
 
 	require Zevenet::Net::Validate;
-
 	my $if_ref_parent = &getInterfaceConfig( $if_ref->{ parent } );
 
 	unless (
@@ -533,7 +543,6 @@ sub modify_interface_virtual    # ( $json_obj, $virtual )
 		if ( $state eq 'up' )
 		{
 			require Zevenet::Net::Route;
-
 			die if &addIp( $if_ref );
 			&upIf( $if_ref );
 			&applyRoutes( "local", $if_ref );

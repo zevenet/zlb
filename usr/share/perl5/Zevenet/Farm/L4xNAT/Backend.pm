@@ -22,8 +22,18 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
+
+use Zevenet::Nft;
+
+my $eload;
+
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 =begin nd
 Function: setL4FarmServer
@@ -47,70 +57,138 @@ Returns:
 	FIXME: Stop returning -2 when IP duplicated, nftlb should do this
 =cut
 
-sub setL4FarmServer    # ($farm_name,$ids,$rip,$port,$weight,$priority,$maxconn)
+sub setL4FarmServer
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name, $ids, $rip, $port, $weight, $priority, $max_conns ) = @_;
+	my ( $farm_name, $ids, $ip, $port, $weight, $priority, $max_conns ) = @_;
 
-	#	require Zevenet::FarmGuardian;
 	require Zevenet::Farm::L4xNAT::Config;
 	require Zevenet::Farm::L4xNAT::Action;
 	require Zevenet::Farm::Backend;
 	require Zevenet::Netfilter;
 
-	&zenlog(
-		"setL4FarmServer << farm_name:$farm_name ids:$ids rip:$rip port:$port weight:$weight priority:$priority max_conns:$max_conns"
-	) if &debug;
-
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $mark          = &getNewMark( $farm_name );
 	my $output        = 0;
-
-	if ( $weight == 0 )
-	{
-		$weight = 1;
-	}
-
-	if ( $priority == 0 )
-	{
-		$priority = 1;
-	}
+	my $json          = qq();
+	my $msg           = "setL4FarmServer << farm_name:$farm_name ids:$ids ";
 
 	# load the configuration file first if the farm is down
 	my $f_ref = &getL4FarmStruct( $farm_name );
 	if ( $f_ref->{ status } ne "up" )
 	{
-		my $out = &loadNLBFarm( $farm_name );
-		if ( $out != 0 )
-		{
-			return $out;
-		}
+		my $out = &loadL4FarmNlb( $farm_name );
+		return $out if ( $out != 0 );
 	}
 
 	my $exists = &getFarmServer( $f_ref->{ servers }, $ids );
 
-	# It's a backend modification
-	if ( $exists )
+	my $rip = $ip;
+
+	if ( defined $port && $port ne "" )
 	{
-		$mark = $exists->{ tag };
+		if ( &ipversion( $ip ) == 4 )
+		{
+			$rip = "$ip\:$port";
+		}
+		elsif ( &ipversion( $ip ) == 6 )
+		{
+			$rip = "[$ip]\:$port";
+		}
+
+		if ( !defined $exists || ( defined $exists && $exists->{ port } ne $port ) )
+		{
+			$json .= qq(, "port" : "$port");
+			$msg  .= "port:$port ";
+		}
 	}
 
-	$exists = &getFarmServer( $f_ref->{ servers }, $rip, "rip" );
-	return -2 if ( $exists && ( $exists->{ id } ne $ids ) );
+	if (   defined $ip
+		&& $ip ne ""
+		&& ( !defined $exists || ( defined $exists && $exists->{ rip } ne $rip ) ) )
+	{
+		my $existrip = &getFarmServer( $f_ref->{ servers }, $rip, "rip" );
+		return -2 if ( defined $existrip && ( $existrip->{ id } ne $ids ) );
+		$json = qq(, "ip-addr" : "$ip") . $json;
+		$msg .= "ip:$ip ";
 
-	$output = &httpNLBRequest(
+		my $mark = "0x0";
+		if ( !defined $exists )
 		{
-		   farm       => $farm_name,
-		   configfile => "$configdir/$farm_filename",
-		   method     => "PUT",
-		   uri        => "/farms",
+			$mark = &getNewMark( $farm_name );
+			return -1 if ( !defined $mark || $mark eq "" );
+			$json .= qq(, "mark" : "$mark");
+			$msg  .= "mark:$mark ";
+		}
+		else
+		{
+			$mark = $exists->{ tag };
+		}
+		&setL4BackendRule( "add", $f_ref, $mark );
+	}
+
+	if (   defined $weight
+		&& $weight ne ""
+		&& ( !defined $exists || ( defined $exists && $exists->{ weight } ne $weight ) )
+	  )
+	{
+		$weight = 1 if ( $weight == 0 );
+		$json .= qq(, "weight" : "$weight");
+		$msg  .= "weight:$weight ";
+	}
+
+	if (
+		    defined $priority
+		 && $priority ne ""
+		 && ( !defined $exists
+			  || ( defined $exists && $exists->{ priority } ne $priority ) )
+	  )
+	{
+		$priority = 1 if ( $priority == 0 );
+		$json .= qq(, "priority" : "$priority");
+		$msg  .= "priority:$priority ";
+	}
+
+	if (
+		    defined $max_conns
+		 && $max_conns ne ""
+		 && ( !defined $exists
+			  || ( defined $exists && $exists->{ max_conns } ne $max_conns ) )
+	  )
+	{
+		$max_conns = 0 if ( $max_conns < 0 );
+		$json .= qq(, "est-connlimit" : "$max_conns");
+		$msg  .= "maxconns:$max_conns ";
+	}
+
+	if ( !defined $exists )
+	{
+		$json .= qq(, "state" : "up");
+		$msg  .= "state:up ";
+	}
+
+	&zenlog( "$msg" ) if &debug;
+
+	$output = &sendL4NlbCmd(
+		{
+		   farm   => $farm_name,
+		   file   => "$configdir/$farm_filename",
+		   method => "PUT",
 		   body =>
-			 qq({"farms" : [ { "name" : "$farm_name", "backends" : [ { "name" : "bck$ids", "ip-addr" : "$rip", "ports" : "", "weight" : "$weight", "priority" : "$priority", "mark" : "$mark", "state" : "up" } ] } ] })
+			 qq({"farms" : [ { "name" : "$farm_name", "backends" : [ { "name" : "bck$ids"$json } ] } ] })
 		}
 	);
 
-	&setL4BackendRule( "add", $f_ref, $mark );
+	# take care of floating interfaces without masquerading
+	if ( $json =~ /ip-addr/ && $eload )
+	{
+		my $farm_ref = &getL4FarmStruct( $farm_name );
+		&eload(
+				module => 'Zevenet::Net::Floating',
+				func   => 'setFloatingSourceAddr',
+				args   => [$farm_ref, { ip => $ip, id => $ids }],
+		);
+	}
 
 	return $output;
 }
@@ -129,7 +207,7 @@ Returns:
 
 =cut
 
-sub runL4FarmServerDelete    # ($ids,$farm_name)
+sub runL4FarmServerDelete
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -145,23 +223,14 @@ sub runL4FarmServerDelete    # ($ids,$farm_name)
 
 	# load the configuration file first if the farm is down
 	my $f_ref = &getL4FarmStruct( $farm_name );
-	if ( $f_ref->{ status } ne "up" )
-	{
-		my $out = &loadNLBFarm( $farm_name );
-		if ( $out != 0 )
-		{
-			return $out;
-		}
-	}
 
-	$output = &httpNLBRequest(
-							   {
-								 farm       => $farm_name,
-								 configfile => "$configdir/$farm_filename",
-								 method     => "DELETE",
-								 uri        => "/farms/$farm_name/backends/bck$ids",
-								 body       => undef
-							   }
+	$output = &sendL4NlbCmd(
+							 {
+							   farm    => $farm_name,
+							   backend => "bck" . $ids,
+							   file    => "$configdir/$farm_filename",
+							   method  => "DELETE",
+							 }
 	);
 
 	foreach my $server ( @{ $f_ref->{ servers } } )
@@ -180,6 +249,63 @@ sub runL4FarmServerDelete    # ($ids,$farm_name)
 }
 
 =begin nd
+Function: setL4FarmBackendsSessionsRemove
+
+	Remove all the active sessions enabled to a backend in a given service
+	Used by farmguardian
+
+Parameters:
+	farmname - Farm name
+	backend - Backend id
+
+Returns:
+	Integer - 0 on success or -1 on failure
+
+=cut
+
+sub setL4FarmBackendsSessionsRemove
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farmname, $backend ) = @_;
+	my $output = 0;
+
+	my $nft_bin = &getGlobalConfiguration( 'nft_bin' );
+
+	require Zevenet::Farm::L4xNAT::Config;
+
+	my $farm = &getL4FarmStruct( $farmname );
+
+	return 0 if ( $farm->{ persist } eq "" );
+
+	my $be = $farm->{ servers }[$backend];
+	( my $tag = $be->{ tag } ) =~ s/0x//g;
+	my $map_name   = "persist-$farmname";
+	my @persistmap = `$nft_bin list map nftlb $map_name`;
+	my $data       = 0;
+
+	foreach my $line ( @persistmap )
+	{
+		$data = 1 if ( $line =~ /elements = / );
+		next if ( !$data );
+
+		my ( $key, $time, $value ) =
+		  ( $line =~ / ([\w\.\s\:]+) expires (\w+) : (\w+)[\s,]/ );
+		&logAndRun( "/usr/local/sbin/nft delete element nftlb $map_name { $key }" )
+		  if ( $value =~ /^0x.0*$tag/ );
+
+		( $key, $time, $value ) =
+		  ( $line =~ /, ([\w\.\s\:]+) expires (\w+) : (\w+)[\s,]/ );
+		&logAndRun( "/usr/local/sbin/nft delete element nftlb $map_name { $key }" )
+		  if ( $value ne "" && $value =~ /^0x.0*$tag/ );
+
+		last if ( $data && $line =~ /\}/ );
+	}
+
+	return $output;
+}
+
+=begin nd
 Function: setL4FarmBackendStatus
 
 	Set backend status for a l4 farm
@@ -188,47 +314,64 @@ Parameters:
 	farmname - Farm name
 	backend - Backend id
 	status - Backend status. The possible values are: "up" or "down"
+	cutmode - cut to force the traffic stop for such backend
 
 Returns:
 	Integer - 0 on success or other value on failure
 
 =cut
 
-sub setL4FarmBackendStatus    # ($farm_name,$backend,$status)
+sub setL4FarmBackendStatus
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name, $backend, $status ) = @_;
+	my ( $farm_name, $backend, $status, $cutmode ) = @_;
 
 	require Zevenet::Farm::L4xNAT::Config;
 	require Zevenet::Farm::L4xNAT::Action;
 
-	my $farm_filename = &getFarmFile( $farm_name );
+	my $output        = 0;
+	my $farm          = &getL4FarmStruct( $farm_name );
+	my $farm_filename = $farm->{ filename };
 
 	$status = 'off'  if ( $status eq "maintenance" );
 	$status = 'down' if ( $status eq "fgDOWN" );
 
-	# load the configuration file first if the farm is down
-	my $f_ref = &getL4FarmStruct( $farm_name );
-	if ( $f_ref->{ status } ne "up" )
-	{
-		my $out = &loadNLBFarm( $farm_name );
-		if ( $out != 0 )
+	$output =
+	  &sendL4NlbCmd(
 		{
-			return $out;
-		}
-	}
-
-	my $output = &httpNLBRequest(
-		{
-		   farm       => $farm_name,
-		   configfile => "$configdir/$farm_filename",
-		   method     => "PUT",
-		   uri        => "/farms",
+		   farm   => $farm_name,
+		   file   => "$configdir/$farm_filename",
+		   method => "PUT",
 		   body =>
 			 qq({"farms" : [ { "name" : "$farm_name", "backends" : [ { "name" : "bck$backend", "state" : "$status" } ] } ] })
 		}
-	);
+	  );
+
+	if ( $status ne "up" && $cutmode eq "cut" && $farm->{ persist } ne '' )
+	{
+		&setL4FarmBackendsSessionsRemove( $farm_name, $backend );
+
+		# remove conntrack
+		my $server = $$farm{ servers }[$backend];
+		&resetL4FarmBackendConntrackMark( $server );
+	}
+
+	#~ TODO
+	#~ my $stopping_fg = ( $caller =~ /runFarmGuardianStop/ );
+	#~ if ( $fg_enabled eq 'true' && !$stopping_fg )
+	#~ {
+	#~ if ( $0 !~ /farmguardian/ && $fg_pid > 0 )
+	#~ {
+	#~ kill 'CONT' => $fg_pid;
+	#~ }
+	#~ }
+
+	if ( $farm->{ lbalg } eq 'leastconn' )
+	{
+		require Zevenet::Farm::L4xNAT::L4sd;
+		&sendL4sdSignal();
+	}
 
 	return $output;
 }
@@ -246,7 +389,7 @@ Returns:
 
 =cut
 
-sub getL4FarmServers    # ($farm_name)
+sub getL4FarmServers
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -271,7 +414,7 @@ Parameters:
 
 Returns:
 	backends array - array of backends structure
-		\%backend = { $id, $alias, $family, $ip, $port, $tag, $weight, $priority, $status, $rip = $ip }
+		\%backend = { $id, $alias, $family, $ip, $port, $tag, $weight, $priority, $status, $rip = $ip, $max_conns }
 
 =cut
 
@@ -294,7 +437,8 @@ sub _getL4FarmParseServers
 			$stage = 1;
 		}
 
-		if ( $line =~ /\"backends\"/ )
+		# do not go to the next level if empty
+		if ( $line =~ /\"backends\"/ && $line !~ /\[\],/ )
 		{
 			$stage = 2;
 		}
@@ -319,7 +463,7 @@ sub _getL4FarmParseServers
 			$server->{ id }        = $index + 0;
 			$server->{ port }      = undef;
 			$server->{ tag }       = "0x0";
-			$server->{ max_conns } = 0;
+			$server->{ max_conns } = 0 if ( $eload );
 		}
 
 		if ( $stage == 3 && $line =~ /\"ip-addr\"/ )
@@ -331,7 +475,8 @@ sub _getL4FarmParseServers
 
 		if ( $stage == 3 && $line =~ /\"port\"/ )
 		{
-			$server->{ port } = "";    # TODO Not supported yet
+			my @l = split /"/, $line;
+			$server->{ port } = $l[3];
 
 			require Zevenet::Net::Validate;
 			if ( $server->{ port } ne '' && $fproto ne 'all' )
@@ -365,10 +510,17 @@ sub _getL4FarmParseServers
 			$server->{ tag } = $l[3];
 		}
 
+		if ( $stage == 3 && $line =~ /\"est-connlimit\"/ )
+		{
+			my @l = split /"/, $line;
+			$server->{ max_conns } = $l[3] + 0 if ( $eload );
+		}
+
 		if ( $stage == 3 && $line =~ /\"state\"/ )
 		{
 			my @l = split /"/, $line;
 			$server->{ status } = $l[3];
+			$server->{ status } = "undefined" if ( $server->{ status } eq "config_error" );
 			$server->{ status } = "maintenance" if ( $server->{ status } eq "off" );
 			$server->{ status } = "fgDOWN" if ( $server->{ status } eq "down" );
 		}
@@ -390,13 +542,13 @@ Returns:
 
 =cut
 
-sub getL4ServerWithLowestPriority    # ($farm)
+sub getL4ServerWithLowestPriority
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $farm = shift;                # input: farm reference
+	my $farm = shift;
 
-	my $prio_server;    # reference to the selected server for prio algorithm
+	my $prio_server;
 
 	foreach my $server ( @{ $$farm{ servers } } )
 	{
@@ -409,66 +561,6 @@ sub getL4ServerWithLowestPriority    # ($farm)
 	}
 
 	return $prio_server;
-}
-
-=begin nd
-Function: setL4FarmBackendMaintenance
-
-	Enable the maintenance mode for backend
-
-Parameters:
-	farmname - Farm name
-	backend - Backend id
-	mode - Maintenance mode, the options are: drain, the backend continues working with
-	  the established connections; or cut, the backend cuts all the established
-	  connections
-
-Returns:
-	Integer - 0 on success or other value on failure
-
-=cut
-
-sub setL4FarmBackendMaintenance    # ( $farm_name, $backend )
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my ( $farm_name, $backend, $mode ) = @_;
-
-	if ( $mode eq "cut" )
-	{
-		# TODO: Remove persistence
-		#&setL4FarmBackendsSessionsRemove( $farm_name, $backend );
-
-		# remove conntrack
-		my $farm   = &getL4FarmStruct( $farm_name );
-		my $server = $$farm{ servers }[$backend];
-		&resetL4FarmBackendConntrackMark( $server );
-	}
-
-	return &setL4FarmBackendStatus( $farm_name, $backend, 'maintenance' );
-}
-
-=begin nd
-Function: setL4FarmBackendNoMaintenance
-
-	Disable the maintenance mode for backend
-
-Parameters:
-	farmname - Farm name
-	backend - Backend id
-
-Returns:
-	Integer - 0 on success or other value on failure
-
-=cut
-
-sub setL4FarmBackendNoMaintenance
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my ( $farm_name, $backend ) = @_;
-
-	return &setL4FarmBackendStatus( $farm_name, $backend, 'up' );
 }
 
 =begin nd
@@ -488,15 +580,15 @@ sub getL4BackendsWeightProbability
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $farm = shift;    # input: farm reference
+	my $farm = shift;
 
 	my $weight_sum = 0;
 
-	&doL4FarmProbability( $farm );    # calculate farm weight sum
+	&doL4FarmProbability( $farm );
 
 	foreach my $server ( @{ $$farm{ servers } } )
 	{
-		# only calculate probability for servers running
+		# only calculate probability for the servers running
 		if ( $$server{ status } eq 'up' )
 		{
 			my $delta = $$server{ weight };
@@ -510,9 +602,19 @@ sub getL4BackendsWeightProbability
 	}
 }
 
-# reset connection tracking for a backend
-# used in udp protocol
-# called by: refreshL4FarmRules, runL4FarmServerDelete
+=begin nd
+Function: getL4BackendsWeightProbability
+
+	Reset Connection tracking for a given backend
+
+Parameters:
+	server - Backend hash reference. It uses the backend unique mark in order to deletes the conntrack entries.
+
+Returns:
+	scalar - 0 if deleted, 1 if not found or not deleted
+
+=cut
+
 sub resetL4FarmBackendConntrackMark
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
@@ -520,25 +622,23 @@ sub resetL4FarmBackendConntrackMark
 	my $server = shift;
 
 	my $conntrack = &getGlobalConfiguration( 'conntrack' );
-	my $cmd       = "$conntrack -D -m $server->{ tag }";
+	my $cmd       = "$conntrack -D -m $server->{ tag }/0x7fffffff";
 
 	&zenlog( "running: $cmd" ) if &debug();
 
 	# return_code = 0 -> deleted
 	# return_code = 1 -> not found/deleted
-	# WARNIG: STDOUT must be null so cherokee does not receive this output
-	# as http headers.
 	my $return_code = system ( "$cmd >/dev/null 2>&1" );
 
 	if ( &debug() )
 	{
 		if ( $return_code )
 		{
-			&zenlog( "Connection tracking for $server->{ vip } not found." );
+			&zenlog( "Connection tracking for " . $server->{ ip } . " not found." );
 		}
 		else
 		{
-			&zenlog( "Connection tracking for $server->{ vip } removed." );
+			&zenlog( "Connection tracking for " . $server->{ ip } . " removed." );
 		}
 	}
 
@@ -602,7 +702,7 @@ sub setL4BackendRule
 	my $mark     = shift;
 
 	return -1
-	  if (    $action != /add|del/
+	  if (    $action !~ /add|del/
 		   || !defined $farm_ref
 		   || $mark eq ""
 		   || $mark eq "0x0" );
@@ -616,6 +716,40 @@ sub setL4BackendRule
 	  ( $vip_if->{ type } eq 'virtual' ) ? $vip_if->{ parent } : $vip_if->{ name };
 
 	return &setRule( $action, $vip_if, $table_if, "", "$mark/0x7fffffff" );
+}
+
+=begin nd
+Function: getL4ServerByMark
+
+	Obtain the backend id from the mark
+
+Parameters:
+	servers_ref - reference to the servers array
+	mark - backend mark to discover the id
+
+Returns:
+	integer - > 0 if successful, -1 if error.
+
+=cut
+
+sub getL4ServerByMark
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $servers_ref = shift;
+	my $mark        = shift;
+
+	( my $tag = $mark ) =~ s/0x.0*/0x/g;
+
+	foreach my $server ( @{ $servers_ref } )
+	{
+		if ( $server->{ tag } eq $tag )
+		{
+			return $server->{ id };
+		}
+	}
+
+	return -1;
 }
 
 1;

@@ -146,8 +146,9 @@ if ( $q->path_info =~ qr{^/farms} )
 		GET qr{^/farms$} => \&farms;
 
 		##### /farms/modules/MODULE
-		GET qr{^/farms/modules/lslb$} => \&farms_lslb;
-		GET qr{^/farms/modules/dslb$} => \&farms_dslb;
+		GET qr{^/farms/modules/summary$} => \&farms_module_summary;
+		GET qr{^/farms/modules/lslb$}    => \&farms_lslb;
+		GET qr{^/farms/modules/dslb$}    => \&farms_dslb;
 
 		##### /farms/FARM/summary
 		GET qr{^/farms/($farm_re)/summary$} => \&farms_name_summary;
@@ -381,15 +382,19 @@ if ( $q->path_info =~ qr{^/system/backup} )
 	  \&apply_backup;                                         #  POST  apply backups
 }
 
-if ( $q->path_info =~ qr{^/system/(?:version|license|supportsave)} )
+if (
+	 $q->path_info =~ qr{^/system/(?:version|info|license|supportsave|language)} )
 {
 	require Zevenet::API40::System::Info;
 
 	GET qr{^/system/version$}     => \&get_version;
+	GET qr{^/system/info$}        => \&get_system_info;
 	GET qr{^/system/supportsave$} => \&get_supportsave;
 
 	my $license_re = &getValidFormat( 'license_format' );
 	GET qr{^/system/license/($license_re)$} => \&get_license;
+
+	POST qr{^/system/language$} => \&set_language;
 }
 
 if ( $q->path_info =~ qr{/ciphers$} )
