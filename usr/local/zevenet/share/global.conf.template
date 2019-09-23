@@ -401,4 +401,7 @@ $l4sdcfg="$configdir/l4sd.cfg";#update
 
 $doc_v4_0="https://www.zevenet.com/zapidoc_ce_v4.0/";
 
+# language used for the webgui
+$lang="";
+
 #::END Global Section

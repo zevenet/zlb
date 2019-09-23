@@ -111,6 +111,7 @@ sub get_system_info
 	my $desc = "Get the system information";
 
 	my $zevenet       = &getGlobalConfiguration( 'version' );
+	my $lang          = &getGlobalConfiguration( 'lang' );
 	my $kernel        = &getKernelVersion();
 	my $hostname      = &getHostname();
 	my $date          = &getDate();
@@ -129,6 +130,7 @@ sub get_system_info
 				   'supported_zapi_versions' => \@zapi_versions,
 				   'last_zapi_version'       => $zapi_versions[-1],
 				   'edition'                 => $edition,
+				   'language'                => $lang,
 	};
 
 	if ( $eload )
@@ -142,6 +144,40 @@ sub get_system_info
 
 	my $body = { description => $desc, params => $params };
 	&httpResponse( { code => 200, body => $body } );
+}
+
+#  POST /system/language
+sub set_language
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $json_obj = shift;
+
+	my $desc = "Modify the WebGUI language";
+
+	my $params = {
+				   "language" => {
+								   'required' => 'true',
+				   },
+	};
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
+
+	# Check allowed parameters
+	my $error_msg = &setGlobalConfiguration( 'lang', $json_obj->{ language } );
+
+	&httpResponse(
+				   {
+					 code => 200,
+					 body => {
+							   description => $desc,
+							   params      => { language => &getGlobalConfiguration( 'lang' ) }
+					 }
+				   }
+	);
 }
 
 1;
