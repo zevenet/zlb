@@ -33,6 +33,7 @@ use Zevenet::Net::Core;
 use Zevenet::Net::Interface;
 use Zevenet::Net::Route;
 use Zevenet::Net::Util;
+use Zevenet::Lock;
 
 $ENV{ SCRIPT_NAME } = 'zevenet';
 
@@ -118,6 +119,31 @@ sub local_http_service
 	system ( "/etc/init.d/cherokee $command >/dev/null &" );
 }
 
+# Compare and rewrite the zna version in the zevenet_version file if they are different.
+sub zna_version
+{
+	my $file          = &getGlobalConfiguration( 'applianceVersionFile' );
+	my $dmidecode_bin = &getGlobalConfiguration( 'dmidecode_bin' );
+
+	# get ZNA version from dmidecode
+	my $zna_version = `$dmidecode_bin -t1 | grep "ZNA-6[5,7]08"`;
+	$zna_version =~ s/\sVersion: //;
+	$zna_version =~ s/-/ /;
+
+	# get version from zevenet_version file
+	my $fh = &openlock( $file, '<' );
+	my $file_version = <$fh>;
+	close ( $fh );
+
+	if ( $zna_version ne $file_version )
+	{
+		# rewriting zna version
+		my $fh = &openlock( $file, '>' );
+		print $fh "$zna_version";
+		close ( $fh );
+	}
+}
+
 if ( $action eq "restart" )
 {
 	system ( '/etc/init.d/zevenet stop' );
@@ -127,6 +153,26 @@ if ( $action eq "restart" )
 
 if ( $action eq "start" )
 {
+	system ( '/usr/local/zevenet/bin/checkglobalconf' );
+
+	# ZNA firmware upgrade
+	my $migration_flag = &getGlobalConfiguration( 'migration_flag' );
+	if ( -f $migration_flag )
+	{
+		&zna_version;
+
+		# Migrating config files
+		my $MIG_DIR = "/usr/local/zevenet/migrating/";
+		opendir ( DIR, $MIG_DIR ) or die "can't opendir $MIG_DIR: $!";
+		while ( my $SCRIPT = readdir ( DIR ) )
+		{
+			next if ( $SCRIPT =~ m/^\./ );
+			system ( $MIG_DIR . $SCRIPT );
+		}
+		system ( "rm $migration_flag" );
+		closedir ( DIR );
+	}
+
 	my $version = &getGlobalConfiguration( 'version' );
 
 	&printAndLog( "Starting Zevenet Load Balancer v$version" );

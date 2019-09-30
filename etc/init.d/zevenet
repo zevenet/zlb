@@ -32,11 +32,9 @@
 ###############################################################################
 
 $zenbin="/usr/local/zevenet/bin/zevenet";
-$checkcfg="/usr/local/zevenet/bin/checkglobalconf";
 $action=$ARGV[0];
 
 if ( "$action" eq "start"){
-        my @run = `$checkcfg > /dev/console`;
         my @run = `$zenbin start > /dev/console`;
         exit;
 }
@@ -50,7 +48,6 @@ if ( "$action" eq "stop"){
 if ( "$action" eq "restart"){
 
         my @run = `$zenbin stop > /dev/console`;
-        my @run = `$checkcfg > /dev/console`;
         my @run = `$zenbin start > /dev/console`;
         exit;
 }

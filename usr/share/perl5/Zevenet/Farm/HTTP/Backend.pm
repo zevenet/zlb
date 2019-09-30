@@ -39,7 +39,7 @@ Parameters:
 	ids - backend id
 	rip - backend ip
 	port - backend port
-	weight - The weight of this backend (between 1 and 9). Higher weight backends will be used more often than lower weight ones. This parameter is called priority in pound directives
+	weight - The weight of this backend (between 1 and 9). Higher weight backends will be used more often than lower weight ones. This parameter is called priority in l7 proxy directives
 	timeout - Override the global time out for this backend
 	farmname - Farm name
 	service - service name
@@ -314,7 +314,7 @@ Parameters:
 	farmname - Farm name
 
 Returns:
-	array - return the output of poundctl command for a farm
+	array - return the output of proxyctl command for a farm
 
 =cut
 
@@ -324,9 +324,9 @@ sub getHTTPFarmBackendStatusCtl    # ($farm_name)
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
-	my $poundctl = &getGlobalConfiguration( 'poundctl' );
+	my $proxyctl = &getGlobalConfiguration( 'proxyctl' );
 
-	return `$poundctl -c  /tmp/$farm_name\_pound.socket`;
+	return `$proxyctl -c  /tmp/$farm_name\_proxy.socket`;
 }
 
 =begin nd
@@ -407,6 +407,7 @@ Returns:
 
 =cut
 
+#ecm possible bug here returns 2 values instead of 1 (1 backend only)
 sub getHTTPFarmBackendsStatus    # ($farm_name,@content)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
@@ -424,49 +425,30 @@ sub getHTTPFarmBackendsStatus    # ($farm_name,@content)
 
 		my $stats = &getHTTPFarmBackendsStats( $farm_name );
 
-		foreach my $be ( @{ $stats->{ backends } } )
-		{
-			#	$be =
-			#	{
-			#		"id" = $backend_id		# it is the index in the backend array too
-			#		"ip" = $backend_ip
-			#		"port" = $backend_port
-			#		"status" = $backend_status
-			#		"established" = $established_connections
-			#	}
-
-			next if $be->{ service } ne $service;
-
-			push ( @status, $be->{ status } );
-		}
 	}
 
-	# farm status is down
-	else
+	require Zevenet::Farm::HTTP::Service;
+
+	my $backendsvs = &getHTTPFarmVS( $farm_name, $service, "backends" );
+	my @be = split ( "\n", $backendsvs );
+	my $id = 0;
+
+	# @be is used to get size of backend array
+	for ( @be )
 	{
-		require Zevenet::Farm::HTTP::Service;
 
-		my $backendsvs = &getHTTPFarmVS( $farm_name, $service, "backends" );
-		my @be = split ( "\n", $backendsvs );
-		my $id = 0;
+		my $backendstatus = &getHTTPBackendStatusFromFile( $farm_name, $id, $service );
 
-		# @be is used to get size of backend array
-		for ( @be )
+		if ( $backendstatus eq "maintenance" )
 		{
-			my $backendstatus = &getHTTPBackendStatusFromFile( $farm_name, $id, $service );
-
-			if ( $backendstatus eq "maintenance" )
-			{
-				$backendstatus = "maintenance";
-			}
-			else
-			{
-				$backendstatus = "undefined";
-			}
-
-			push @status, $backendstatus;
-			$id = $id + 1;
+			$backendstatus = "maintenance";
 		}
+		else
+		{
+			$backendstatus = "undefined";
+		}
+		push @status, $backendstatus;
+		$id = $id + 1;
 	}
 
 	return \@status;
@@ -475,7 +457,7 @@ sub getHTTPFarmBackendsStatus    # ($farm_name,@content)
 =begin nd
 Function: getHTTPBackendStatusFromFile
 
-	Function that return if a pound backend is active, down by farmguardian or it's in maintenance mode
+	Function that return if a l7 proxy backend is active, down by farmguardian or it's in maintenance mode
 
 Parameters:
 	farmname - Farm name
@@ -501,7 +483,6 @@ sub getHTTPBackendStatusFromFile    # ($farm_name,$backend,$service)
 
 	# if the status file does not exist the backend is ok
 	my $output = "active";
-
 	if ( !-e $stfile )
 	{
 		return $output;
@@ -530,7 +511,6 @@ sub getHTTPBackendStatusFromFile    # ($farm_name,$backend,$service)
 		}
 	}
 	close $fd;
-
 	return $output;
 }
 
@@ -549,7 +529,7 @@ Returns:
 	none - .
 
 FIXME:
-	Not return nothing, do error control
+	Not return anything, do error control
 
 =cut
 
@@ -567,8 +547,8 @@ sub setHTTPFarmBackendStatusFile    # ($farm_name,$backend,$status,$idsv)
 	if ( !-e $statusfile )
 	{
 		open my $fd, '>', "$statusfile";
-		my $poundctl = &getGlobalConfiguration( 'poundctl' );
-		my @run      = `$poundctl -c /tmp/$farm_name\_pound.socket`;
+		my $proxyctl = &getGlobalConfiguration( 'proxyctl' );
+		my @run      = `$proxyctl -c /tmp/$farm_name\_proxy.socket`;
 		my @sw;
 		my @bw;
 
@@ -770,12 +750,12 @@ sub setHTTPFarmBackendMaintenance    # ($farm_name,$backend,$service)
 
 	if ( &getFarmStatus( $farm_name ) eq 'up' )
 	{
-		my $poundctl = &getGlobalConfiguration( 'poundctl' );
-		my $poundctl_command =
-		  "$poundctl -c /tmp/$farm_name\_pound.socket -b 0 $idsv $backend";
+		my $proxyctl = &getGlobalConfiguration( 'proxyctl' );
+		my $proxyctl_command =
+		  "$proxyctl -c /tmp/$farm_name\_proxy.socket -b 0 $idsv $backend";
 
-		&zenlog( "running '$poundctl_command'", "info", "LSLB" );
-		my @run = `$poundctl_command`;
+		&zenlog( "running '$proxyctl_command'", "info", "LSLB" );
+		my @run = `$proxyctl_command`;
 		$output = $?;
 	}
 
@@ -785,7 +765,7 @@ sub setHTTPFarmBackendMaintenance    # ($farm_name,$backend,$service)
 }
 
 =begin nd
-Function: setHTTPFarmBackendMaintenance
+Function: setHTTPFarmBackendNoMaintenance
 
 	Function that disable the maintenance mode for backend
 
@@ -805,7 +785,7 @@ sub setHTTPFarmBackendNoMaintenance    # ($farm_name,$backend,$service)
 			 "debug", "PROFILING" );
 	my ( $farm_name, $backend, $service ) = @_;
 
-	my $output = -1;
+	my $output = 0;
 
 	#find the service number
 	my $idsv = &getFarmVSI( $farm_name, $service );
@@ -817,11 +797,11 @@ sub setHTTPFarmBackendNoMaintenance    # ($farm_name,$backend,$service)
 
 	if ( &getFarmStatus( $farm_name ) eq 'up' )
 	{
-		my $poundctl = &getGlobalConfiguration( 'poundctl' );
-		my $poundctl_command =
-		  "$poundctl -c /tmp/$farm_name\_pound.socket -B 0 $idsv $backend";
+		my $proxyctl = &getGlobalConfiguration( 'proxyctl' );
+		my $proxyctl_command =
+		  "$proxyctl -c /tmp/$farm_name\_proxy.socket -B 0 $idsv $backend";
 
-		$output = &logAndRun( $poundctl_command );
+		$output = &logAndRun( $proxyctl_command );
 	}
 
 	# save backend status in status file
@@ -894,7 +874,7 @@ sub runRemoveHTTPBackendStatus    # ($farm_name,$backend,$service)
 =begin nd
 Function: setHTTPFarmBackendStatus
 
-	For a HTTP farm, it gets each backend status from status file and set it in pound daemon
+	For a HTTP farm, it gets each backend status from status file and set it in ly proxy daemon
 
 Parameters:
 	farmname - Farm name
@@ -933,13 +913,13 @@ sub setHTTPFarmBackendStatus    # ($farm_name)
 		die $msg;
 	}
 
-	my $poundctl = &getGlobalConfiguration( 'poundctl' );
+	my $proxyctl = &getGlobalConfiguration( 'proxyctl' );
 
 	while ( my $line_aux = <$fh> )
 	{
 		my @line = split ( "\ ", $line_aux );
 		my $err = &logAndRun(
-			"$poundctl -c /tmp/$farm_name\_pound.socket $line[0] $line[1] $line[2] $line[3]"
+			"$proxyctl -c /tmp/$farm_name\_proxy.socket $line[0] $line[1] $line[2] $line[3]"
 		);
 	}
 	close $fh;
@@ -977,7 +957,7 @@ sub setHTTPFarmBackendsSessionsRemove    #($farm_name,$service,$backendid)
 	my @sessionid;
 	my $sessid;
 	my $sessionid2;
-	my $poundctl = &getGlobalConfiguration( 'poundctl' );
+	my $proxyctl = &getGlobalConfiguration( 'proxyctl' );
 	my @output;
 
 	&zenlog(
@@ -1005,9 +985,9 @@ sub setHTTPFarmBackendsSessionsRemove    #($farm_name,$service,$backendid)
 			$sessionid2 = $sessionid[1];
 			@sessionid  = split ( /\ /, $sessionid2 );
 			$sessid     = $sessionid[1];
-			@output = `$poundctl -c  /tmp/$farm_name\_pound.socket -n 0 $serviceid $sessid`;
+			@output = `$proxyctl -c  /tmp/$farm_name\_proxy.socket -n 0 $serviceid $sessid`;
 			&zenlog(
-				"Executing:  $poundctl -c /tmp/$farm_name\_pound.socket -n 0 $serviceid $sessid",
+				"Executing:  $proxyctl -c /tmp/$farm_name\_proxy.socket -n 0 $serviceid $sessid",
 				"info", "LSLB"
 			);
 		}

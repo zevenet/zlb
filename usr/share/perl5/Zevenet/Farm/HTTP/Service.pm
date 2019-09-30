@@ -69,17 +69,17 @@ sub setFarmHTTPNewService    # ($farm_name,$service)
 		return $output;
 	}
 
-	if ( !fgrep { /^\s*Service "$service"/ } "$configdir/$farm_name\_pound.cfg" )
+	if ( !fgrep { /^\s*Service "$service"/ } "$configdir/$farm_name\_proxy.cfg" )
 	{
 		#create service
 		my @newservice;
 		my $sw       = 0;
 		my $count    = 0;
-		my $poundtpl = &getGlobalConfiguration( 'poundtpl' );
-		tie my @poundtpl, 'Tie::File', "$poundtpl";
+		my $proxytpl = &getGlobalConfiguration( 'proxytpl' );
+		tie my @proxytpl, 'Tie::File', "$proxytpl";
 		my $countend = 0;
 
-		foreach my $line ( @poundtpl )
+		foreach my $line ( @proxytpl )
 		{
 			if ( $line =~ /Service \"\[DESC\]\"/ )
 			{
@@ -101,7 +101,7 @@ sub setFarmHTTPNewService    # ($farm_name,$service)
 				last;
 			}
 		}
-		untie @poundtpl;
+		untie @proxytpl;
 
 		$newservice[0] =~ s/#//g;
 		$newservice[$#newservice] =~ s/#//g;
@@ -110,7 +110,7 @@ sub setFarmHTTPNewService    # ($farm_name,$service)
 		my $lock_fh = &openlock( $lock_file, 'w' );
 
 		my @fileconf;
-		tie @fileconf, 'Tie::File', "$configdir/$farm_name\_pound.cfg";
+		tie @fileconf, 'Tie::File', "$configdir/$farm_name\_proxy.cfg";
 		my $i         = 0;
 		my $farm_type = "";
 		$farm_type = &getFarmType( $farm_name );

@@ -485,7 +485,7 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 		}
 
 		# Disable security protocol
-		# API parameter => pound parameter
+		# API parameter => l7 proxy parameter
 		my %ssl_proto_hash = (
 							   "disable_sslv2"   => "SSLv2",
 							   "disable_sslv3"   => "SSLv3",

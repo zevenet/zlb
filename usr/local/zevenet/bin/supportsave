@@ -152,11 +152,11 @@ echo "nftlb daemon policies data"		>> $backup_dir/nftlb.txt
 $CURL --noproxy "*" --connect-timeout 10 -s -H "Key: HoLa" http://127.0.0.1:27/policies >> $backup_dir/nftlb.txt
 
 echo "- Reverse Proxy"
-poundctl="/usr/local/zevenet/app/pound/sbin/poundctl"
-for i in `ls /tmp/*_pound.socket 2>/dev/null`
+proxyctl="/usr/local/zevenet/app/zhttp/bin/zhttpctl"
+for i in `ls /tmp/*_proxy.socket 2>/dev/null`
 do
-	echo "Farm $i"	>> $backup_dir/pound_status.txt
-	$poundctl -c $i >> $backup_dir/pound_status.txt
+	echo "Farm $i"	>> $backup_dir/proxy_status.txt
+	$proxyctl -c $i >> $backup_dir/proxy_status.txt
 done
 
 

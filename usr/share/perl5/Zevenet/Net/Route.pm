@@ -144,6 +144,23 @@ sub addlocalnet    # ($if_ref)
 		&zenlog( "addlocalnet: setting route in table $table", "debug", "NETWORK" )
 		  if &debug();
 
+		#if duplicated network, next
+		my $ip_local     = new NetAddr::IP( $$if_ref{ addr }, $$if_ref{ mask } );
+		my $net_local    = $ip_local->network();
+		my $if_ref_table = getInterfaceConfig( $link );
+		my $ip_table =
+		  new NetAddr::IP( $$if_ref_table{ addr }, $$if_ref_table{ mask } );
+		my $net_local_table = $ip_table->network();
+
+		if ( $net_local_table eq $net_local && $$if_ref{ name } ne $link )
+		{
+			&zenlog(
+				"The network $net and $net_local of dev $$if_ref{name} is the same than the network for $link, route is not going to be applied in table $table",
+				"error", "network"
+			);
+			next;
+		}
+
 		my $ip_cmd =
 		  "$ip_bin -$$if_ref{ip_v} route replace $net dev $$if_ref{name} src $$if_ref{addr} table $table $routeparams";
 
@@ -166,15 +183,30 @@ sub addlocalnet    # ($if_ref)
 			   "debug", "NETWORK" )
 		  if &debug();
 
-		my $ip    = new NetAddr::IP( $$iface{ addr }, $$iface{ mask } );
-		my $net   = $ip->network();
-		my $table = "table_$$if_ref{ name }";
+		#if duplicated network, next
+		my $ip        = new NetAddr::IP( $$iface{ addr }, $$iface{ mask } );
+		my $net       = $ip->network();
+		my $table     = "table_$$if_ref{ name }";
+		my $ip_ref    = new NetAddr::IP( $$if_ref{ addr }, $$if_ref{ mask } );
+		my $net_local = $ip_ref->network();
+
+		if ( $net eq $net_local && $$iface{ name } ne $$if_ref{ name } )
+		{
+			&zenlog(
+				"The network $net of dev $$iface{name} is the same than the network for $$if_ref{name}, the route is not going to be applied in table $table",
+				"error", "network"
+			);
+			next;
+		}
 
 		my $ip_cmd =
 		  "$ip_bin -$$iface{ip_v} route replace $net dev $$iface{name} src $$iface{addr} table $table $routeparams";
 
 		&logAndRun( $ip_cmd );
 	}
+
+	use Zevenet::Net::Core;
+	&setRuleIPtoTable( $$if_ref{ name }, $$if_ref{ addr }, "add" );
 
 	return;
 }
@@ -245,18 +277,26 @@ sub applyRule
 	my $from   = shift;
 	my $fwmark = shift;
 
+	my $prio_farm  = "28000";
+	my $prio_iface = "32000";
+
 	my $output = 0;
 
 	return -1 if ( $table eq "" );
 
-	my $prio_id = "28000";
+	my $prio = "";
 
-	$from = "from $from" if ( defined $from && $from ne "" );
-	$fwmark = "fwmark $fwmark prio $prio_id"
-	  if ( defined $fwmark && $fwmark ne "" );
+	# do not use the prio parameter to del
+	if ( $action ne 'del' )
+	{
+		$prio =
+		  ( defined $fwmark && $fwmark ne "" ) ? "prio $prio_farm" : "prio $prio_iface";
+	}
+	$from   = "from $from"     if ( defined $from   && $from ne "" );
+	$fwmark = "fwmark $fwmark" if ( defined $fwmark && $fwmark ne "" );
 
 	$output =
-	  &logAndRun( "$ip_bin -$ipv rule $action $from $fwmark lookup $table" );
+	  &logAndRun( "$ip_bin -$ipv rule $action $from $fwmark $prio lookup $table" );
 
 	return $output;
 }
@@ -412,7 +452,8 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 				&zenlog(
 						 "Applying $table routes in stack IPv$$if_ref{ip_v} with gateway \""
 						   . &getGlobalConfiguration( 'defaultgw' ) . "\"",
-						 "info", "NETWORK"
+						 "info",
+						 "NETWORK"
 				);
 				my $ip_cmd =
 				  "$ip_bin -$$if_ref{ip_v} route $action default via $gateway dev $$if_ref{name} $routeparams";
@@ -506,6 +547,10 @@ sub delRoutes    # ($table,$if_ref)
 
 	if ( !defined $$if_ref{ vini } || $$if_ref{ vini } eq '' )
 	{
+		#an interface is going to be deleted, delete the rule of the IP first
+		use Zevenet::Net::Core;
+		&setRuleIPtoTable( $$if_ref{ name }, $$if_ref{ addr }, "del" );
+
 		if ( $table eq "local" )
 		{
 			my $ip_cmd = "$ip_bin -$$if_ref{ip_v} route flush table table_$$if_ref{name}";

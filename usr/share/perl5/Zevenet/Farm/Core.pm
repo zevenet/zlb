@@ -51,7 +51,7 @@ sub getFarmType    # ($farm_name)
 
 	my $farm_filename = &getFarmFile( $farm_name );
 
-	if ( $farm_filename =~ /^$farm_name\_pound.cfg/ )
+	if ( $farm_filename =~ /^$farm_name\_proxy.cfg/ )
 	{
 		use File::Grep qw( fgrep );
 
@@ -105,7 +105,7 @@ sub getFarmFile    # ($farm_name)
 	opendir ( my $dir, "$configdir" ) || return -1;
 	my @farm_files =
 	  grep {
-		     /^$farm_name\_(?:gslb|pound|datalink|l4xnat)\.cfg$/
+		     /^$farm_name\_(?:gslb|proxy|datalink|l4xnat)\.cfg$/
 		  && !/^$farm_name\_.*guardian\.conf$/
 		  && !/^$farm_name\_status.cfg$/
 	  } readdir ( $dir );
@@ -173,10 +173,10 @@ sub getFarmList    # ()
 	my @cfgFiles = sort ( grep ( /\.cfg$/, readdir ( DIR ) ) );
 	closedir ( DIR );
 
-	my @files1 = grep ( /_pound\.cfg$/, @cfgFiles );
+	my @files1 = grep ( /_proxy\.cfg$/,    @cfgFiles );
 	my @files2 = grep ( /_datalink\.cfg$/, @cfgFiles );
-	my @files3 = grep ( /_l4xnat\.cfg$/, @cfgFiles );
-	my @files4 = grep ( /_gslb\.cfg$/, @cfgFiles );
+	my @files3 = grep ( /_l4xnat\.cfg$/,   @cfgFiles );
+	my @files4 = grep ( /_gslb\.cfg$/,     @cfgFiles );
 
 	my @files = ( @files1, @files2, @files3, @files4 );
 

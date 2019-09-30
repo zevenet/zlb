@@ -205,7 +205,7 @@ sub setFarmCipherList    # ($farm_name,$ciphers,$cipherc)
 =begin nd
 Function: getFarmCipherList
 
-	Get Cipher value defined in pound configuration file
+	Get Cipher value defined in l7 proxy configuration file
 
 Parameters:
 	farmname - Farm name
@@ -242,7 +242,7 @@ sub getFarmCipherList    # ($farm_name)
 =begin nd
 Function: getFarmCipherSet
 
-	Get Ciphers value defined in pound configuration file. Possible values are:
+	Get Ciphers value defined in l7 proxy configuration file. Possible values are:
 		cipherglobal, cipherpci, cipherssloffloading or ciphercustom.
 
 Parameters:

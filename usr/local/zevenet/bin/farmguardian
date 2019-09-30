@@ -156,7 +156,7 @@ my $farm_st = &getFarmStruct( $farmname );
 $type = 'http' if $type eq 'https';
 
 my $libexec_dir = &getGlobalConfiguration( 'libexec_dir' );
-my $poundctl;
+my $proxyctl;
 my $portadmin;
 
 if ( $type eq 'l4xnat' )
@@ -169,7 +169,7 @@ elsif ( $type eq 'http' )
 	require Zevenet::Farm::HTTP::Config;
 	require Zevenet::Farm::HTTP::Service;
 
-	$poundctl  = &getGlobalConfiguration( 'poundctl' );
+	$proxyctl  = &getGlobalConfiguration( 'proxyctl' );
 	$portadmin = &getHTTPFarmSocket( $farmname );
 }
 
@@ -189,7 +189,7 @@ while ( 1 )
 	# Collect HTTP/S farm variables values
 	if ( $type eq 'http' )
 	{
-		my $err = system ( "$poundctl -c $portadmin 2>&1 >/dev/null" );
+		my $err = system ( "$proxyctl -c $portadmin 2>&1 >/dev/null" );
 
 		if ( $err != 0 )
 		{
@@ -330,7 +330,7 @@ while ( 1 )
 			if ( $type eq 'http' )
 			{
 				my $idsv = &getFarmVSI( $farmname, $service );
-				system ( "$poundctl -c $portadmin -B 0 $idsv $j" );
+				system ( "$proxyctl -c $portadmin -B 0 $idsv $j" );
 				&setHTTPFarmBackendStatusFile( $farmname, $j, 'active', $idsv );
 				$auxLog = " in farm: '$farmname', service: '$service'";
 			}
@@ -362,7 +362,7 @@ while ( 1 )
 			if ( $type eq 'http' )
 			{
 				my $idsv = &getFarmVSI( $farmname, $service );
-				system ( "$poundctl -c $portadmin -b 0 $idsv $j" );
+				system ( "$proxyctl -c $portadmin -b 0 $idsv $j" );
 				&setHTTPFarmBackendStatusFile( $farmname, $j, 'fgDOWN', $idsv );
 				&setHTTPFarmBackendsSessionsRemove( $farmname, $service, $j )
 				  if ( $cutConns eq 'true' );

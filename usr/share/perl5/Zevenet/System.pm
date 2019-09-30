@@ -44,7 +44,7 @@ sub zsystem
 			 "debug", "PROFILING" );
 	my ( @exec ) = @_;
 
-	my $out   = `. /etc/profile >/dev/null 2>&1 && @exec 2>&1`;
+	my $out   = `. /etc/profile -notzenbui >/dev/null 2>&1 && @exec 2>&1`;
 	my $error = $?;
 
 	if ( $error or &debug() )

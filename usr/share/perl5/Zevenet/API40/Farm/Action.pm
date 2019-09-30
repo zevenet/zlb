@@ -126,6 +126,8 @@ sub farm_actions    # ( $json_obj, $farmname )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
+		#kill 15 requires time.
+		sleep ( 2 );
 		$status = &runFarmStart( $farmname, "true" );
 
 		if ( $status )
@@ -269,7 +271,7 @@ sub service_backend_maintenance # ( $json_obj, $farmname, $service, $backend_id 
 
 		if ( $status )
 		{
-			my $msg = "Errors found trying to change status backend to up";
+			my $msg = "Errors found trying to change status bbackend to up";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}

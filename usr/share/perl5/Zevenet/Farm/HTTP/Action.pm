@@ -50,7 +50,7 @@ sub _runHTTPFarmStart    # ($farm_name, $writeconf)
 
 	my $status         = -1;
 	my $farm_filename  = &getFarmFile( $farm_name );
-	my $pound          = &getGlobalConfiguration( 'pound' );
+	my $proxy          = &getGlobalConfiguration( 'proxy' );
 	my $piddir         = &getGlobalConfiguration( 'piddir' );
 	my $ssyncd_enabled = &getGlobalConfiguration( 'ssyncd_enabled' );
 	my $args           = ( $ssyncd_enabled eq 'true' ) ? '-s' : '';
@@ -59,7 +59,7 @@ sub _runHTTPFarmStart    # ($farm_name, $writeconf)
 	return -1 if ( &getHTTPFarmConfigIsOK( $farm_name ) );
 
 	my $cmd =
-	  "$pound $args -f $configdir\/$farm_filename -p $piddir\/$farm_name\_pound.pid";
+	  "$proxy $args -f $configdir\/$farm_filename -p $piddir\/$farm_name\_proxy.pid";
 	$status = &zsystem( "$cmd" );
 
 	if ( $status == 0 )
@@ -119,10 +119,10 @@ sub _runHTTPFarmStop    # ($farm_name, $writeconf)
 			kill 15, $pid;
 		}
 
-		unlink ( "$piddir\/$farm_name\_pound.pid" )
-		  if -e "$piddir\/$farm_name\_pound.pid";
-		unlink ( "\/tmp\/$farm_name\_pound.socket" )
-		  if -e "\/tmp\/$farm_name\_pound.socket";
+		unlink ( "$piddir\/$farm_name\_proxy.pid" )
+		  if -e "$piddir\/$farm_name\_proxy.pid";
+		unlink ( "\/tmp\/$farm_name\_proxy.socket" )
+		  if -e "\/tmp\/$farm_name\_proxy.socket";
 
 		require Zevenet::Lock;
 		my $lf = &getLockFile( $farm_name );
@@ -162,7 +162,7 @@ sub setHTTPNewFarmName    # ($farm_name,$new_farm_name)
 	my $output = 0;
 	my @farm_configfiles = (
 							 "$configdir\/$farm_name\_status.cfg",
-							 "$configdir\/$farm_name\_pound.cfg",
+							 "$configdir\/$farm_name\_proxy.cfg",
 							 "$configdir\/$farm_name\_Err414.html",
 							 "$configdir\/$farm_name\_Err500.html",
 							 "$configdir\/$farm_name\_Err501.html",
@@ -171,7 +171,7 @@ sub setHTTPNewFarmName    # ($farm_name,$new_farm_name)
 	);
 	my @new_farm_configfiles = (
 								 "$configdir\/$new_farm_name\_status.cfg",
-								 "$configdir\/$new_farm_name\_pound.cfg",
+								 "$configdir\/$new_farm_name\_proxy.cfg",
 								 "$configdir\/$new_farm_name\_Err414.html",
 								 "$configdir\/$new_farm_name\_Err500.html",
 								 "$configdir\/$new_farm_name\_Err501.html",
@@ -179,9 +179,9 @@ sub setHTTPNewFarmName    # ($farm_name,$new_farm_name)
 								 "$farm_name\_guardian.conf"
 	);
 
-	if ( -e "\/tmp\/$farm_name\_pound.socket" )
+	if ( -e "\/tmp\/$farm_name\_proxy.socket" )
 	{
-		unlink ( "\/tmp\/$farm_name\_pound.socket" );
+		unlink ( "\/tmp\/$farm_name\_proxy.socket" );
 	}
 
 	foreach my $farm_filename ( @farm_configfiles )
@@ -193,7 +193,7 @@ sub setHTTPNewFarmName    # ($farm_name,$new_farm_name)
 
 			# Lines to change:
 			#Name		BasekitHTTP
-			#Control 	"/tmp/BasekitHTTP_pound.socket"
+			#Control 	"/tmp/BasekitHTTP_proxy.socket"
 			#\tErr414 "/usr/local/zevenet/config/BasekitHTTP_Err414.html"
 			#\tErr500 "/usr/local/zevenet/config/BasekitHTTP_Err500.html"
 			#\tErr501 "/usr/local/zevenet/config/BasekitHTTP_Err501.html"
@@ -201,7 +201,7 @@ sub setHTTPNewFarmName    # ($farm_name,$new_farm_name)
 			#\t#Service "BasekitHTTP"
 			grep ( s/Name\t\t$farm_name/Name\t\t$new_farm_name/, @configfile );
 			grep (
-				s/Control \t"\/tmp\/${farm_name}_pound.socket"/Control \t"\/tmp\/${new_farm_name}_pound.socket"/,
+				s/Control \t"\/tmp\/${farm_name}_proxy.socket"/Control \t"\/tmp\/${new_farm_name}_proxy.socket"/,
 				@configfile );
 			grep (
 				s/\tErr414 "\/usr\/local\/zevenet\/config\/${farm_name}_Err414.html"/\tErr414 "\/usr\/local\/zevenet\/config\/${new_farm_name}_Err414.html"/,

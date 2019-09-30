@@ -924,13 +924,13 @@ sub getHTTPFarmMaxClientTime    # ($farm_name)
 =begin nd
 Function: getHTTPFarmGlobalStatus
 
-	Get the status of a farm and its backends through pound command.
+	Get the status of a farm and its backends through l7 proxy command.
 
 Parameters:
 	farmname - Farm name
 
 Returns:
-	array - Return poundctl output
+	array - Return proxyctl output
 
 =cut
 
@@ -940,9 +940,9 @@ sub getHTTPFarmGlobalStatus    # ($farm_name)
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
-	my $poundctl = &getGlobalConfiguration( 'poundctl' );
+	my $proxyctl = &getGlobalConfiguration( 'proxyctl' );
 
-	return `$poundctl -c "/tmp/$farm_name\_pound.socket"`;
+	return `$proxyctl -c "/tmp/$farm_name\_proxy.socket"`;
 }
 
 =begin nd
@@ -1176,7 +1176,7 @@ sub getHTTPFarmSocket    # ($farm_name)
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
-	return "/tmp/" . $farm_name . "_pound.socket";
+	return "/tmp/" . $farm_name . "_proxy.socket";
 }
 
 =begin nd
@@ -1200,13 +1200,13 @@ sub getHTTPFarmPid    # ($farm_name)
 
 	my $output  = -1;
 	my $piddir  = &getGlobalConfiguration( 'piddir' );
-	my $pidfile = "$piddir\/$farm_name\_pound.pid";
+	my $pidfile = "$piddir\/$farm_name\_proxy.pid";
 
 	# Get number of cores
 	my $processors = `nproc`;
 	chomp $processors;
 
-	# If the LB has one core, wait 20ms for pound child process to generate pid.
+	# If the LB has one core, wait 20ms for l7 proxy child process to generate pid.
 	select ( undef, undef, undef, 0.020 ) if ( $processors == 1 );
 
 	if ( -e $pidfile )
@@ -1255,7 +1255,7 @@ sub getHTTPFarmPidFile    # ($farm_name)
 	my ( $farm_name ) = @_;
 
 	my $piddir  = &getGlobalConfiguration( 'piddir' );
-	my $pidfile = "$piddir\/$farm_name\_pound.pid";
+	my $pidfile = "$piddir\/$farm_name\_proxy.pid";
 
 	return $pidfile;
 }
@@ -1388,17 +1388,17 @@ sub getHTTPFarmConfigIsOK    # ($farm_name)
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
-	my $pound         = &getGlobalConfiguration( 'pound' );
+	my $proxy         = &getGlobalConfiguration( 'proxy' );
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $pound_command = "$pound -f $configdir\/$farm_filename -c";
+	my $proxy_command = "$proxy -f $configdir\/$farm_filename -c";
 
-	my $run = `$pound_command 2>&1`;
+	my $run = `$proxy_command 2>&1`;
 	my $rc  = $?;
 
 	if ( $rc or &debug() )
 	{
 		my $message = $rc ? 'failed' : 'running';
-		&zenlog( "$message: $pound_command", "error", "LSLB" );
+		&zenlog( "$message: $proxy_command", "error", "LSLB" );
 		&zenlog( "output: $run ",            "error", "LSLB" );
 	}
 
@@ -1424,11 +1424,11 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
-	my $pound         = &getGlobalConfiguration( 'pound' );
+	my $proxy         = &getGlobalConfiguration( 'proxy' );
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $pound_command = "$pound -f $configdir\/$farm_filename -c";
+	my $proxy_command = "$proxy -f $configdir\/$farm_filename -c";
 
-	my @run = `$pound_command 2>&1`;
+	my @run = `$proxy_command 2>&1`;
 	my $rc  = $?;
 
 	return "" unless ( $rc );
@@ -1467,8 +1467,8 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 	close $fileconf;
 
 # examples of error msg
-#	AAAhttps, /usr/local/zevenet/config/AAAhttps_pound.cfg line 36: unknown directive
-#	AAAhttps, /usr/local/zevenet/config/AAAhttps_pound.cfg line 40: SSL_CTX_use_PrivateKey_file failed - aborted
+#	AAAhttps, /usr/local/zevenet/config/AAAhttps_proxy.cfg line 36: unknown directive
+#	AAAhttps, /usr/local/zevenet/config/AAAhttps_proxy.cfg line 40: SSL_CTX_use_PrivateKey_file failed - aborted
 	$file_line =~ /\s*([\w-]+)/;
 	my $param = $1;
 	$msg = "Error in the configuration file";
@@ -1662,11 +1662,11 @@ sub getHTTPVerbCode
 	return $verb_code;
 }
 
-######### Pound Config
+######### l7 proxy Config
 
 # Reading
 
-sub parsePoundConfig
+sub parseL7ProxyConfig
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -1849,7 +1849,7 @@ sub parsePoundConfig
 	return \%conf;
 }
 
-sub getPoundConf
+sub getL7ProxyConf
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -1864,7 +1864,7 @@ sub getPoundConf
 
 	my $file = &slurpFile( "$configdir/$farmfile" );
 
-	return &parsePoundConfig( $file );
+	return &parseL7ProxyConfig( $file );
 }
 
 # Writing
@@ -1932,7 +1932,7 @@ sub print_session
 	return $session_str;
 }
 
-sub writePoundConfigToString
+sub writeL7ProxyConfigToString
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -1967,7 +1967,7 @@ Control 	"$conf->{ Control }"
 
 	if ( $listener_type eq 'HTTP' )
 	{
-		$global_str .= qq(#DHParams 	"/usr/local/zevenet/app/pound/etc/dh2048.pem"
+		$global_str .= qq(#DHParams 	"/usr/local/zevenet/app/zhttp/etc/dh2048.pem"
 #ECDHCurve	"prime256v1"
 );
 	}

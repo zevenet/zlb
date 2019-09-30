@@ -959,7 +959,7 @@ sub runFGFarmStop
 
 					my $portadmin = &getHTTPFarmSocket( $farm );
 					my $idsv      = &getFarmVSI( $farm, $service );
-					my $poundctl  = &getGlobalConfiguration( 'poundctl' );
+					my $proxyctl  = &getGlobalConfiguration( 'proxyctl' );
 
 					tie my @filelines, 'Tie::File', $status_file;
 
@@ -975,7 +975,7 @@ sub runFGFarmStop
 							my $index = $1;
 							my $auxlin = splice ( @fileAux, $lines, 1, );
 
-							&logAndRun( "$poundctl -c $portadmin -B 0 $idsv $index" );
+							&logAndRun( "$proxyctl -c $portadmin -B 0 $idsv $index" );
 						}
 					}
 					@filelines = @fileAux;
