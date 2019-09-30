@@ -461,7 +461,7 @@ sub getL4FarmSessions
 	my $sessions = [];
 	my $data     = 0;
 
-	return 0 if ( $farm->{ persist } eq "" );
+	return [] if ( $farm->{ persist } eq "" );
 
 	my $map_name   = "persist-$farmname";
 	my @persistmap = `$nft_bin list map nftlb $map_name`;
