@@ -230,7 +230,6 @@ while ( 1 )
 		{
 			$backendid[$i]   = $l_serv->{ id };
 			$backendserv[$i] = $l_serv->{ ip };
-			$backendport[$i] = $l_serv->{ port }
 			$backendport[$i] = $l_serv->{ port } // $farm_st->{ vport };    # use farm port if backend port is not defined
 			$backendport[$i] = $farm_st->{ vport } if ($backendport[$i] eq "");
 			$backendstatus[$i] = $l_serv->{ status };
