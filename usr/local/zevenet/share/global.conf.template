@@ -265,15 +265,15 @@ $netcat_bin="/usr/bin/nc";
 $dmidecode_bin="/usr/sbin/dmidecode";
 
 
-# l7 proxy 
-#where is l7 proxy dir? 
+# l7 proxy
+#where is l7 proxy dir?
 $base_proxy="$zdir/app/zhttp";#update
-#where is l7 proxy binary? 
+#where is l7 proxy binary?
 $proxy="$base_proxy/bin/zhttp";#update
 #where is l7 proxy ctl?
 $proxyctl="$base_proxy/bin/zhttpctl";#update
 #l7 file configuration template?
-$proxytpl="$base_proxy/etc/proxytpl.cfg";#update
+$proxytpl="$templatedir/proxytpl.cfg";#update
 #maximum value of http body to pass to modsecurity
 
 
@@ -334,7 +334,7 @@ $arp_unsolicited="";
 #ARP announcement, true / false (default)
 $arp_announce="";
 
-#Network duplicated net 
+#Network duplicated net
 $duplicated_net="false";
 
 
