@@ -734,7 +734,7 @@ sub setHTTPFarmBackendMaintenance    # ($farm_name,$backend,$service)
 			 "debug", "PROFILING" );
 	my ( $farm_name, $backend, $mode, $service ) = @_;
 
-	my $output = -1;
+	my $output = 0;
 
 	if ( $mode eq "cut" )
 	{
@@ -754,12 +754,13 @@ sub setHTTPFarmBackendMaintenance    # ($farm_name,$backend,$service)
 		my $proxyctl_command =
 		  "$proxyctl -c /tmp/$farm_name\_proxy.socket -b 0 $idsv $backend";
 
-		&zenlog( "running '$proxyctl_command'", "info", "LSLB" );
-		my @run = `$proxyctl_command`;
-		$output = $?;
+		$output = &logAndRun($proxyctl_command);
 	}
 
-	&setHTTPFarmBackendStatusFile( $farm_name, $backend, "maintenance", $idsv );
+	if (!$output)
+	{
+		&setHTTPFarmBackendStatusFile( $farm_name, $backend, "maintenance", $idsv );
+	}
 
 	return $output;
 }
