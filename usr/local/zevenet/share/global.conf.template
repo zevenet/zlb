@@ -267,11 +267,11 @@ $dmidecode_bin="/usr/sbin/dmidecode";
 
 # l7 proxy
 #where is l7 proxy dir?
-$base_proxy="$zdir/app/zhttp";#update
+$base_proxy="$zdir/app/zproxy";#update
 #where is l7 proxy binary?
-$proxy="$base_proxy/bin/zhttp";#update
+$proxy="$base_proxy/bin/zproxy";#update
 #where is l7 proxy ctl?
-$proxyctl="$base_proxy/bin/zhttpctl";#update
+$proxyctl="$base_proxy/bin/zproxyctl";#update
 #l7 file configuration template?
 $proxytpl="$templatedir/proxytpl.cfg";#update
 #maximum value of http body to pass to modsecurity
