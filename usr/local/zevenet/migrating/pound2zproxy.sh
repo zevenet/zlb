@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Migrate pound config file to zhttp config file
+# Migrate pound config file to l7 proxy config file
 for i in $(find /usr/local/zevenet/config/ -name "*pound.cfg");
 do
-	echo "Migrating config file $i from pound to zhttp"
+	echo "Migrating config file $i from pound to l7 proxy"
 	sed -i -e 's/pound.socket/proxy.socket/' $i
-	sed -i -e 's/pound\/etc/zhttp\/etc/' $i
+	sed -i -e 's/pound\/etc/zproxy\/etc/' $i
 	mv "$i" "$(echo "$i" | sed s/pound.cfg/proxy.cfg/)"
 done

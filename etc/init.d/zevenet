@@ -48,6 +48,7 @@ if ( "$action" eq "stop"){
 if ( "$action" eq "restart"){
 
         my @run = `$zenbin stop > /dev/console`;
+	sleep(5);
         my @run = `$zenbin start > /dev/console`;
         exit;
 }
