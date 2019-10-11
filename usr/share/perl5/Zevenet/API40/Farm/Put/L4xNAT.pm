@@ -115,8 +115,12 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 	}
 
 	# Modify the vport if protocol is set to 'all'
-	$json_obj->{ vport } = "*"
-	  if ( exists $json_obj->{ protocol } and $json_obj->{ protocol } eq 'all' );
+	if (    ( exists $json_obj->{ protocol } and $json_obj->{ protocol } eq 'all' )
+		 or ( exists $json_obj->{ vport } and $json_obj->{ vport } eq '*' ) )
+	{
+		$json_obj->{ vport }    = "*";
+		$json_obj->{ protocol } = "all";
+	}
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params );

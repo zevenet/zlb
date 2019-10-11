@@ -23,6 +23,12 @@
 
 use strict;
 
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
+
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
 =begin nd
@@ -271,7 +277,8 @@ sub getFarmCipherSet    # ($farm_name)
 	{
 		$output = "cipherpci";
 	}
-	elsif ( $cipher_list eq &getGlobalConfiguration( 'cipher_ssloffloading' ) )
+	elsif (    $eload
+			&& $cipher_list eq &getGlobalConfiguration( 'cipher_ssloffloading' ) )
 	{
 		$output = "cipherssloffloading";
 	}

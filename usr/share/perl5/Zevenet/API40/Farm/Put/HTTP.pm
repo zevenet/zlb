@@ -411,8 +411,11 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 		{
 			$ciphers_lib = $c{ $json_obj->{ ciphers } };
 
-			my $ssloff = &eload( module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
-								 func   => 'getFarmCipherSSLOffLoadingSupport', );
+			my $ssloff = 1;
+			$ssloff = &eload(
+							  module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
+							  func   => 'getFarmCipherSSLOffLoadingSupport',
+			) if ( $eload );
 
 			unless ( $ssloff )
 			{
