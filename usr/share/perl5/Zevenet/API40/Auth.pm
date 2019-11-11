@@ -84,7 +84,15 @@ sub getAuthorizationCredentials    # ()
 		# $decoded_digest format: "username:password"
 		my $decoded_digest = decode_base64( $base64_digest );
 		chomp $decoded_digest;
-		( $username, $password ) = split ( ":", $decoded_digest );
+		if ( $decoded_digest =~ /^([^:]+):(.+)$/ )
+		{
+			$username = $1;
+			$password = $2;
+		}
+		else
+		{
+			&zenlog( "User or password not found", "error", "zapi" );
+		}
 	}
 
 	return if !$username or !$password;
