@@ -47,7 +47,8 @@ See Also:
 
 sub changePassword    #($user, $newpass, $verifypass)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $user, $newpass, $verifypass ) = @_;
 
 	$verifypass = $newpass if ( !$verifypass );
@@ -56,25 +57,23 @@ sub changePassword    #($user, $newpass, $verifypass)
 	$newpass =~ s/\$/\\\$/g;
 	$verifypass =~ s/\$/\\\$/g;
 
-	my $output = 0;
 	chomp ( $newpass );
 	chomp ( $verifypass );
 
 	##no move the next lines
-	my @run = `
+	my $cmd = "
 /usr/bin/passwd $user 2>/dev/null<<EOF
 $newpass
 $verifypass
 EOF
-	`;
+	";
 
-	$output = $?;
+	my $output = system ( $cmd );
 	if ( $output )
 	{
 		&zenlog( "Error trying to change the $user password", "error" );
 	}
 	else { &zenlog( "The $user password was changed", "info" ); }
-
 
 	return $output;
 }
@@ -100,7 +99,8 @@ See Also:
 
 sub checkValidUser    #($user,$curpasswd)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $user, $curpasswd ) = @_;
 
 	my $output = 0;
@@ -115,3 +115,4 @@ sub checkValidUser    #($user,$curpasswd)
 }
 
 1;
+

@@ -111,23 +111,34 @@ sub authenticateCredentials    #($user,$curpasswd)
 
 	return if !defined $user or !defined $pass;
 
-	require Authen::Simple::Passwd;
-	Authen::Simple::Passwd->import;
-
-	#~ use Authen::Simple::PAM;
-
 	my $valid_credentials = 0;    # output
 
-	my $passfile = "/etc/shadow";
-	my $simple = Authen::Simple::Passwd->new( path => "$passfile" );
-
-	#~ my $simple   = Authen::Simple::PAM->new();
-	if ( $simple->authenticate( $user, $pass ) )
+	if ( $user eq 'root' )
 	{
-		$valid_credentials = 1;
+		require Authen::Simple::Passwd;
+		Authen::Simple::Passwd->import;
+
+		my $passfile = "/etc/shadow";
+		my $simple = Authen::Simple::Passwd->new( path => "$passfile" );
+
+		if ( $simple->authenticate( $user, $pass ) )
+		{
+			&zenlog( "The user '$user' login locally", "debug", "auth" );
+			$valid_credentials = 1;
+
+		}
+	}
+	elsif ( $eload )
+	{
+		$valid_credentials = &eload(
+									 module => 'Zevenet::RBAC::Runtime',
+									 func   => 'runRBACAuthUser',
+									 args   => [$user, $pass]
+		);
 	}
 
 	return $valid_credentials;
 }
 
 1;
+

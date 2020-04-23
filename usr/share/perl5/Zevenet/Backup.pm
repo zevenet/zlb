@@ -63,9 +63,15 @@ sub getBackup
 		use Time::localtime qw(ctime);
 
 		my $datetime_string = ctime( stat ( $filepath )->mtime );
-		$datetime_string = `date -d "${datetime_string}" +%F"  "%T" "%Z -u`;
+		$datetime_string =
+		  &logAndGet( "date -d \"${datetime_string}\" +%F\"  \"%T\" \"%Z -u" );
 		chomp ( $datetime_string );
-		push @backups, { 'name' => $line, 'date' => $datetime_string };
+		push @backups,
+		  {
+			'name'    => $line,
+			'date'    => $datetime_string,
+			'version' => &getBackupVersion( $line )
+		  };
 
 	}
 
@@ -127,12 +133,7 @@ sub createBackup
 			 "debug", "PROFILING" );
 	my $name      = shift;
 	my $zenbackup = &getGlobalConfiguration( 'zenbackup' );
-	my $error     = system ( "$zenbackup $name -c 2> /dev/null" );
-
-	if ( $error )
-	{
-		&zenlog( "$zenbackup $name -c 2> /dev/null" );
-	}
+	my $error     = &logAndRun( "$zenbackup $name -c" );
 
 	return $error;
 }
@@ -321,19 +322,26 @@ sub applyBackup
 	my $tar  = &getGlobalConfiguration( 'tar' );
 	my $file = &getGlobalConfiguration( 'backupdir' ) . "/backup-$backup.tar.gz";
 
-	&zenlog( "Restoring backup $file", "info", "SYSTEM" );
-	my @eject = `$tar -xvzf $file -C /`;
-	my $error = $?;
+	# get current version
+	my $version = &getGlobalConfiguration( 'version' );
 
-	if ( $error )
+	&zenlog( "Restoring backup $file", "info", "SYSTEM" );
+	my $cmd = "$tar -xvzf $file -C /";
+	my $eject = &logAndGet( $cmd, 'array' );
+
+	if ( not @{ $eject } )
 	{
 		&zenlog( "The backup $file could not be extracted", "error", "SYSTEM" );
 		return $error;
 	}
 
+	# it would overwrite version if it was different
+	require Zevenet::System;
+	&setGlobalConfiguration( 'version', $version );
+
 	unlink '/zevenet_version';
 
-	&zenlog( "unpacking files: @eject", "info", "SYSTEM" );
+	&zenlog( "unpacking files: @{$eject}", "info", "SYSTEM" );
 	$error = &logAndRun( "/etc/init.d/zevenet restart" );
 
 	if ( !$error )
@@ -350,4 +358,49 @@ sub applyBackup
 	return $error;
 }
 
+=begin nd
+Function: getBackupVersion
+
+	It gets the version of zevenet from which the backup was created
+
+Parameters:
+	backup - Backup name.
+
+Returns:
+	String - Zevenet version
+
+=cut
+
+sub getBackupVersion
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $backup = shift;
+
+	my $tar  = &getGlobalConfiguration( 'tar' );
+	my $file = &getGlobalConfiguration( 'backupdir' ) . "/backup-$backup.tar.gz";
+	my $config_path = &getGlobalConfiguration( 'globalcfg' );
+
+	# remove the first slash
+	$config_path =~ s/^\///;
+
+	my @out = @{ &logAndGet( "$tar -xOf $file $config_path", 'array' ) };
+
+	my $version = "";
+
+	foreach my $line ( @out )
+	{
+		if ( $line =~ /^\s*\$version\s*=\s*(?:"(.*)"|\'(.*)\');(?:\s*#update)?\s*$/ )
+		{
+			$version = $1;
+			last;
+		}
+	}
+
+	&zenlog( "Backup: $backup, version: $version", "debug3", "system" );
+
+	return $version;
+}
+
 1;
+

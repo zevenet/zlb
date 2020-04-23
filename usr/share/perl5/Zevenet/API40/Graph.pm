@@ -94,8 +94,6 @@ sub get_all_sys_graphs    #()
 	require Zevenet::Stats;
 
 	# System values
-	my @graphlist = &getGraphs2Show( "System" );
-
 	my @sys = ( "cpu", "load", "ram", "swap" );
 
 	# Get mount point of disks
@@ -165,7 +163,6 @@ sub get_frec_sys_graphs    #()
 	$frequency = $1 if ( $frequency =~ /^(\w)/ );
 
 	# Print Graph Function
-	my @output;
 	my $graph = &printGraph( $key, $frequency );
 	my $body = { description => $desc, graphs => $graph };
 
@@ -483,3 +480,4 @@ sub graph_disk_mount_point_freq    #()
 }
 
 1;
+

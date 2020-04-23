@@ -24,6 +24,7 @@
 use strict;
 use warnings;
 
+use Zevenet::Core;
 use Zevenet::Farm::L4xNAT::Action;
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
@@ -43,6 +44,7 @@ Parameters:
 	vip - Virtual IP
 	port - Virtual port. In l4xnat it ls possible to define multiport using ',' for add ports and ':' for ranges
 	farmname - Farm name
+	status - Set the initial status of the farm. The possible values are: 'down' for creating the farm and do not run it or 'up' (default) for running the farm when it has been created
 
 Returns:
 	Integer - return 0 on success or other value on failure
@@ -53,7 +55,9 @@ sub runL4FarmCreate
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $vip, $farm_name, $vip_port ) = @_;
+	my ( $vip, $farm_name, $vip_port, $status ) = @_;
+
+	$status = 'up' if not defined $status;
 
 	my $output        = -1;
 	my $farm_type     = 'l4xnat';
@@ -62,6 +66,7 @@ sub runL4FarmCreate
 	require Zevenet::Farm::L4xNAT::Action;
 	require Zevenet::Farm::L4xNAT::Config;
 
+	my $proto = ( $vip_port eq "*" ) ? 'all' : 'tcp';
 	$vip_port = "80" if not defined $vip_port;
 	$vip_port = ""   if ( $vip_port eq "*" );
 
@@ -71,11 +76,21 @@ sub runL4FarmCreate
 		   file   => "$farm_filename",
 		   method => "POST",
 		   body =>
-			 qq({"farms" : [ { "name" : "$farm_name", "virtual-addr" : "$vip", "virtual-ports" : "$vip_port", "protocol" : "tcp", "mode" : "snat", "scheduler" : "weight", "state" : "up" } ] })
+			 qq({"farms" : [ { "name" : "$farm_name", "virtual-addr" : "$vip", "virtual-ports" : "$vip_port", "protocol" : "$proto", "mode" : "snat", "scheduler" : "weight", "state" : "$status" } ] })
 		}
 	);
 
-	&startL4Farm( $farm_name );
+	if ( $output )
+	{
+		require Zevenet::Farm::Action;
+		&runFarmDelete( $farm_name );
+		return 1;
+	}
+
+	if ( $status eq 'up' )
+	{
+		$output = &startL4Farm( $farm_name );
+	}
 
 	return $output;
 }
@@ -119,3 +134,4 @@ sub runL4FarmDelete
 }
 
 1;
+

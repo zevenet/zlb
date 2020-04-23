@@ -24,40 +24,6 @@
 use strict;
 
 =begin nd
-Function: zsystem
-
-	Run a command with tuned system parameters.
-
-Parameters:
-	exec - Command to run.
-
-Returns:
-	integer - ERRNO or return code.
-
-See Also:
-	<runFarmGuardianStart>, <_runHTTPFarmStart>, <runHTTPFarmCreate>, <_runGSLBFarmStart>, <_runGSLBFarmStop>, <runGSLBFarmReload>, <runGSLBFarmCreate>, <setGSLBFarmStatus>
-=cut
-
-sub zsystem
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my ( @exec ) = @_;
-
-	my $out   = `. /etc/profile -notzenbui >/dev/null 2>&1 && @exec 2>&1`;
-	my $error = $?;
-
-	if ( $error or &debug() )
-	{
-		my $message = $error ? 'failed' : 'running';
-		&zenlog( "$message: @exec", "info", "SYSTEM" );
-		&zenlog( "output: $out", "info", "SYSTEM" ) if $out;
-	}
-
-	return $error;
-}
-
-=begin nd
 Function: getTotalConnections
 
 	Get the number of current connections on this appliance.
@@ -77,7 +43,7 @@ sub getTotalConnections
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $conntrack = &getGlobalConfiguration( "conntrack" );
-	my $conns     = `$conntrack -C`;
+	my $conns     = &logAndGet( "$conntrack -C" );
 	$conns =~ s/(\d+)/$1/;
 	$conns += 0;
 
@@ -181,6 +147,157 @@ sub slurpFile
 }
 
 =begin nd
+Function: getSpaceFree
+
+	It gets the free space that contains a partition. The partition is calculated
+	from a directory
+
+Parameters:
+	directroy - directory to know the free space
+
+Returns:
+	Integer - Number of bytes free in the partition
+
+=cut
+
+sub getSpaceFree
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my $dir      = shift;
+	my $df_bin   = &getGlobalConfiguration( "df_bin" );
+	my $sed_bin  = &getGlobalConfiguration( "sed_bin" );
+	my $cut_bin  = &getGlobalConfiguration( "cut_bin" );
+	my $grep_bin = &getGlobalConfiguration( "grep_bin" );
+
+	my $cmd =
+	  "$df_bin -B1 $dir | $grep_bin -Ev '^(Filesystem|\$)' | $sed_bin -E 's/\\s+/ /g' | $cut_bin -d ' ' -f4";
+	my $size = &logAndGet( $cmd );
+
+	&zenlog( "Dir: $dir, Free space (Bytes): $size", "debug2" );
+
+	return $size;
+}
+
+=begin nd
+Function: getSpaceFormatHuman
+
+	It converts a number of bytes to human format, converting Bytes to KB, MB or GB
+
+Parameters:
+	Bytes - Number of bytes
+
+Returns:
+	String - String with size and its units
+
+=cut
+
+sub getSpaceFormatHuman
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my $size = shift;
+
+	my $human = $size;
+	my $unit  = 'B';
+
+	if ( $human > 1024 )
+	{
+		$human = $human / 1024;
+		$unit  = "KB";
+	}
+	if ( $human > 1024 )
+	{
+		$human = $human / 1024;
+		$unit  = "MB";
+	}
+	if ( $human > 1024 )
+	{
+		$human = $human / 1024;
+		$unit  = "GB";
+	}
+
+	$human = sprintf ( "%.2f", $human );
+	my $out = $human . $unit;
+	return $out;
+}
+
+=begin nd
+Function: getSupportSaveSize
+
+	It gets the aproximate size that the supportsave will need.
+	The size is calculated using the config and log directories size and adding
+	a offset of 20MB
+
+Parameters:
+	none - .
+
+Returns:
+	Integer - Number of bytes that supportsave will use
+
+=cut
+
+sub getSupportSaveSize
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my $offset = "20971520";                             # 20 MB
+	my $dirs   = "/usr/local/zevenet/config /var/log";
+
+	my $tar_bin = &getGlobalConfiguration( 'tar' );
+	my $wc      = &getGlobalConfiguration( 'wc_bin' );
+	my $size    = &logAndGet( "$tar_bin cz - $dirs 2>/dev/null | $wc -c" );
+
+	return $offset + $size;
+}
+
+=begin nd
+Function: checkSupportSaveSpace
+
+	Check if the disk has enough space to create a supportsave
+
+Parameters:
+	directory - Directory where the supportsave will be created
+
+Returns:
+	Integer - It returns 0 on success or the number of bytes needed to create a supportsave
+
+=cut
+
+sub checkSupportSaveSpace
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my $dir = shift // "/tmp";
+
+	my $supp_size = &getSupportSaveSize( $dir );
+	my $freeSpace = &getSpaceFree( $dir );
+
+	my $out = ( $freeSpace > $supp_size ) ? 0 : $supp_size;
+
+	if ( $out )
+	{
+		&zenlog(
+			"There is no enough free space ('$freeSpace') in the '$dir' partition. Supportsave needs '$supp_size' bytes",
+			"error", "system"
+		);
+	}
+	else
+	{
+		&zenlog(
+			"Checking free space ('$freeSpace') in the '$dir' partition. Supportsave needs '$supp_size' bytes",
+			"debug", "system"
+		);
+	}
+
+	return $out;
+}
+
+=begin nd
 Function: getSupportSave
 
 	It creates a support save file used for supporting purpose. It is created in the '/tmp/' directory
@@ -197,8 +314,8 @@ sub getSupportSave
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $zbindir   = &getGlobalConfiguration( 'zbindir' );
-	my @ss_output = `${zbindir}/supportsave 2>&1`;
+	my $zbindir = &getGlobalConfiguration( 'zbindir' );
+	my @ss_output = @{ &logAndGet( "${zbindir}/supportsave", "array" ) };
 
 	# get the last "word" from the first line
 	my $first_line = shift @ss_output;
@@ -260,3 +377,4 @@ sub applyFactoryReset
 }
 
 1;
+

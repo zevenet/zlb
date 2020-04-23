@@ -101,24 +101,21 @@ sub setZAPI    #($name,$value)
 			 "debug", "PROFILING" );
 	my ( $name, $value ) = @_;
 
-	my $out       = 0;
-	my $result    = "false";
 	my $globalcfg = &getGlobalConfiguration( 'globalcfg' );
 
 	#Enable ZAPI
 	if ( $name eq "enable" )
 	{
-		my @run =
-		  `adduser --system --shell /bin/false --no-create-home zapi 1> /dev/null 2> /dev/null`;
-		return $?;
+		my $cmd = "adduser --system --shell /bin/false --no-create-home zapi";
+		return &logAndRun( $cmd );
 	}
 
 	#Disable ZAPI
 	if ( $name eq "disable" )
 	{
 		my $deluser_bin = &getGlobalConfiguration( 'deluser_bin' );
-		my @run         = `$deluser_bin zapi 1> /dev/null 2> /dev/null`;
-		return $?;
+		my $cmd         = "$deluser_bin zapi";
+		return &logAndRun( $cmd );
 	}
 
 	#Set Random key for zapi
@@ -234,20 +231,11 @@ sub validZapiKey    # ()
 
 sub listZapiVersions
 {
-	my @versions = ();
-	my $dir      = &getGlobalConfiguration( "zapi_directory" );
-
-	opendir my $dh, $dir;
-	foreach my $file ( readdir $dh )
-	{
-		if ( $file =~ s/^v// )
-		{
-			push @versions, $file;
-		}
-	}
-	closedir $dh;
+	my $version_st = &getGlobalConfiguration( "zapi_versions" );
+	my @versions = split ( ' ', $version_st );
 
 	return sort @versions;
 }
 
 1;
+

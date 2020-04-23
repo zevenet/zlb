@@ -102,14 +102,15 @@ sub upIf    # ($if_ref, $writeconf)
 	if ( $if_ref->{ type } ne "virtual" )
 	{
    #check if link is up after ip link up; checks /sys/class/net/$$if_ref{name}/operstate
-		my $status_if = `cat /sys/class/net/$$if_ref{name}/operstate`;
+		my $cat       = &getGlobalConfiguration( 'cat_bin' );
+		my $status_if = &logAndGet( "$cat /sys/class/net/$$if_ref{name}/operstate" );
 		&zenlog( "Link status for $$if_ref{name} is $status_if", "info", "NETWORK" );
 		&zenlog( "Waiting link up for $$if_ref{name}",           "info", "NETWORK" );
 		my $iter = 6;
 
 		while ( $status_if =~ /down/ && $iter > 0 )
 		{
-			$status_if = `cat /sys/class/net/$$if_ref{name}/operstate`;
+			$status_if = &logAndGet( "$cat /sys/class/net/$$if_ref{name}/operstate" );
 			if ( $status_if !~ /down/ )
 			{
 				&zenlog( "Link up for $$if_ref{name}", "info", "NETWORK" );
@@ -317,8 +318,7 @@ sub stopIf    # ($if_ref)
 			my ( $net, $mask ) = ipv4_network( "$ip / $$if_ref{mask}" );
 			my $cmd = "$ip_bin addr del $ip/$mask brd + dev $ifphysic[0] label $if";
 
-			system ( "$cmd >/dev/null 2>&1" );
-			&zenlog( "failed: $cmd", "info", "NETWORK" ) if $?;
+			&logAndRun( "$cmd" );
 		}
 	}
 
@@ -434,6 +434,12 @@ sub delIf    # ($if_ref)
 		&eload( module => 'Zevenet::Net::Ext',
 				func   => 'reloadNetplug', );
 
+		#delete custom routes
+		&eload(
+				module => 'Zevenet::Net::Routing',
+				func   => 'delRoutingDependIface',
+				args   => [$$if_ref{ name }],
+		);
 	}
 
 	return $status;
@@ -481,6 +487,44 @@ sub delIp    # 	($if, $ip ,$netmask)
 }
 
 =begin nd
+Function: isIp
+
+	It checks if an IP is already applied in the dev
+
+Parameters:
+	if_ref - network interface hash reference.
+
+Returns:
+	integer - 0 if the IP is not applied or 1 if it is
+
+See Also:
+	<delIp>, <setIfacesUp>
+=cut
+
+sub isIp
+{
+	my $if_ref = shift;
+
+	# finish if the address is already assigned
+	my $routed_iface = $$if_ref{ dev };
+	$routed_iface .= ".$$if_ref{vlan}"
+	  if defined $$if_ref{ vlan } && $$if_ref{ vlan } ne '';
+
+	my @ip_output =
+	  @{ &logAndGet( "$ip_bin -$$if_ref{ip_v} addr show dev $routed_iface",
+					 "array" ) };
+
+	if ( grep /$$if_ref{addr}\//, @ip_output )
+	{
+		&zenlog( "The IP '$$if_ref{addr}' already is applied in '$routed_iface'",
+				 "debug2", "NETWORK" );
+		return 1;
+	}
+
+	return 0;
+}
+
+=begin nd
 Function: addIp
 
 	Add an IPv4 to an Interface, Vlan or Vini
@@ -506,25 +550,18 @@ sub addIp    # ($if_ref)
 	&zenlog( "Adding IP $$if_ref{addr}/$$if_ref{mask} to interface $$if_ref{name}",
 			 "info", "NETWORK" );
 
-	# finish if the address is already assigned
-	my $routed_iface = $$if_ref{ dev };
-	$routed_iface .= ".$$if_ref{vlan}"
-	  if defined $$if_ref{ vlan } && $$if_ref{ vlan } ne '';
+	if ( $$if_ref{ addr } eq "" )
+	{
+		return 0;
+	}
+
+	if ( &isIp( $if_ref ) )
+	{
+		return 0;
+	}
 
 	my $extra_params = '';
 	$extra_params = 'nodad' if $$if_ref{ ip_v } == 6;
-
-	my @ip_output = `$ip_bin -$$if_ref{ip_v} addr show dev $routed_iface`;
-
-	if ( $$if_ref{ addr } eq "" || $$if_ref{ addr } eq "" )
-	{
-		return 0;
-	}
-
-	if ( grep /$$if_ref{addr}\//, @ip_output )
-	{
-		return 0;
-	}
 
 	my $ip_cmd;
 
@@ -596,9 +633,11 @@ Returns:
 
 sub setRuleIPtoTable
 {
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 
 	my ( $iface, $ip, $action ) = @_;
-	my $prio = 30000;
+	my $prio = &getGlobalConfiguration( 'routingRulePrioIfacesDuplicated' );
 
 	if ( &getGlobalConfiguration( 'duplicated_net' ) ne "true" )
 	{
@@ -606,19 +645,60 @@ sub setRuleIPtoTable
 		return 0;
 	}
 
-#if ($action ne "add" || $action ne "del"){
-#       &zenlog("Action $action for Rule configuration not known", "error", "NETWORK");
-#       return 1;
-#}
-
 	#In case <if>:<name> is sent
 	my @ifname = split ( /:/, $iface );
 	my $ip_cmd =
-	  "$ip_bin rule $action from $ip/32 lookup table_@ifname[0] prio $prio";
-	&zenlog( "ip rule command: $ip_cmd", "debug", "NETWORK" );
-	my $status = &logAndRun( $ip_cmd );
-	return $status;
+	  "$ip_bin rule $action from $ip/32 lookup table_$ifname[0] prio $prio";
+	return ( &execIpCmd( $ip_cmd ) > 0 );
+}
 
+=begin nd
+Function: execIpCmd
+
+        This function replaces to logAndRun to exec ip commands. It does not print
+        error message if the command already was applied or removed.
+
+Parameters:
+        Ip Command: command line with the ip command
+
+Returns:
+        Integer - It returns 0 on success, -1 if the command is already applied or 1 if there was an error
+
+=cut
+
+sub execIpCmd
+{
+	my $command = shift;
+
+# do not use the logAndGet function, this function is managing the error output and error code
+	my @cmd_output  = `$command 2>&1`;
+	my $return_code = $?;
+
+	if ( $return_code == 512 )    # code 2 in shell
+	{
+		my $msg =
+		  ( $command =~ /add/ )
+		  ? "Trying to apply the rule but it already was applied"
+		  : "Trying to remove the rule but it was not found";
+		&zenlog( $msg,                "debug",  "net" );
+		&zenlog( "running: $command", "debug",  "SYSTEM" );
+		&zenlog( "out: @cmd_output",  "debug2", "SYSTEM" );
+		$return_code = -1;
+	}
+	elsif ( $return_code )
+	{
+		&zenlog( "Command failed: $command", "error", "SYSTEM" );
+		&zenlog( "out: @cmd_output", "error", "error", "SYSTEM" );
+		$return_code = 1;
+	}
+	else
+	{
+		&zenlog( "running: $command", "debug",  "SYSTEM" );
+		&zenlog( "out: @cmd_output",  "debug2", "SYSTEM" );
+		$return_code = 0;
+	}
+
+	return $return_code;
 }
 
 1;

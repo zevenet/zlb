@@ -90,6 +90,7 @@ sub delete_interface_nic    # ( $nic )
 
 	if ( $@ )
 	{
+		&zenlog( "Module failed: $@", 'error', 'net' );
 		my $msg = "The configuration for the network interface $nic can't be deleted.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
@@ -176,7 +177,7 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 	};
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -295,7 +296,7 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 	}
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -410,11 +411,18 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 		}
 	}
 
-# Do not modify gateway or netmask if exists a virtual interface using this interface
 	if ( exists $json_obj->{ ip } or exists $json_obj->{ netmask } )
 	{
-		my @wrong_conf;
+		# check ip and netmas are configured
+		unless ( $new_if->{ addr } ne "" and $new_if->{ mask } ne "" )
+		{
+			my $msg =
+			  "The networking configuration is not valid. It needs an IP ('$new_if->{addr}') and a netmask ('$new_if->{mask}')";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
 
+   # Do not modify gateway or netmask if exists a virtual interface using this interface
+		my @wrong_conf;
 		foreach my $child_name ( @child )
 		{
 			my $child_if = &getInterfaceConfig( $child_name );
@@ -460,6 +468,16 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 
 	if ( $if_ref->{ addr } )
 	{
+		# remove custom routes
+		if ( $eload )
+		{
+			&eload(
+					module => 'Zevenet::Net::Routing',
+					func   => 'updateRoutingVirtualIfaces',
+					args   => [$if_ref->{ parent }, $json_obj->{ ip }],
+			);
+		}
+
 		# Delete old IP and Netmask from system to replace it
 		&delIp( $if_ref->{ name }, $if_ref->{ addr }, $if_ref->{ mask } );
 
@@ -577,6 +595,7 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 
 		if ( $@ )
 		{
+			&zenlog( "Module failed: $@", "error", "net" );
 			my $msg = "Errors found trying to modify interface $nic";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}

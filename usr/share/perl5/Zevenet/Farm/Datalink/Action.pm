@@ -23,6 +23,8 @@
 
 use strict;
 
+require Zevenet::Net::Route;
+
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
 =begin nd
@@ -51,7 +53,6 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf)
 	require Zevenet::Farm::Datalink::Backend;
 
 	my $status;
-	my $farm_filename = &getFarmFile( $farm_name );
 
 	if ( $writeconf )
 	{
@@ -59,22 +60,29 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf)
 	}
 
 	# include cron task to check backends
-	tie my @cron_file, 'Tie::File', "/etc/cron.d/zevenet";
-	my @farmcron = grep /\# \_\_$farm_name\_\_/, @cron_file;
+	my $cron_tag  = "# __${farm_name}__";
+	my $cron_file = &getGlobalConfiguration( "cron_conf" );
 
-	if ( scalar @farmcron eq 0 )
+	tie my @cron_file, 'Tie::File', $cron_file;
+	if ( !grep ( /$cron_tag/, @cron_file ) )
 	{
+		my $libexec_path = &getGlobalConfiguration( 'libexec_dir' );
 		push ( @cron_file,
-			   "* * * * *	root	\/usr\/local\/zevenet\/app\/libexec\/check_uplink $farm_name \# \_\_$farm_name\_\_"
-		);
+			   "* * * * *	root	$libexec_path/check_uplink $farm_name $cron_tag" );
 	}
 	untie @cron_file;
 
 	# Apply changes online
 	# Set default uplinks as gateways
-	my $iface     = &getDatalinkFarmInterface( $farm_name );
-	my $ip_bin    = &getGlobalConfiguration( 'ip_bin' );
-	my @eject     = `$ip_bin route del default table table_$iface 2> /dev/null`;
+	my $iface  = &getDatalinkFarmInterface( $farm_name );
+	my $ip_bin = &getGlobalConfiguration( 'ip_bin' );
+
+	my $cmd_params = "default table table_$iface";
+	if ( &isRoute( $cmd_params ) )
+	{
+		&logAndRun( "$ip_bin route del $cmd_params" );
+	}
+
 	my $backends  = &getDatalinkFarmBackends( $farm_name );
 	my $algorithm = &getDatalinkFarmAlgorithm( $farm_name );
 	my $routes    = "";
@@ -83,18 +91,14 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf)
 	{
 		foreach my $serv ( @{ $backends } )
 		{
-			my $stat   = $serv->{ status };
 			my $weight = 1;
 
 			if ( $serv->{ weight } ne "" )
 			{
 				$weight = $serv->{ weight };
 			}
-			if ( $stat eq "up" )
-			{
-				$routes =
-				  "$routes nexthop via $serv->{ ip } dev $serv->{ interface } weight $weight";
-			}
+			$routes =
+			  "$routes nexthop via $serv->{ ip } dev $serv->{ interface } weight $weight";
 		}
 	}
 
@@ -103,10 +107,7 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf)
 		my $bestprio = 100;
 		foreach my $serv ( @{ $backends } )
 		{
-			my $stat = $serv->{ status };
-
-			if (    $stat eq "up"
-				 && $serv->{ priority } > 0
+			if (    $serv->{ priority } > 0
 				 && $serv->{ priority } < 10
 				 && $serv->{ priority } < $bestprio )
 			{
@@ -121,8 +122,7 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf)
 		my $ip_command =
 		  "$ip_bin route add default scope global table table_$iface $routes";
 
-		&zenlog( "running $ip_command", "info", "DSLB" );
-		$status = system ( "$ip_command >/dev/null 2>&1" );
+		$status = &logAndRun( "$ip_command" );
 	}
 	else
 	{
@@ -145,9 +145,14 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf)
 			return -1;
 		}
 
-		&zenlog( "running $ip_bin rule add from $net/$mask lookup table_$iface",
-				 "info", "DSLB" );
-		my @eject = `$ip_bin rule add from $net/$mask lookup table_$iface 2> /dev/null`;
+		&zenlog( "Adding rules for $farm_name", "debug", "DSLB" );
+
+		my $rule = {
+					 table => "table_$iface",
+					 type  => 'farm-datalink',
+					 from  => "$net/$mask",
+		};
+		&setRule( 'add', $rule );
 	}
 
 	# Enable IP forwarding
@@ -185,8 +190,7 @@ sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
 	require Zevenet::Net::Util;
 	require Zevenet::Farm::Datalink::Config;
 
-	my $farm_filename = &getFarmFile( $farm_name );
-	my $status        = 0;
+	my $status = 0;
 
 	if ( $writeconf )
 	{
@@ -194,8 +198,11 @@ sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
 	}
 
 	# delete cron task to check backends
-	tie my @cron_file, 'Tie::File', "/etc/cron.d/zevenet";
-	@cron_file = grep !/\# \_\_$farm_name\_\_/, @cron_file;
+	my $cron_tag  = "# __${farm_name}__";
+	my $cron_path = &getGlobalConfiguration( "cron_conf" );
+
+	tie my @cron_file, 'Tie::File', $cron_path;
+	@cron_file = grep !/$cron_tag/, @cron_file;
 	untie @cron_file;
 
 	my $iface  = &getDatalinkFarmInterface( $farm_name );
@@ -209,13 +216,22 @@ sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
 		my $ipmask = &maskonif( $iface );
 		my ( $net, $mask ) = ipv4_network( "$ip / $ipmask" );
 
-		&zenlog( "running $ip_bin rule del from $net/$mask lookup table_$iface",
-				 "info", "DSLB" );
-		my @eject = `$ip_bin rule del from $net/$mask lookup table_$iface 2> /dev/null`;
+		&zenlog( "removing rules for $farm_name", "debug", "DSLB" );
+
+		my $rule = {
+					 table => "table_$iface",
+					 type  => 'farm-datalink',
+					 from  => "$net/$mask",
+		};
+		&setRule( 'del', $rule );
 	}
 
 	# Disable default uplink gateways
-	my @eject = `$ip_bin route del default table table_$iface 2> /dev/null`;
+	my $cmd_params = "default table table_$iface";
+	if ( &isRoute( $cmd_params ) )
+	{
+		&logAndRun( "$ip_bin route del $cmd_params" );
+	}
 
 	# Disable active datalink file
 	my $piddir = &getGlobalConfiguration( 'piddir' );
@@ -230,32 +246,41 @@ sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
 }
 
 =begin nd
-Function: setDatalinkNewFarmName
+Function: copyDatalinkFarm
 
-	Function that renames a farm
+	Function that does a copy of a farm configuration.
+	If the flag has the value 'del', the old farm will be deleted.
 
 Parameters:
 	farmname - Farm name
 	newfarmname - New farm name
+	flag - It expets a 'del' string to delete the old farm. It is used to copy or rename the farm.
 
 Returns:
 	Integer - Error code: return 0 on success or -1 on failure
 
 =cut
 
-sub setDatalinkNewFarmName    # ($farm_name,$new_farm_name)
+sub copyDatalinkFarm    # ($farm_name,$new_farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name, $new_farm_name ) = @_;
+	my ( $farm_name, $new_farm_name, $rm ) = @_;
 
 	require Tie::File;
+	use File::Copy qw(copy);
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $newffile      = "$new_farm_name\_datalink.cfg";
 	my $output        = -1;
 
-	tie my @configfile, 'Tie::File', "$configdir\/$farm_filename";
+	my $piddir = &getGlobalConfiguration( 'piddir' );
+	copy( "$configdir\/$farm_filename", "$configdir\/$newffile" );
+	copy( "$piddir\/$farm_name\_datalink.pid",
+		  "$piddir\/$new_farm_name\_datalink.pid" );
+	$output = $?;
+
+	tie my @configfile, 'Tie::File', "$configdir\/$newffile";
 
 	for ( @configfile )
 	{
@@ -263,13 +288,14 @@ sub setDatalinkNewFarmName    # ($farm_name,$new_farm_name)
 	}
 	untie @configfile;
 
-	my $piddir = &getGlobalConfiguration( 'piddir' );
-	rename ( "$configdir\/$farm_filename", "$configdir\/$newffile" );
-	rename ( "$piddir\/$farm_name\_datalink.pid",
-			 "$piddir\/$new_farm_name\_datalink.pid" );
-	$output = $?;
+	if ( $rm eq 'del' )
+	{
+		unlink "$configdir\/$farm_filename";
+		unlink "$piddir\/$farm_name\_datalink.pid";
+	}
 
 	return $output;
 }
 
 1;
+

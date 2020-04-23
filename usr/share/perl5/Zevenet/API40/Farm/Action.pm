@@ -69,7 +69,7 @@ sub farm_actions    # ( $json_obj, $farmname )
 	}
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -94,6 +94,26 @@ sub farm_actions    # ( $json_obj, $farmname )
 		{
 			my $msg = "The virtual ip $ip is not defined in any interface.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+
+		require Zevenet::Farm::Base;
+		require Zevenet::Farm::Action;
+		if ( &getFarmRestartStatus( $farmname ) )
+		{
+			my $msg = "The farm has changes pending of applying, it has to be restarted.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+
+		require Zevenet::Farm::Core;
+		my $farm_type = &getFarmType( $farmname );
+		if ( $farm_type ne "datalink" )
+		{
+			my $port = &getFarmVip( "vipp", $farmname );
+			if ( &checkport( $ip, $port, $farmname ) eq 'true' )
+			{
+				my $msg = "There is another farm using the ip '$ip' and the port '$port'";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
 		}
 
 		my $status = &runFarmStart( $farmname, "true" );
@@ -126,8 +146,18 @@ sub farm_actions    # ( $json_obj, $farmname )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		#kill 15 requires time.
-		sleep ( 2 );
+		require Zevenet::Farm::Core;
+		my $farm_type = &getFarmType( $farmname );
+		if ( $farm_type ne "datalink" )
+		{
+			my $port = &getFarmVip( "vipp", $farmname );
+			if ( &checkport( $ip, $port, $farmname ) eq 'true' )
+			{
+				my $msg = "There is another farm using the ip '$ip' and the port '$port'";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
+
 		$status = &runFarmStart( $farmname, "true" );
 
 		if ( $status )
@@ -194,7 +224,7 @@ sub service_backend_maintenance # ( $json_obj, $farmname, $service, $backend_id 
 	}
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -242,8 +272,8 @@ sub service_backend_maintenance # ( $json_obj, $farmname, $service, $backend_id 
 	}
 
    # Do not allow to modify the maintenance status if the farm needs to be restarted
-	require Zevenet::Lock;
-	if ( &getLockStatus( $farmname ) )
+	require Zevenet::Farm::Action;
+	if ( &getFarmRestartStatus( $farmname ) )
 	{
 		my $msg = "The farm needs to be restarted before to apply this action.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -327,7 +357,7 @@ sub backend_maintenance    # ( $json_obj, $farmname, $backend_id )
 	}
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -403,3 +433,4 @@ sub backend_maintenance    # ( $json_obj, $farmname, $backend_id )
 }
 
 1;
+

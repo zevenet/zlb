@@ -102,9 +102,6 @@ sub getInterfaceConfig    # \%iface ($if_name, $ip_version)
 
 	#~ &zenlog( "[CALL] getInterfaceConfig( $if_name )" );
 
-	my $ip_version;
-	my $if_line;
-	my $if_status;
 	my $configdir       = &getGlobalConfiguration( 'configdir' );
 	my $config_filename = "$configdir/if_${if_name}_conf";
 
@@ -141,6 +138,8 @@ sub getInterfaceConfig    # \%iface ($if_name, $ip_version)
 	$iface->{ net } =
 	  &getAddressNetwork( $iface->{ addr }, $iface->{ mask }, $iface->{ ip_v } );
 	$iface->{ dhcp } = $fileHandler->{ $if_name }->{ dhcp } // 'false'
+	  if ( $eload );
+	$iface->{ isolate } = $fileHandler->{ $if_name }->{ isolate } // 'false'
 	  if ( $eload );
 
 	if ( $iface->{ dev } =~ /:/ )
@@ -251,9 +250,10 @@ sub setInterfaceConfig    # $bool ($if_ref)
 		return;
 	}
 	use Data::Dumper;
-	&zenlog( "setInterfaceConfig: " . Dumper $if_ref, "debug", "NETWORK" )
+	&zenlog( "setInterfaceConfig: " . Dumper( $if_ref ), "debug", "NETWORK" )
 	  if &debug() > 2;
-	my @if_params = ( 'status', 'name', 'addr', 'mask', 'gateway', 'mac', 'dhcp' );
+	my @if_params =
+	  ( 'status', 'name', 'addr', 'mask', 'gateway', 'mac', 'dhcp', 'isolate' );
 
 	my $configdir       = &getGlobalConfiguration( 'configdir' );
 	my $config_filename = "$configdir/if_$$if_ref{ name }_conf";
@@ -272,7 +272,7 @@ sub setInterfaceConfig    # $bool ($if_ref)
 		$fileHandle->{ $if_ref->{ name } }->{ $field } = $if_ref->{ $field };
 	}
 
-	if ( ! exists $fileHandle->{status} )
+	if ( !exists $fileHandle->{ status } )
 	{
 		$fileHandle->{ $if_ref->{ name } }->{ status } = $if_ref->{ status } // "up";
 	}
@@ -449,7 +449,7 @@ sub getInterfaceSystemStatus    # ($if_ref)
 	}
 
 	my $ip_bin    = &getGlobalConfiguration( 'ip_bin' );
-	my $ip_output = `$ip_bin link show $status_if_name`;
+	my $ip_output = &logAndGet( "$ip_bin link show $status_if_name" );
 	$ip_output =~ / state (\w+) /;
 	my $if_status = lc $1;
 
@@ -469,7 +469,7 @@ sub getInterfaceSystemStatus    # ($if_ref)
 	}
 
 	# Set as down vinis not available
-	$ip_output = `$ip_bin addr show $status_if_name`;
+	$ip_output = &logAndGet( "$ip_bin addr show $status_if_name" );
 
 	if ( $ip_output !~ /$$if_ref{ addr }/ && $if_ref->{ vini } ne '' )
 	{
@@ -831,8 +831,9 @@ sub getInterfaceType
 		my ( $parent_if ) = split ( ':', $if_name );
 		my $quoted_if     = quotemeta $if_name;
 		my $ip_bin        = &getGlobalConfiguration( 'ip_bin' );
+		my @out = @{ &logAndGet( "$ip_bin addr show $parent_if", "array" ) };
 		my $found =
-		  grep ( /inet .+ $quoted_if$/, `$ip_bin addr show $parent_if 2>/dev/null` );
+		  grep ( /inet .+ $quoted_if$/, @out );
 
 		if ( !$found )
 		{
@@ -1154,7 +1155,7 @@ sub getLinkNameList
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $sys_net_dir = getGlobalConfiguration( 'sys_net_dir' );
+	my $sys_net_dir = &getGlobalConfiguration( 'sys_net_dir' );
 
 	# Get link interfaces (nic, bond and vlan)
 	opendir ( my $if_dir, $sys_net_dir );
@@ -1258,6 +1259,36 @@ sub getIpAddressExists
 	}
 
 	return $output;
+}
+
+=begin nd
+Function: getIpAddressList
+
+	It returns a list with the IPv4 and IPv6 that exist in the system
+
+Parameters:
+	none - .
+
+Returns:
+	Array ref - List of IPs
+
+=cut
+
+sub getIpAddressList
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my @out = ();
+
+	foreach my $if_ref ( @{ &getConfigInterfaceList() } )
+	{
+		if ( defined $if_ref->{ addr } )
+		{
+			push @out, $if_ref->{ addr };
+		}
+	}
+
+	return \@out;
 }
 
 =begin nd
@@ -1834,7 +1865,13 @@ sub setVlan    # if_ref
 		$oldAddr = $oldIf_ref->{ addr };
 	}
 
-	my $state = &upIf( $if_ref, 'writeconf' );
+	my $state = 1;
+
+	if ( $if_ref->{ status } eq 'up' )
+	{
+		$state = &upIf( $if_ref, 'writeconf' );
+	}
+
 	return 1 if ( !&setInterfaceConfig( $if_ref ) );
 
 	if ( $state == 0 )

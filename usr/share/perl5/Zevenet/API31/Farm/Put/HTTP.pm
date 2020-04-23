@@ -290,7 +290,8 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 	if ( exists ( $json_obj->{ httpverb } ) )
 	{
 		if ( $json_obj->{ httpverb } !~
-			 /^(?:standardHTTP|extendedHTTP|standardWebDAV|MSextWebDAV|MSRPCext)$/ )
+			/^(?:standardHTTP|extendedHTTP|standardWebDAV|MSextWebDAV|MSRPCext|optionsHTTP)$/
+		  )
 		{
 			my $msg = "Invalid httpverb value.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -303,6 +304,7 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 		elsif ( $json_obj->{ httpverb } eq "standardWebDAV" ) { $httpverb = 2; }
 		elsif ( $json_obj->{ httpverb } eq "MSextWebDAV" )    { $httpverb = 3; }
 		elsif ( $json_obj->{ httpverb } eq "MSRPCext" )       { $httpverb = 4; }
+		elsif ( $json_obj->{ httpverb } eq "optionsHTTP" )    { $httpverb = 5; }
 
 		my $status = &setFarmHttpVerb( $httpverb, $farmname );
 		if ( $status == -1 )
@@ -702,10 +704,20 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 
 	if ( $restart_flag eq "true" && &getFarmStatus( $farmname ) eq 'up' )
 	{
-		&setFarmRestart( $farmname );
-		$body->{ status } = 'needed restart';
-		$body->{ info } =
-		  "There're changes that need to be applied, stop and start farm to apply them!";
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ status } = 'needed restart';
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
 	}
 
 	&httpResponse( { code => 200, body => $body } );

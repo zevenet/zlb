@@ -56,29 +56,29 @@ sub setSnmpdStatus    # ($snmpd_status)
 	if ( $snmpd_status eq 'true' )
 	{
 		&zenlog( "Starting snmp service", "info", "SYSTEM" );
-		my @run = system ( "$updatercd snmpd enable" );
+		&logAndRun( "$updatercd snmpd enable" );
 
 		if ( -f $systemctl )
 		{
-			$return_code = system ( "$systemctl start snmpd > /dev/null" );
+			$return_code = &logAndRun( "$systemctl start snmpd" );
 		}
 		else
 		{
-			$return_code = system ( "$snmpd_srv start > /dev/null" );
+			$return_code = &logAndRun( "$snmpd_srv start" );
 		}
 	}
 	elsif ( $snmpd_status eq 'false' )
 	{
 		&zenlog( "Stopping snmp service", "info", "SYSTEM" );
-		my @run = system ( "$updatercd snmpd disable" );
+		&logAndRun( "$updatercd snmpd disable" );
 
 		if ( -f $systemctl )
 		{
-			$return_code = system ( "$systemctl stop snmpd > /dev/null" );
+			$return_code = &logAndRun( "$systemctl stop snmpd" );
 		}
 		else
 		{
-			$return_code = system ( "$snmpd_srv stop > /dev/null" );
+			$return_code = &logAndRun( "$snmpd_srv stop" );
 		}
 	}
 	else
@@ -110,19 +110,8 @@ sub getSnmpdStatus    # ()
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $pidof       = &getGlobalConfiguration( 'pidof' );
-	my $status      = `$pidof snmpd`;
-	my $return_code = $?;
-
-	# if not empty pid
-	if ( $return_code == 0 )
-	{
-		$return_code = "true";
-	}
-	else
-	{
-		$return_code = "false";
-	}
+	my $pidof = &getGlobalConfiguration( 'pidof' );
+	my $return_code = ( &logAndRunCheck( "$pidof snmpd" ) ) ? 'false' : 'true';
 
 	return $return_code;
 }
@@ -237,3 +226,4 @@ sub setSnmpdConfig    # ($snmpd_conf)
 }
 
 1;
+

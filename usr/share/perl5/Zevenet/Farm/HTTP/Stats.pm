@@ -138,6 +138,7 @@ sub getHTTPBackendEstConns    # ($farm_name,$backend_ip,$backend_port, $netstat)
 				   state         => 'ESTABLISHED',
 	};
 
+	require Zevenet::Net::ConnStats;
 	my $ct_params = &getConntrackParams( $filter );
 	my $count     = &getConntrackCount( $ct_params );
 
@@ -319,7 +320,7 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 
 				# not show fgDOWN status
 				$backendHash->{ "status" } = "down"
-				  if ( $backendHash->{ "status" } eq "fgDOWN" );
+				  if ( $backendHash->{ "status" } ne "maintenance" );
 			}
 			elsif ( $backendHash->{ "status" } eq "alive" )
 			{

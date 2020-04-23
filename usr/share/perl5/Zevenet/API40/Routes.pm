@@ -25,6 +25,14 @@ use strict;
 
 my $q = getCGI();
 
+if ( $ENV{ PATH_INFO } =~ qr{^/ids$} )
+{
+	require Zevenet::API40::Ids;
+
+	#  GET /rbac/users
+	GET qr{^/ids$} => \&list_ids;
+}
+
 # Certificates
 my $cert_re     = &getValidFormat( 'certificate' );
 my $cert_pem_re = &getValidFormat( 'cert_pem' );
@@ -35,6 +43,9 @@ if ( $q->path_info =~ qr{^/certificates} )
 
 	#  GET List SSL certificates
 	GET qr{^/certificates$} => \&certificates;
+
+	#  GET SSL certificate information
+	GET qr{^/certificates/($cert_re)/info$}, \&get_certificate_info;
 
 	#  Download SSL certificate
 	GET qr{^/certificates/($cert_re)$} => \&download_certificate;

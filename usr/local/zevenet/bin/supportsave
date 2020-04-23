@@ -47,7 +47,7 @@ backup_dir="${prefix}/${ss_dir}"
 config_paths=`perl -MZevenet::Config -e 'print getGlobalConfiguration("backupfor");'`;
 zbindir=`perl -MZevenet::Config -e 'print getGlobalConfiguration("zbindir");'`;
 
-monitoring_paths="${home_dir}/app/zenrrd/rrd ${home_dir}/logs /var/log/messages* /var/log/syslog* /var/log/letsencrypt /var/log/cherokee* ${home_dir}/node_status /var/log/apt";
+monitoring_paths="${home_dir}/app/zenrrd/rrd ${home_dir}/logs /var/log/messages* /var/log/syslog* /var/log/letsencrypt /var/log/cherokee* ${home_dir}/node_status /var/log/apt /var/run/*_proxy.pid";
 
 
 echo "Saving information for support in the path ${backup_dir}.tar.gz"
@@ -92,8 +92,9 @@ echo "- Time"
 ${zbindir}/zenntp                    	>> $backup_dir/ntp_test.txt 2>&1
 
 echo "- Sessions Table"
-${home_dir}/app/ssyncd/bin/ssyncdctl show http	>> $backup_dir/sessions_http.txt 2>&1
-${home_dir}/app/ssyncd/bin/ssyncdctl show nft	>> $backup_dir/sessions_nft.txt 2>&1
+ssyncdctl=`perl -MZevenet::Config -e 'print getGlobalConfiguration("ssyncdctl_bin");'`;
+$ssyncdctl show http	>> $backup_dir/sessions_http.txt 2>&1
+$ssyncdctl show nft	>> $backup_dir/sessions_nft.txt 2>&1
 
 if [[ -d ${home_dir}/lib/Zevenet/RBAC ]];
 then
@@ -145,6 +146,12 @@ echo "- Netfilter"
 echo "List nftables ruleset "			>> $backup_dir/nftables.txt
 $NFTBIN list ruleset		>> $backup_dir/nftables.txt
 
+echo "- Sysctl params"
+/usr/sbin/sysctl -a						>> $backup_dir/sysctl.txt
+
+echo "- Sysctl params"
+/usr/sbin/sysctl -a						>> $backup_dir/sysctl.txt
+
 CURL=`which curl`
 echo "nftlb daemon farms data"			>> $backup_dir/nftlb.txt
 $CURL --noproxy "*" --connect-timeout 10 -s -H "Key: HoLa" http://127.0.0.1:27/farms >> $backup_dir/nftlb.txt
@@ -152,11 +159,31 @@ echo "nftlb daemon policies data"		>> $backup_dir/nftlb.txt
 $CURL --noproxy "*" --connect-timeout 10 -s -H "Key: HoLa" http://127.0.0.1:27/policies >> $backup_dir/nftlb.txt
 
 echo "- Reverse Proxy"
-proxyctl="/usr/local/zevenet/app/zhttp/bin/zhttpctl"
+proxyctl=`perl -MZevenet::Config -e 'print getGlobalConfiguration("proxyctl");'`;
+proxyng=`perl -MZevenet::Config -e 'print getGlobalConfiguration("proxy_ng");'`;
+fstatus="$backup_dir/proxy_status.txt"
 for i in `ls /tmp/*_proxy.socket 2>/dev/null`
 do
-	echo "Farm $i"	>> $backup_dir/proxy_status.txt
-	$proxyctl -c $i >> $backup_dir/proxy_status.txt
+	farm=`basename $i |cut -d"_" -f1`
+	echo "############# Farm: $farm" >> $fstatus
+	echo "" >> $fstatus
+	echo "# ps -feww | grep ${farm}_proxy.cfg | grep -v grep" >> $fstatus
+	ps -feww | grep ${farm}_proxy.cfg | grep -v grep >> $fstatus
+	echo "" >> $fstatus
+	echo "# $proxyctl -c $i" >> $fstatus
+	$proxyctl -c $i >> $fstatus
+	echo "" >> $fstatus
+	if [ "$proxy_ng" == "true" ]
+	then
+		echo "# curl --connect-timeout 10 --unix-socket $i http://localhost/listener" >> $backup_dir/proxy_status.txt
+		$CURL --connect-timeout 10 --unix-socket $i http://localhost/listener >> $backup_dir/proxy_status.txt
+		echo "" >> $fstatus
+		echo "" >> $fstatus
+		echo "# curl --connect-timeout 10 --unix-socket $i http://localhost/debug" >> $backup_dir/proxy_status.txt
+		$CURL --connect-timeout 10 --unix-socket $i http://localhost/debug  >> $fstatus
+		echo "" >> $fstatus
+	fi
+	echo "" >> $fstatus
 done
 
 

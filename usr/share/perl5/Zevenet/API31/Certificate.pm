@@ -39,7 +39,7 @@ sub certificates    # ()
 
 	my $desc         = "List certificates";
 	my @certificates = &getCertFiles();
-	my $configdir    = &getGlobalConfiguration( 'configdir' );
+	my $configdir    = &getGlobalConfiguration( 'certdir' );
 	my @out;
 
 	foreach my $cert ( @certificates )
@@ -63,7 +63,7 @@ sub download_certificate    # ()
 	my $cert_filename = shift;
 
 	my $desc     = "Download certificate";
-	my $cert_dir = &getGlobalConfiguration( 'configdir' );
+	my $cert_dir = &getGlobalConfiguration( 'certdir' );
 	$cert_dir = &getGlobalConfiguration( 'basedir' )
 	  if $cert_filename eq 'zlbcertfile.pem';
 	my $cert_path = "$cert_dir/$cert_filename";
@@ -91,7 +91,7 @@ sub delete_certificate    # ( $cert_filename )
 	require Zevenet::Certificate;
 
 	my $desc     = "Delete certificate";
-	my $cert_dir = &getGlobalConfiguration( 'configdir' );
+	my $cert_dir = &getGlobalConfiguration( 'certdir' );
 
 	$cert_dir = &getGlobalConfiguration( 'basedir' )
 	  if $cert_filename eq 'zlbcertfile.pem';
@@ -142,7 +142,7 @@ sub create_csr
 	require Zevenet::Certificate;
 
 	my $desc      = 'Create CSR';
-	my $configdir = &getGlobalConfiguration( 'configdir' );
+	my $configdir = &getGlobalConfiguration( 'certdir' );
 
 	if ( -f "$configdir/$json_obj->{name}.csr" )
 	{
@@ -236,7 +236,7 @@ sub upload_certificate    # ()
 	require Zevenet::File;
 
 	my $desc      = "Upload PEM certificate";
-	my $configdir = &getGlobalConfiguration( 'configdir' );
+	my $configdir = &getGlobalConfiguration( 'certdir' );
 
 	if ( not &getValidFormat( 'certificate', $filename ) )
 	{

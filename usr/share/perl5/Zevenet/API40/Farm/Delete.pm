@@ -48,7 +48,11 @@ sub delete_farm    # ( $farmname )
 
 	if ( &getFarmStatus( $farmname ) eq 'up' )
 	{
-		&runFarmStop( $farmname, "true" );
+		if ( &runFarmStop( $farmname, "true" ) )
+		{
+			my $msg = "The farm $farmname could not be stopped.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
 
 		&eload(
 				module => 'Zevenet::Cluster',
@@ -84,3 +88,4 @@ sub delete_farm    # ( $farmname )
 }
 
 1;
+

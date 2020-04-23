@@ -24,9 +24,10 @@
 use strict;
 use warnings;
 
-my $configdir = &getGlobalConfiguration( 'configdir' );
-
+use Zevenet::Config;
 use Zevenet::Nft;
+
+my $configdir = &getGlobalConfiguration( 'configdir' );
 
 my $eload;
 
@@ -276,16 +277,18 @@ sub setL4FarmBackendsSessionsRemove
 
 	my $farm = &getL4FarmStruct( $farmname );
 
-	return 0 if ( $farm->{ persist } eq "" );
+	#return 0 if ( $farm->{ persist } eq "" );
 
 	my $be = $farm->{ servers }[$backend];
 	( my $tag = $be->{ tag } ) =~ s/0x//g;
-	my $map_name   = "persist-$farmname";
-	my @persistmap = `$nft_bin list map nftlb $map_name`;
-	my $data       = 0;
+	my $map_name = "persist-$farmname";
+	my @persistmap =
+	  @{ &logAndGet( "$nft_bin list map nftlb $map_name", "array" ) };
+	my $data = 0;
 
 	foreach my $line ( @persistmap )
 	{
+
 		$data = 1 if ( $line =~ /elements = / );
 		next if ( !$data );
 
@@ -300,6 +303,7 @@ sub setL4FarmBackendsSessionsRemove
 		  if ( $value ne "" && $value =~ /^0x.0*$tag/ );
 
 		last if ( $data && $line =~ /\}/ );
+
 	}
 
 	return $output;
@@ -315,6 +319,7 @@ Parameters:
 	backend - Backend id
 	status - Backend status. The possible values are: "up" or "down"
 	cutmode - cut to force the traffic stop for such backend
+	priority - true / false, if true then only sessions and conntrack inputs are deleted, current backend need to release connections because higher priority has been enabled.
 
 Returns:
 	Integer - 0 on success or other value on failure
@@ -325,7 +330,7 @@ sub setL4FarmBackendStatus
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name, $backend, $status, $cutmode ) = @_;
+	my ( $farm_name, $backend, $status, $cutmode, $prio ) = @_;
 
 	require Zevenet::Farm::L4xNAT::Config;
 	require Zevenet::Farm::L4xNAT::Action;
@@ -337,24 +342,36 @@ sub setL4FarmBackendStatus
 	$status = 'off'  if ( $status eq "maintenance" );
 	$status = 'down' if ( $status eq "fgDOWN" );
 
-	$output =
-	  &sendL4NlbCmd(
-		{
-		   farm   => $farm_name,
-		   file   => "$configdir/$farm_filename",
-		   method => "PUT",
-		   body =>
-			 qq({"farms" : [ { "name" : "$farm_name", "backends" : [ { "name" : "bck$backend", "state" : "$status" } ] } ] })
-		}
-	  );
-
-	if ( $status ne "up" && $cutmode eq "cut" && $farm->{ persist } ne '' )
+#prio flag is used to delete only information of other servers before to run the most priority already alive
+	if ( not defined $prio )
 	{
+		$output =
+		  &sendL4NlbCmd(
+			{
+			   farm   => $farm_name,
+			   file   => "$configdir/$farm_filename",
+			   method => "PUT",
+			   body =>
+				 qq({"farms" : [ { "name" : "$farm_name", "backends" : [ { "name" : "bck$backend", "state" : "$status" } ] } ] })
+			}
+		  );
+
+	}
+
+	#if ( $status ne "up" && $cutmode eq "cut" && $farm->{ persist } ne '' )
+	if (    ( $status ne "up" && $cutmode eq "cut" )
+		 || ( defined $prio && $prio eq 'true' ) )
+	{
+		#delete backend session
 		&setL4FarmBackendsSessionsRemove( $farm_name, $backend );
 
 		# remove conntrack
 		my $server = $$farm{ servers }[$backend];
 		&resetL4FarmBackendConntrackMark( $server );
+
+		# delete backend session again in case new connections are created
+		&setL4FarmBackendsSessionsRemove( $farm_name, $backend );
+
 	}
 
 	#~ TODO
@@ -455,6 +472,11 @@ sub _getL4FarmParseServers
 			push ( @servers, $server );
 		}
 
+		if ( $stage == 2 && $line =~ /\]/ )
+		{
+			last;
+		}
+
 		if ( $stage == 3 && $line =~ /\"name\"/ )
 		{
 			my @l = split /"/, $line;
@@ -471,6 +493,12 @@ sub _getL4FarmParseServers
 			my @l = split /"/, $line;
 			$server->{ ip }  = $l[3];
 			$server->{ rip } = $l[3];
+		}
+
+		if ( $stage == 3 && $line =~ /\"source-addr\"/ )
+		{
+			my @l = split /"/, $line;
+			$server->{ sourceip } = $l[3];
 		}
 
 		if ( $stage == 3 && $line =~ /\"port\"/ )
@@ -591,7 +619,6 @@ sub getL4BackendsWeightProbability
 		# only calculate probability for the servers running
 		if ( $$server{ status } eq 'up' )
 		{
-			my $delta = $$server{ weight };
 			$weight_sum += $$server{ weight };
 			$$server{ prob } = $weight_sum / $$farm{ prob };
 		}
@@ -628,7 +655,7 @@ sub resetL4FarmBackendConntrackMark
 
 	# return_code = 0 -> deleted
 	# return_code = 1 -> not found/deleted
-	my $return_code = system ( "$cmd >/dev/null 2>&1" );
+	my $return_code = &logAndRunCheck( "$cmd" );
 
 	if ( &debug() )
 	{
@@ -715,7 +742,13 @@ sub setL4BackendRule
 	my $table_if =
 	  ( $vip_if->{ type } eq 'virtual' ) ? $vip_if->{ parent } : $vip_if->{ name };
 
-	return &setRule( $action, $vip_if, $table_if, "", "$mark/0x7fffffff" );
+	my $rule = {
+				 table  => "table_$table_if",
+				 type   => 'farm-l4',
+				 from   => 'all',
+				 fwmark => "$mark/0x7fffffff",
+	};
+	return &setRule( $action, $rule );
 }
 
 =begin nd
@@ -752,4 +785,40 @@ sub getL4ServerByMark
 	return -1;
 }
 
+=begin nd
+Function: getL4FarmPriorities
+
+	Get the list of the backends priorities in a L4 farm
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	Array Ref - it returns an array ref of priority values
+
+=cut
+
+sub getL4FarmPriorities    # ( $farmname )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farmname ) = shift;
+	my @priorities;
+	my $backends = &getL4FarmServers( $farmname );
+	foreach my $backend ( @{ $backends } )
+	{
+		if ( defined $backend->{ priority } )
+		{
+			push @priorities, $backend->{ priority };
+		}
+		else
+		{
+			push @priorities, 1;
+		}
+
+	}
+	return \@priorities;
+}
+
 1;
+

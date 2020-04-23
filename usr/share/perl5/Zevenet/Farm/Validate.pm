@@ -1,9 +1,10 @@
+#!/usr/bin/perl
 ###############################################################################
 #
 #    Zevenet Software License
 #    This file is part of the Zevenet Load Balancer software package.
 #
-#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
+#    Copyright (C) 2020-today ZEVENET SL, Sevilla (Spain)
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -21,42 +22,45 @@
 ###############################################################################
 
 use strict;
-use Zevenet::Farm::HTTP::Config;
 
-# farm parameters
-sub getHTTPOutFarm
+=begin nd
+Function: priorityAlgorithmIsOK
+
+	This funcion receives a list of priority values and it checks if all backends will be started according to priority Algorithm
+
+Parameters:
+	Priorities - List of priorities to check
+
+Returns:
+	Integer - Return 0 if valid priority settings, unsuitable priority value if not.
+
+=cut
+
+sub priorityAlgorithmIsOK    # ( \@Priorities )
 {
+	use List::Util qw( min max );
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	require Zevenet::Farm::Config;
-	my $farmname = shift;
-	my $farm_ref = &getFarmStruct( $farmname );
-	return $farm_ref;
-}
+	my $priority_ref = shift;
+	my @backends     = sort @{ $priority_ref };
+	my @backendstmp;
 
-sub getHTTPOutService
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-
-	require Zevenet::Farm::HTTP::Service;
-	my $farmname      = shift;
-	my @services_list = ();
-
-	foreach my $service ( &getHTTPFarmServices( $farmname ) )
+	my $prio_last = 0;
+	foreach my $prio_cur ( @backends )
 	{
-		my $service_ref = &getHTTPServiceStruct( $farmname, $service );
-		push @services_list, $service_ref;
+		if ( $prio_cur != $prio_last )
+		{
+			my $n_backendstmp = @backendstmp;
+			return $prio_cur if ( $prio_cur > ( $n_backendstmp + 1 ) );
+			push @backendstmp, $prio_cur;
+			$prio_last = $prio_cur;
+		}
+		else
+		{
+			push @backendstmp, $prio_cur;
+		}
 	}
-
-	return \@services_list;
-}
-
-sub getHTTPOutBackend
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-
+	return 0;
 }
 
 1;

@@ -29,11 +29,11 @@ sub get_logs
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $desc    = "Get logs";
-	my $backups = &getLogs;
+	my $desc = "Get logs";
+	my $logs = &getLogs();
 
 	&httpResponse(
-				{ code => 200, body => { description => $desc, params => $backups } } );
+				   { code => 200, body => { description => $desc, params => $logs } } );
 }
 
 #	GET	/system/logs/LOG
@@ -104,3 +104,4 @@ sub show_logs
 }
 
 1;
+

@@ -41,7 +41,7 @@ my $tag       = '#update';
 unless ( -f $gc_fn )
 {
 	copy( $gc_tpl_fn, $gc_fn );
-	my $err = system( "sed -E 's/;$tag\$/;/g' -i $gc_fn" );
+	my $err = system ( "sed -E 's/;$tag\$/;/g' -i $gc_fn" );
 	exit $err;
 }
 
@@ -59,7 +59,7 @@ while ( my $tpl_line = <$gc_tpl> )
 
 		# strip variable name
 		$var =~ s/\$//;
-		$var =~ s/\s*$//; # important
+		$var =~ s/\s*$//;    # important
 
 		open my $gconf, '<', $gc_fn;
 
@@ -67,8 +67,8 @@ while ( my $tpl_line = <$gc_tpl> )
 		{
 			next unless $gc_line =~ /^\$$var\s*=/;
 
-			my ( $gc_var, $gc_value ) = $gc_line =~ /(.+)\s*=\s*(.+)/;
-			$gc_value  =~ s/^\s+//;
+			my ( undef, $gc_value ) = $gc_line =~ /(.+)\s*=\s*(.+)/;
+			$gc_value =~ s/^\s+//;
 			$new_value =~ s/^\s+//;
 
 			# update if the line is tagged to be updated
@@ -96,3 +96,4 @@ close $gc_tpl;
 
 move( $gc_tmp_fn, $gc_fn );
 print "Update global.conf file done...\n";
+

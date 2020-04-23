@@ -41,11 +41,7 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 	my $desc = "Modify L4xNAT farm '$farmname'";
 
 	# Flags
-	my $reload_flag  = "false";
 	my $restart_flag = "false";
-	my $error        = "false";
-	my $status;
-	my $initialStatus = &getL4FarmParam( 'status', $farmname );
 
 	# Check that the farm exists
 	if ( !&getFarmExists( $farmname ) )
@@ -292,9 +288,7 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 	if ( exists ( $json_obj->{ vport } ) )
 	{
 		# VPORT validation
-		if (
-			 !&getValidPort( $json_obj->{ vip }, $json_obj->{ vport }, "L4XNAT", $farmname )
-		  )
+		if ( !&getValidPort( $json_obj->{ vport }, "L4XNAT", $farmname ) )
 		{
 			my $msg = "The virtual port must be an acceptable value and must be available.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );

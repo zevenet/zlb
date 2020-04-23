@@ -39,14 +39,12 @@ sub certificates    # ()
 
 	my $desc         = "List certificates";
 	my @certificates = &getCertFiles();
-	my $configdir    = &getGlobalConfiguration( 'configdir' );
+	my $configdir    = &getGlobalConfiguration( 'certdir' );
 	my @out;
 
-	foreach my $cert ( @certificates )
+	foreach my $cert ( sort @certificates )
 	{
-		my $cert = &getCertInfo( "$configdir/$cert" );
-		delete $cert->{ key };
-		push @out, $cert;
+		push @out, &getCertInfo( "$configdir/$cert" );
 	}
 
 	my $body = {
@@ -57,6 +55,44 @@ sub certificates    # ()
 	&httpResponse( { code => 200, body => $body } );
 }
 
+# GET /certificates/CERTIFICATE/info
+sub get_certificate_info    # ()
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $cert_filename = shift;
+
+	require Zevenet::Certificate;
+
+	my $desc     = "Show certificate details";
+	my $cert_dir = &getGlobalConfiguration( 'certdir' );
+
+	# check is the certificate file exists
+	if ( !-f "$cert_dir\/$cert_filename" )
+	{
+		my $msg = "Certificate file not found.";
+		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+	}
+
+	if ( &getValidFormat( 'certificate', $cert_filename ) )
+	{
+		my @cert_info = &getCertData( "$cert_dir\/$cert_filename" );
+		my $body;
+
+		foreach my $line ( @cert_info )
+		{
+			$body .= $line;
+		}
+
+		&httpResponse( { code => 200, body => $body, type => 'text/plain' } );
+	}
+	else
+	{
+		my $msg = "Could not get such certificate information";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+}
+
 # GET /certificates/CERTIFICATE
 sub download_certificate    # ()
 {
@@ -65,7 +101,7 @@ sub download_certificate    # ()
 	my $cert_filename = shift;
 
 	my $desc      = "Download certificate";
-	my $cert_dir  = &getGlobalConfiguration( 'configdir' );
+	my $cert_dir  = &getGlobalConfiguration( 'certdir' );
 	my $cert_path = "$cert_dir/$cert_filename";
 
 	unless ( $cert_filename =~ /\.(pem|csr)$/ && -f $cert_path )
@@ -91,7 +127,7 @@ sub delete_certificate    # ( $cert_filename )
 	require Zevenet::Certificate;
 
 	my $desc     = "Delete certificate";
-	my $cert_dir = &getGlobalConfiguration( 'configdir' );
+	my $cert_dir = &getGlobalConfiguration( 'certdir' );
 
 	# check is the certificate file exists
 	if ( !-f "$cert_dir\/$cert_filename" )
@@ -139,7 +175,7 @@ sub create_csr
 	require Zevenet::Certificate;
 
 	my $desc      = 'Create CSR';
-	my $configdir = &getGlobalConfiguration( 'configdir' );
+	my $configdir = &getGlobalConfiguration( 'certdir' );
 
 	if ( -f "$configdir/$json_obj->{name}.csr" )
 	{
@@ -187,7 +223,7 @@ sub create_csr
 	};
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -231,7 +267,7 @@ sub upload_certificate    # ()
 	require Zevenet::File;
 
 	my $desc      = "Upload PEM certificate";
-	my $configdir = &getGlobalConfiguration( 'configdir' );
+	my $configdir = &getGlobalConfiguration( 'certdir' );
 
 	if ( not &getValidFormat( 'certificate', $filename ) )
 	{
@@ -324,12 +360,19 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
+	# Check if the farm exists
+	if ( &getFarmType( $farmname ) ne 'https' )
+	{
+		my $msg = "This feature is only available for 'https' farms";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
-	my $configdir = &getGlobalConfiguration( 'configdir' );
+	my $configdir = &getGlobalConfiguration( 'certdir' );
 
 	# validate certificate filename and format
 	unless ( -f $configdir . "/" . $json_obj->{ file } )
@@ -397,9 +440,20 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 	if ( &getFarmStatus( $farmname ) ne 'down' )
 	{
 		require Zevenet::Farm::Action;
-
-		&setFarmRestart( $farmname );
-		$body->{ status } = 'needed restart';
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ status } = 'needed restart';
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
 	}
 
 	&httpResponse( { code => 200, body => $body } );
@@ -506,14 +560,26 @@ sub delete_farm_certificate    # ( $farmname, $certfilename )
 	if ( &getFarmStatus( $farmname ) ne 'down' )
 	{
 		require Zevenet::Farm::Action;
-
-		&setFarmRestart( $farmname );
-		$body->{ status } = 'needed restart';
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ status } = 'needed restart';
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
 	}
 
 	&zenlog( "Success trying to delete a certificate to the SNI list.",
-			 "error", "LSLB" );
+			 "info", "LSLB" );
 	&httpResponse( { code => 200, body => $body } );
 }
 
 1;
+

@@ -43,19 +43,21 @@ sub new_vini    # ( $json_obj )
 	my $virtual_tag_re = &getValidFormat( 'virtual_tag' );
 
 	my $params = {
-				   "name" => {
-							   'valid_format' => 'virt_interface',
-							   'required'     => 'true',
-							   'non_blank'    => 'true',
-				   },
-				   "ip" => {
-							 'valid_format' => 'ip_addr',
-							 'required'     => 'true',
-				   },
+		"name" => {
+			'valid_format' => 'virt_interface',
+			'required'     => 'true',
+			'non_blank'    => 'true',
+			"format_msg" =>
+			  "is a string formed with the parent interface name, colon (':') and a virtual interface tag. E.g. 'eth1:virt1'",
+		},
+		"ip" => {
+				  'valid_format' => 'ip_addr',
+				  'required'     => 'true',
+		},
 	};
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -170,6 +172,7 @@ sub new_vini    # ( $json_obj )
 
 	if ( $@ )
 	{
+		&zenlog( "Module failed: $@", "error", "net" );
 		my $msg = "The $json_obj->{ name } virtual network interface can't be created";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
@@ -238,6 +241,16 @@ sub delete_interface_virtual    # ( $virtual )
 	require Zevenet::Net::Core;
 
 	eval {
+
+		if ( $eload )
+		{
+			&eload(
+					module => 'Zevenet::Net::Routing',
+					func   => 'updateRoutingVirtualIfaces',
+					args   => [$if_ref->{ parent }, $if_ref->{ addr }, undef],
+			);
+		}
+
 		if ( $if_ref->{ status } eq 'up' )
 		{
 			# removing before in the remote node
@@ -255,6 +268,7 @@ sub delete_interface_virtual    # ( $virtual )
 
 	if ( $@ )
 	{
+		&zenlog( "Module failed: $@", "error", "net" );
 		my $msg = "The virtual interface $virtual can't be deleted";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
@@ -350,7 +364,7 @@ sub actions_interface_virtual    # ( $json_obj, $virtual )
 	};
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -446,6 +460,7 @@ sub modify_interface_virtual    # ( $json_obj, $virtual )
 
 	my $desc   = "Modify virtual interface";
 	my $if_ref = &getInterfaceConfig( $virtual );
+	my $old_ip = $if_ref->{ addr };
 	my @farms;
 
 	my $params = {
@@ -459,7 +474,7 @@ sub modify_interface_virtual    # ( $json_obj, $virtual )
 	};
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -551,6 +566,15 @@ sub modify_interface_virtual    # ( $json_obj, $virtual )
 		# Add new IP, netmask and gateway
 		&setInterfaceConfig( $if_ref ) or die;
 
+		if ( $eload and $old_ip )
+		{
+			&eload(
+					module => 'Zevenet::Net::Routing',
+					func   => 'updateRoutingVirtualIfaces',
+					args   => [$if_ref->{ parent }, $old_ip, $json_obj->{ ip }],
+			);
+		}
+
 		# change farm vip,
 		if ( @farms )
 		{
@@ -562,6 +586,7 @@ sub modify_interface_virtual    # ( $json_obj, $virtual )
 
 	if ( $@ )
 	{
+		&zenlog( "Module failed: $@", "error", "net" );
 		my $msg = "Errors found trying to modify interface $virtual";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}

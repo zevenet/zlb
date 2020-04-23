@@ -23,6 +23,8 @@
 
 use strict;
 
+use Zevenet::Log;
+
 =begin nd
 Function: checkport
 
@@ -49,7 +51,7 @@ sub checkport    # ($host, $port)
 	# check local ports;
 	if ( $host eq '127.0.0.1' || $host =~ /local/ )
 	{
-		my $flag = system ( "netstat -putan | grep $port >/dev/null 2>&1" );
+		my $flag = &logAndRunCheck( "netstat -putan | grep $port" );
 		if ( !$flag )
 		{
 			return "true";
@@ -59,9 +61,27 @@ sub checkport    # ($host, $port)
 	# check remote ports
 	else
 	{
+		require Zevenet::Farm::Base;
+		my $cur_vip  = &getFarmVip( 'vip',  $farmname );
+		my $cur_port = &getFarmVip( 'vipp', $farmname );
+
+		# discart the running farm is itself
+		my $type = &getFarmType( $farmname );
+		if ( $type =~ /http|gslb/ )
+		{
+			if (     &getFarmStatus( $farmname ) eq 'up'
+				 and $cur_vip eq $host
+				 and $cur_port eq $port )
+			{
+				return "false";
+			}
+		}
+
 		# check if it used by a l4 farm
 		require Zevenet::Farm::L4xNAT::Validate;
 		return "true" if ( &checkL4Port( $host, $port, $farmname ) );
+
+		# TODO: add check for avoiding collision with datalink VIPs
 
 		require IO::Socket;
 		my $sock = IO::Socket::INET->new(
@@ -125,6 +145,29 @@ sub ipisok    # ($checkip, $version)
 	}
 
 	return $return;
+}
+
+=begin nd
+Function: validIpAndNet
+
+	Validate if the input is a valid IP or networking segement
+
+Parameters:
+	ip - IP address or IP network segment. ipv4 or ipv6
+
+Returns:
+	integer - 1 if the input is a valid IP or 0 if it is not valid
+
+=cut
+
+sub validIpAndNet
+{
+	my $ip = shift;
+
+	use NetAddr::IP;
+	my $out = new NetAddr::IP( $ip );
+
+	return ( defined $out ) ? 1 : 0;
 }
 
 =begin nd
@@ -314,15 +357,19 @@ sub checkNetworkExists
 			 "debug", "PROFILING" );
 	my ( $net, $mask, $exception ) = @_;
 
+	#if duplicated network is allowed then don't check if network exists.
+	require Zevenet::Config;
+	return "" if ( &getGlobalConfiguration( "duplicated_net" ) eq "true" );
+
 	require Zevenet::Net::Interface;
 	require NetAddr::IP;
 
 	my $net1 = NetAddr::IP->new( $net, $mask );
-
 	my @interfaces = &getInterfaceTypeList( 'nic' );
 	push @interfaces, &getInterfaceTypeList( 'bond' );
 	push @interfaces, &getInterfaceTypeList( 'vlan' );
 
+	my $found = 0;
 	foreach my $if_ref ( @interfaces )
 	{
 		# if it is the same net pass
@@ -335,13 +382,28 @@ sub checkNetworkExists
 		eval {
 			if ( $net1->contains( $net2 ) or $net2->contains( $net1 ) )
 			{
-				return $if_ref->{ name };
+				$found = 1;
 			}
 		};
+		return $if_ref->{ name } if ( $found );
 	}
 
 	return "";
 }
+
+=begin nd
+Function: validBackendStack
+
+	Check if an IP is in the same networking segment that a list of backend
+
+Parameters:
+	backend_array - It is an array with the backend configuration
+	ip - A ip is going to be compared with the backends IPs
+
+Returns:
+	Integer - Returns 1 if the ip is valid or 0 if it is not in the same networking segment
+
+=cut
 
 sub validBackendStack
 {

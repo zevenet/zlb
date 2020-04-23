@@ -65,12 +65,20 @@ sub runFarmCreate    # ($farm_type,$vip,$vip_port,$farm_name,$fdev)
 		return $output;
 	}
 
+	my $status = 'up';
+	if ( $farm_type ne 'datalink' )
+	{
+		require Zevenet::Net::Interface;
+		$status = 'down' if ( &checkport( $vip, $vip_port, $farm_name ) eq 'true' );
+	}
+
 	&zenlog( "running 'Create' for $farm_name farm $farm_type", "info", "LSLB" );
 
 	if ( $farm_type =~ /^HTTPS?$/i )
 	{
 		require Zevenet::Farm::HTTP::Factory;
-		$output = &runHTTPFarmCreate( $vip, $vip_port, $farm_name, $farm_type );
+		$output =
+		  &runHTTPFarmCreate( $vip, $vip_port, $farm_name, $farm_type, $status );
 	}
 	elsif ( $farm_type =~ /^DATALINK$/i )
 	{
@@ -80,14 +88,14 @@ sub runFarmCreate    # ($farm_type,$vip,$vip_port,$farm_name,$fdev)
 	elsif ( $farm_type =~ /^L4xNAT$/i )
 	{
 		require Zevenet::Farm::L4xNAT::Factory;
-		$output = &runL4FarmCreate( $vip, $farm_name, $vip_port );
+		$output = &runL4FarmCreate( $vip, $farm_name, $vip_port, $status );
 	}
 	elsif ( $farm_type =~ /^GSLB$/i )
 	{
 		$output = &eload(
 						  module => 'Zevenet::Farm::GSLB::Factory',
 						  func   => 'runGSLBFarmCreate',
-						  args   => [$vip, $vip_port, $farm_name],
+						  args   => [$vip, $vip_port, $farm_name, $status],
 		) if $eload;
 	}
 
@@ -100,4 +108,102 @@ sub runFarmCreate    # ($farm_type,$vip,$vip_port,$farm_name,$fdev)
 	return $output;
 }
 
+=begin nd
+Function: runFarmCreateFrom
+
+	Function that does a copy of a farm and set the new virtual ip and virtual port.
+	Apply the same farguardians to the services and the same ipds rules.
+
+Parameters:
+	params - hash reference. The hash has to contain the following keys:
+		profile: is the type of profile is going to be copied
+		farmname: the name of the new farm
+		copy_from: it is the name of the farm from is copying
+		vip: the new virtual ip for the new farm
+		vport: the new virtual port for the new farm. This parameters is skipped in datalink farms
+		interface: it is the interface for the new farm. This parameter is for datalink farms
+
+Returns:
+	Integer - Error code: return 0 on success or another value on failure
+
+=cut
+
+sub runFarmCreateFrom
+{
+	my $params = shift;
+	my $err    = 0;
+
+	# lock farm
+	my $lock_file = &getLockFile( $params->{ farmname } );
+	my $lock_fh = &openlock( $lock_file, 'w' );
+
+	# add ipds rules
+	my $ipds;
+	if ( $eload )
+	{
+		$ipds = &eload(
+						module => 'Zevenet::IPDS::Core',
+						func   => 'getIPDSfarmsRules',
+						args   => [$params->{ copy_from }],
+		);
+	}
+
+	# create file
+	require Zevenet::Farm::Action;
+	$err = &copyFarm( $params->{ copy_from }, $params->{ farmname } );
+
+	# add fg
+	require Zevenet::FarmGuardian;
+	if ( $params->{ profile } eq 'l4xnat' )
+	{
+		my $fg = &getFGFarm( $params->{ copy_from } );
+		&linkFGFarm( $fg, $params->{ farmname } );
+	}
+	elsif ( $params->{ profile } ne 'datalink' )
+	{
+		my $fg;
+		require Zevenet::Farm::Service;
+		foreach my $s ( &getFarmServices( $params->{ farmname } ) )
+		{
+			$fg = &getFGFarm( $params->{ copy_from }, $s );
+			&linkFGFarm( $fg, $params->{ farmname }, $s );
+		}
+	}
+
+	# unlock farm
+	close $lock_fh;
+
+	# modify vport, vip, interface
+	if ( $params->{ profile } ne 'datalink' )
+	{
+		require Zevenet::Farm::Config;
+		$err = &setFarmVirtualConf(
+									$params->{ vip },
+									$params->{ vport },
+									$params->{ farmname }
+		);
+	}
+	else
+	{
+		require Zevenet::Farm::Datalink::Config;
+		$err = &setDatalinkFarmVirtualConf(
+											$params->{ vip },
+											$params->{ interface },
+											$params->{ farmname }
+		);
+	}
+
+	if ( $eload and !$err )
+	{
+		$err = &eload(
+					   module => 'Zevenet::IPDS::Core',
+					   func   => 'addIPDSFarms',
+					   args   => [$params->{ farmname }, $ipds],
+		);
+	}
+
+	return $err;
+}
+
 1;
+

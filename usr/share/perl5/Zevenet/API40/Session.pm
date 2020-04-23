@@ -66,7 +66,7 @@ sub session_login
 	# check if the user has got permissions
 	if ( $username ne 'root' )
 	{
-		my ( $name, $passwd, $gid, $webgui_group ) = getgrnam ( 'webgui' );
+		my ( undef, undef, undef, $webgui_group ) = getgrnam ( 'webgui' );
 		if ( !grep ( /(^| )$username( |$)/, $webgui_group ) )
 		{
 			my $msg = "The user $username has not web permissions";
@@ -129,3 +129,4 @@ sub session_logout
 }
 
 1;
+

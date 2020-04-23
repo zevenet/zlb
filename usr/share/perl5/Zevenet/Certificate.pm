@@ -26,6 +26,8 @@ use strict;
 use File::stat;
 use Time::localtime;
 
+use Zevenet::Core;
+
 my $openssl = &getGlobalConfiguration( 'openssl' );
 
 =begin nd
@@ -49,7 +51,7 @@ sub getCertFiles    # ()
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $configdir = &getGlobalConfiguration( 'configdir' );
+	my $configdir = &getGlobalConfiguration( 'certdir' );
 
 	opendir ( DIR, $configdir );
 	my @files = grep ( /.*\.pem$/, readdir ( DIR ) );
@@ -158,7 +160,10 @@ sub getCertCN    # ($certfile)
 	my $certcn = "";
 
 	my $type = ( &getCertType( $certfile ) eq "Certificate" ) ? "x509" : "req";
-	my @eject = `$openssl $type -noout -in $certfile -text | grep Subject:`;
+	my @eject = @{
+		&logAndGet( "$openssl $type -noout -in $certfile -text | grep Subject:",
+					"array" )
+	};
 
 	my $string = $eject[0];
 	chomp $string;
@@ -201,7 +206,12 @@ sub getCertIssuer    # ($certfile)
 
 	if ( &getCertType( $certfile ) eq "Certificate" )
 	{
-		my @eject = `$openssl x509 -noout -in $certfile -text | grep Issuer:`;
+		my @eject = @{
+			&logAndGet(
+						"$openssl x509 -noout -in $certfile -text | grep Issuer:",
+						"array"
+			)
+		};
 		@eject = split ( /CN=/,             $eject[0] );
 		@eject = split ( /\/emailAddress=/, $eject[1] );
 		$certissu = $eject[0] // '';
@@ -239,14 +249,12 @@ sub getCertCreation    # ($certfile)
 			 "debug", "PROFILING" );
 	my ( $certfile ) = @_;
 
-	#~ use File::stat;
-	#~ use Time::localtime;
-
 	my $datecreation = "";
 
 	if ( &getCertType( $certfile ) eq "Certificate" )
 	{
-		my @eject = `$openssl x509 -noout -in $certfile -dates`;
+		my @eject =
+		  @{ &logAndGet( "$openssl x509 -noout -in $certfile -dates", "array" ) };
 		my @datefrom = split ( /=/, $eject[0] );
 		$datecreation = $datefrom[1];
 	}
@@ -287,7 +295,8 @@ sub getCertExpiration    # ($certfile)
 
 	if ( &getCertType( $certfile ) eq "Certificate" )
 	{
-		my @eject = `$openssl x509 -noout -in $certfile -dates`;
+		my @eject =
+		  @{ &logAndGet( "$openssl x509 -noout -in $certfile -dates", "array" ) };
 		my @dateto = split ( /=/, $eject[1] );
 		$dateexpiration = $dateto[1];
 	}
@@ -324,6 +333,7 @@ sub getFarmCertUsed    #($cfile)
 
 	require Zevenet::Farm::Core;
 
+	my $certdir   = &getGlobalConfiguration( 'certdir' );
 	my $configdir = &getGlobalConfiguration( 'configdir' );
 	my @farms     = &getFarmsByType( "https" );
 	my $output    = -1;
@@ -335,7 +345,7 @@ sub getFarmCertUsed    #($cfile)
 
 		use File::Grep qw( fgrep );
 
-		if ( fgrep { /Cert \"$configdir\/$cfile\"/ } "$configdir/$farm_filename" )
+		if ( fgrep { /Cert \"$certdir\/$cfile\"/ } "$configdir/$farm_filename" )
 		{
 			$output = 0;
 		}
@@ -416,7 +426,7 @@ sub delCert    # ($certname)
 	$certname = quotemeta $certname;
 	my $certdir;
 
-	$certdir = &getGlobalConfiguration( 'configdir' );
+	$certdir = &getGlobalConfiguration( 'certdir' );
 
 	# verify existance in config directory for security reasons
 	opendir ( DIR, $certdir );
@@ -470,31 +480,31 @@ sub createCSR # ($certname, $certfqdn, $certcountry, $certstate, $certlocality, 
 		 $certkey,      $certpassword
 	) = @_;
 
-	my $configdir = &getGlobalConfiguration( 'configdir' );
+	my $configdir = &getGlobalConfiguration( 'certdir' );
 	my $output;
 
 	##sustituir los espacios por guiones bajos en el nombre de archivo###
 	if ( $certpassword eq "" )
 	{
+		$output =
+		  logAndRun(
+			"$openssl req -nodes -newkey rsa:$certkey -keyout $configdir/$certname.key -out $configdir/$certname.csr -batch -subj \"/C=$certcountry\/ST=$certstate/L=$certlocality/O=$certorganization/OU=$certdivision/CN=$certfqdn/emailAddress=$certmail\" 2> /dev/null"
+		  );
 		&zenlog(
 			"Creating CSR: $openssl req -nodes -newkey rsa:$certkey -keyout $configdir/$certname.key -out $configdir/$certname.csr -batch -subj \"/C=$certcountry\/ST=$certstate/L=$certlocality/O=$certorganization/OU=$certdivision/CN=$certfqdn/emailAddress=$certmail\"",
 			"info", "LSLB"
-		);
-		$output =
-		  system (
-			"$openssl req -nodes -newkey rsa:$certkey -keyout $configdir/$certname.key -out $configdir/$certname.csr -batch -subj \"/C=$certcountry\/ST=$certstate/L=$certlocality/O=$certorganization/OU=$certdivision/CN=$certfqdn/emailAddress=$certmail\" 2> /dev/null"
-		  );
+		) if ( !$output );
 	}
 	else
 	{
 		$output =
-		  system (
-			"$openssl req -passout pass:$certpassword -newkey rsa:$certkey -keyout $configdir/$certname.key -out $configdir/$certname.csr -batch -subj \"/C=$certcountry/ST=$certstate/L=$certlocality/O=$certorganization/OU=$certdivision/CN=$certfqdn/emailAddress=$certmail\" 2> /dev/null"
+		  &logAndRun(
+			"$openssl req -passout pass:$certpassword -newkey rsa:$certkey -keyout $configdir/$certname.key -out $configdir/$certname.csr -batch -subj \"/C=$certcountry/ST=$certstate/L=$certlocality/O=$certorganization/OU=$certdivision/CN=$certfqdn/emailAddress=$certmail\""
 		  );
 		&zenlog(
 			"Creating CSR: $openssl req -passout pass:$certpassword -newkey rsa:$certkey -keyout $configdir/$certname.key -out $configdir/$certname.csr -batch -subj \"/C=$certcountry\/ST=$certstate/L=$certlocality/O=$certorganization/OU=$certdivision/CN=$certfqdn/emailAddress=$certmail\"",
 			"info", "LSLB"
-		);
+		) if ( !$output );
 	}
 	return $output;
 }
@@ -522,154 +532,135 @@ sub getCertData    # ($certfile)
 			 "debug", "PROFILING" );
 	my ( $filepath ) = @_;
 
-	my @eject;
+	my $cmd;
 
 	if ( &getCertType( $filepath ) eq "Certificate" )
 	{
-		@eject = `$openssl x509 -in $filepath -text`;
+		$cmd = "$openssl x509 -in $filepath -text";
 	}
 	else
 	{
-		@eject = `$openssl req -in $filepath -text`;
+		$cmd = "$openssl req -in $filepath -text";
 	}
 
-	return @eject;
+	return @{ &logAndGet( $cmd, "array" ) };
 }
 
-sub getCertInfo    # ($certfile)
+=begin nd
+Function: getCertInfo
+
+	It returns an object with the certificate information parsed
+
+Parameters:
+	certificate path - path to the certificate
+
+Returns:
+	hash ref - The hash contains the following keys:
+		file, name of the certificate with extension and without path. "zert.pem"
+		type, type of file. CSR or Certificate
+		CN, common name
+		issuer, name of the certificate authority
+		creation, date of certificate creation. "019-08-13 09:31:33 UTC"
+		expiration, date of certificate expiration. "2020-07-11 09:31:33 UTC"
+		status, status of the certificate. 'expired' if the certificate is expired, 'about to expire' if the expiration date is in less than 15 days, 'valid' the expiration date is greater than 15 days
+
+=cut
+
+sub getCertInfo
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-
 	my $filepath = shift;
-	my $certfile;
+	my %response;
 
+	my $certfile = "";
 	if ( $filepath =~ /([^\/]+)$/ )
 	{
 		$certfile = $1;
 	}
 
-	my @cert_data;
-
-	# Cert type
-	my $type = "none";
-
-	if    ( $certfile =~ /\.(?:pem|crt)$/ ) { $type = "Certificate"; }
-	elsif ( $certfile =~ /\.csr$/ )         { $type = "CSR"; }
-
-	if ( $type eq "Certificate" )
+	# PEM
+	if ( $certfile =~ /\.pem$/ )
 	{
-		@cert_data = `$openssl x509 -in $filepath -text`;
+		require Crypt::OpenSSL::X509;
+		my $x509 = Crypt::OpenSSL::X509->new_from_file( $filepath );
+
+		my $time_offset = 60 * 60 * 24 * 15;    # 15 days
+		my $status;
+		if ( $x509->checkend( 0 ) ) { $status = 'expired' }
+		else
+		{
+			$status = ( $x509->checkend( $time_offset ) ) ? 'about to expire' : 'valid';
+		}
+
+		my $CN = "no CN";
+		if ( defined $x509->subject_name()->get_entry_by_type( 'CN' ) )
+		{
+			$CN = $x509->subject_name()->get_entry_by_type( 'CN' )->value;
+		}
+		my $ISSUER = "no issuer";
+		if ( defined $x509->issuer_name()->get_entry_by_type( 'CN' ) )
+		{
+			$ISSUER = $x509->issuer_name()->get_entry_by_type( 'CN' )->value;
+		}
+
+		%response = (
+					  file       => $certfile,
+					  type       => 'Certificate',
+					  CN         => $CN,
+					  issuer     => $ISSUER,
+					  creation   => $x509->notBefore(),
+					  expiration => $x509->notAfter(),
+					  status     => $status,
+		);
 	}
-	elsif ( $type eq "CSR" ) { @cert_data = `$openssl req -in $filepath -text`; }
 
-# Cert CN
-# Stretch: Subject: C = SP, ST = SP, L = SP, O = Test, O = f9**3b, OU = al**X6, CN = zevenet-hostname, emailAddress = cr**@zevenet.com
-# Jessie:  Subject: C=SP, ST=SP, L=SP, O=Test, O=f9**3b, OU=al**X6, CN=zevenet-hostname/emailAddress=cr**@zevenet.com
-	my $cn;
-	my $key;
-	my $key2;
+	# CSR
+	else
 	{
+		require Zevenet::File;
+
+		my @cert_data =
+		  @{ &logAndGet( "$openssl req -in $filepath -text -noout", "array" ) };
+
+		my $cn = "";
 		my ( $string ) = grep ( /\sSubject: /, @cert_data );
-		chomp $string;
-		$string =~ s/Subject://;
-
-		my @data = split ( /,/, $string );
-
-		foreach my $param ( @data )
+		if ( $string =~ /CN ?= ?([^,]+)/ )
 		{
-			if ( $param =~ /CN ?= ?(.+)/ )
-			{
-				$cn = $1;
-			}
-			elsif ( $param =~ /OU ?= ?(.+)/ )
-			{
-				$key = $1;
-			}
-			elsif ( $param =~ /1\.2\.3\.4\.5\.8 ?= ?(.+)/ )
-			{
-				$key2 = $1;
-			}
+			$cn = $1;
 		}
-		$key = $key2 if ( $key eq 'false' );
-	}
 
-	# Cert Issuer
-	my $issuer = "";
-	if ( $type eq "Certificate" )
-	{
-		my ( $line ) = grep ( /Issuer:/, @cert_data );
-		my @data = split ( /,/, $line );
-
-		foreach my $param ( @data )
-		{
-			if ( $param =~ /CN ?= ?(.*)$/ )
-			{
-				$issuer = $1;
-			}
-		}
+		%response = (
+					  file       => $certfile,
+					  type       => 'CSR',
+					  CN         => $cn,
+					  issuer     => "NA",
+					  creation   => &getFileDateGmt( $filepath ),
+					  expiration => "NA",
+					  status     => 'valid',
+		);
 	}
-	elsif ( $type eq "CSR" )
-	{
-		$issuer = "NA";
-	}
-
-	# Cert Creation Date
-	my $creation = "";
-	if ( $type eq "Certificate" )
-	{
-		my ( $line ) = grep /\sNot Before/, @cert_data;
-
-		#~ my @eject = `$openssl x509 -noout -in $certfile -dates`;
-		( undef, $creation ) = split ( /: /, $line );
-	}
-	elsif ( $type eq "CSR" )
-	{
-		my @eject = split ( / /, gmtime ( stat ( $filepath )->mtime ) );
-		splice ( @eject, 0, 1 );
-		push ( @eject, "GMT" );
-		$creation = join ( ' ', @eject );
-	}
-	chomp $creation;
-	$creation = `date -d "${creation}" +%F" "%T" "%Z -u`;
-	chomp $creation;
-
-	# Cert Expiration Date
-	my $expiration = "";
-	if ( $type eq "Certificate" )
-	{
-		my ( $line ) = grep /\sNot After/, @cert_data;
-		( undef, $expiration ) = split ( /: /, $line );
-		chomp $expiration;
-		$expiration = `date -d "${expiration}" +%F" "%T" "%Z -u`;
-		chomp $expiration;
-	}
-	elsif ( $type eq "CSR" )
-	{
-		$expiration = "NA";
-	}
-
-	my %response = (
-					 file       => $certfile,
-					 type       => $type,
-					 CN         => $cn,
-					 key        => $key,
-					 issuer     => $issuer,
-					 creation   => $creation,
-					 expiration => $expiration,
-	);
 
 	return \%response;
 }
 
-# 2018-05-17 15:04:52 UTC
-# May 17 15:04:52 2018 GMT
+=begin nd
+Function: getDateEpoc
+
+	It converts a human date (2018-05-17 15:04:52 UTC) in a epoc date (1594459893)
+
+Parameters:
+	date - string with the date. The string has to be as "2018-05-17 15:04:52"
+
+Returns:
+	Integer - Time in epoc time. "1594459893"
+=cut
+
 sub getDateEpoc
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $date_string = shift @_;
-	my @months      = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+
+	# my @months      = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 
 	my ( $year, $month, $day, $hours, $min, $sec ) = split /[ :-]+/, $date_string;
 
@@ -677,6 +668,18 @@ sub getDateEpoc
 	$month--;
 	return timegm( $sec, $min, $hours, $day, $month, $year );
 }
+
+=begin nd
+Function: getCertDaysToExpire
+
+	It calculates the number of days to expire the certificate.
+
+Parameters:
+	ending date - String with the ending date with the following format "2018-05-17 15:04:52 UTC"
+
+Returns:
+	Integer - Number of days to expire the certificate
+=cut
 
 sub getCertDaysToExpire
 {
@@ -705,3 +708,4 @@ sub getCertDaysToExpire
 }
 
 1;
+

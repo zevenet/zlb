@@ -208,8 +208,8 @@ sub service_backend_maintenance # ( $json_obj, $farmname, $service, $backend_id 
 	}
 
    # Do not allow to modify the maintenance status if the farm needs to be restarted
-	require Zevenet::Lock;
-	if ( &getLockStatus( $farmname ) )
+	require Zevenet::Farm::Action;
+	if ( &getFarmRestartStatus( $farmname ) )
 	{
 		my $msg = "The farm needs to be restarted before to apply this action.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );

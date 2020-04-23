@@ -106,6 +106,8 @@ sub setFarmCertificate    # ($cfile,$farm_name)
 	my $lock_fh       = &openlock( $lock_file, 'w' );
 	my $output        = -1;
 
+	my $certdir = &getGlobalConfiguration( 'certdir' );
+
 	&zenlog( "Setting 'Certificate $cfile' for $farm_name farm https",
 			 "info", "LSLB" );
 
@@ -114,7 +116,7 @@ sub setFarmCertificate    # ($cfile,$farm_name)
 	{
 		if ( $_ =~ /Cert "/ )
 		{
-			s/.*Cert\ .*/\tCert\ \"$configdir\/$cfile\"/g;
+			s/.*Cert\ .*/\tCert\ \"$certdir\/$cfile\"/g;
 			$output = $?;
 		}
 	}
@@ -393,3 +395,4 @@ sub setHTTPFarmDisableSSL    # ($farm_name, $protocol, $action )
 }
 
 1;
+

@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 ###############################################################################
 #
 #    Zevenet Software License
@@ -21,42 +22,24 @@
 ###############################################################################
 
 use strict;
-use Zevenet::Farm::HTTP::Config;
 
-# farm parameters
-sub getHTTPOutFarm
+require Zevenet::Ids;
+
+# GET /ids
+sub list_ids
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	require Zevenet::Farm::Config;
-	my $farmname = shift;
-	my $farm_ref = &getFarmStruct( $farmname );
-	return $farm_ref;
-}
+	my $desc = "Get a load balancer object IDs";
 
-sub getHTTPOutService
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
+	my $tree = &getIdsTree();
 
-	require Zevenet::Farm::HTTP::Service;
-	my $farmname      = shift;
-	my @services_list = ();
+	my $body = {
+				 description => $desc,
+				 params      => $tree,
+	};
 
-	foreach my $service ( &getHTTPFarmServices( $farmname ) )
-	{
-		my $service_ref = &getHTTPServiceStruct( $farmname, $service );
-		push @services_list, $service_ref;
-	}
-
-	return \@services_list;
-}
-
-sub getHTTPOutBackend
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-
+	return &httpResponse( { code => 200, body => $body } );
 }
 
 1;

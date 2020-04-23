@@ -51,3 +51,4 @@ sub getTRANSLATEInputs
 }
 
 1;
+

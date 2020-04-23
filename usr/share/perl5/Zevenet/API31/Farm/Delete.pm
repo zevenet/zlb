@@ -26,12 +26,16 @@ use Zevenet::Farm::Base;
 use Zevenet::Farm::Action;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 # DELETE /farms/FARMNAME
-sub delete_farm # ( $farmname )
+sub delete_farm    # ( $farmname )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farmname = shift;
 
 	my $desc = "Delete farm $farmname";
@@ -44,12 +48,16 @@ sub delete_farm # ( $farmname )
 
 	if ( &getFarmStatus( $farmname ) eq 'up' )
 	{
-		&runFarmStop( $farmname, "true" );
+		if ( &runFarmStop( $farmname, "true" ) )
+		{
+			my $msg = "The farm $farmname could not be stopped.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
 
 		&eload(
-			module => 'Zevenet::Cluster',
-			func   => 'runZClusterRemoteManager',
-			args   => ['farm', 'stop', $farmname],
+				module => 'Zevenet::Cluster',
+				func   => 'runZClusterRemoteManager',
+				args   => ['farm', 'stop', $farmname],
 		) if ( $eload );
 	}
 
@@ -64,9 +72,9 @@ sub delete_farm # ( $farmname )
 	&zenlog( "Success, the farm $farmname has been deleted.", "info", "FARMS" );
 
 	&eload(
-		module => 'Zevenet::Cluster',
-		func   => 'runZClusterRemoteManager',
-		args   => ['farm', 'delete', $farmname],
+			module => 'Zevenet::Cluster',
+			func   => 'runZClusterRemoteManager',
+			args   => ['farm', 'delete', $farmname],
 	) if ( $eload );
 
 	my $msg = "The Farm $farmname has been deleted.";
@@ -76,7 +84,7 @@ sub delete_farm # ( $farmname )
 				 message     => $msg
 	};
 
-	&httpResponse({ code => 200, body => $body });
+	&httpResponse( { code => 200, body => $body } );
 }
 
 1;

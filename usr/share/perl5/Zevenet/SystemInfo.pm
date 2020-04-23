@@ -22,6 +22,7 @@
 ###############################################################################
 
 use strict;
+use feature 'state';
 
 =begin nd
 Function: getDate
@@ -52,7 +53,7 @@ sub getDate
 =begin nd
 Function: getHostname
 
-	Get system hostname
+	Get system hostname, and it is saved all the process life time
 
 Parameters:
 	none - .
@@ -77,9 +78,8 @@ sub getHostname
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
-	my $uname    = &getGlobalConfiguration( 'uname' );
-	my $hostname = `$uname -n`;
-	chomp $hostname;
+	my $uname = &getGlobalConfiguration( 'uname' );
+	state $hostname = &logAndGet( "$uname -n" );
 
 	return $hostname;
 }
@@ -109,7 +109,7 @@ sub getApplianceVersion
 	my $hyperv;
 	my $applianceFile = &getGlobalConfiguration( 'applianceVersionFile' );
 	my $lsmod         = &getGlobalConfiguration( 'lsmod' );
-	my @packages      = `$lsmod`;
+	my @packages      = @{ &logAndGet( "$lsmod", "array" ) };
 	my @hypervisor    = grep ( /(xen|vm|hv|kvm)_/, @packages );
 
 	# look for appliance vesion
@@ -132,7 +132,7 @@ sub getApplianceVersion
 		my $ifconfig = &getGlobalConfiguration( 'ifconfig' );
 
 		# look for mgmt interface
-		my @ifaces = `$ifconfig -s | $awk '{print $1}'`;
+		my @ifaces = @{ &logAndGet( "$ifconfig -s | $awk '{print $1}'", "array" ) };
 
 		# Network appliance
 		if ( grep ( /mgmt/, @ifaces ) )
@@ -342,6 +342,14 @@ sub setEnv
 	use Zevenet::Config;
 	$ENV{ http_proxy }  = &getGlobalConfiguration( 'http_proxy' )  // "";
 	$ENV{ https_proxy } = &getGlobalConfiguration( 'https_proxy' ) // "";
+
+	my $provider = &getGlobalConfiguration( 'cloud_provider' );
+	if ( $provider eq 'aws' )
+	{
+		$ENV{ AWS_SHARED_CREDENTIALS_FILE } =
+		  &getGlobalConfiguration( 'aws_credentials' ) // "";
+		$ENV{ AWS_CONFIG_FILE } = &getGlobalConfiguration( 'aws_config' ) // "";
+	}
 }
 
 sub getKernelVersion
@@ -351,11 +359,10 @@ sub getKernelVersion
 	require Zevenet::Config;
 
 	my $uname   = &getGlobalConfiguration( 'uname' );
-	my $version = `$uname -r`;
-
-	chomp $version;
+	my $version = &logAndGet( "$uname -r" );
 
 	return $version;
 }
 
 1;
+

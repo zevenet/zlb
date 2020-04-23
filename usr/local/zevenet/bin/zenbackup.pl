@@ -55,7 +55,7 @@ if ( $action eq "-c" )
 
 if ( $action eq "-d" )
 {
-	my @eject = `$tar -xzf $backupdir\/backup-$name.tar.gz -C /`;
+	`$tar -xzf $backupdir\/backup-$name.tar.gz -C /`;
 }
 
 if ( $action eq "-D52to60" )
@@ -91,3 +91,4 @@ if ( $action eq "-D52to60" )
 	print
 	  "A restart of the load balancer is pending in order to apply the changes...\n";
 }
+

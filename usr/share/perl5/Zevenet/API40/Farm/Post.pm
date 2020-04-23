@@ -44,8 +44,28 @@ sub new_farm    # ( $json_obj )
    #	- vip
    #	- vport: optional for L4xNAT and not used in Datalink profile.
 
-	my $error = "false";
-	my $desc  = "Creating a farm";
+	my $desc = "Creating a farm";
+
+	# check if FARM NAME already exists
+	unless ( &getFarmType( $json_obj->{ farmname } ) == 1 )
+	{
+		my $msg = "Error trying to create a new farm, the farm name already exists.";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+
+	if ( exists $json_obj->{ copy_from } )
+	{
+		my $type = &getFarmType( $json_obj->{ copy_from } );
+		$json_obj->{ profile } = ( $type eq 'https' ) ? 'http' : $type;
+		if ( $type == 1 )
+		{
+			my $msg = "The farm '$json_obj->{copy_from}' does not exist.";
+			&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+		}
+	}
+
+	require Zevenet::Net::Interface;
+	my $ip_list = &getIpAddressList();
 
 	my $params = {
 		"profile" => {
@@ -61,9 +81,13 @@ sub new_farm    # ( $json_obj )
 			  "The farm name is required to have alphabet letters, numbers or hypens (-) only.",
 		},
 		"vip" => {
-				   'valid_format' => 'ip_addr',
-				   'non_blank'    => 'true',
-				   'required'     => 'true',
+				   'values'   => $ip_list,
+				   'required' => 'true',
+		},
+		"copy_from" => {
+						 'valid_format' => 'farm_name',
+						 'non_blank'    => 'true',
+						 'required'     => 'false',
 		},
 	};
 
@@ -78,15 +102,8 @@ sub new_farm    # ( $json_obj )
 		};
 	}
 
-	# check if FARM NAME already exists
-	unless ( &getFarmType( $json_obj->{ farmname } ) == 1 )
-	{
-		my $msg = "Error trying to create a new farm, the farm name already exists.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
-
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -112,13 +129,7 @@ sub new_farm    # ( $json_obj )
 	}
 
 	# VPORT validation
-	if (
-		 !&getValidPort(
-						 $json_obj->{ vip },
-						 $json_obj->{ vport },
-						 $json_obj->{ profile }
-		 )
-	  )
+	if ( !&getValidPort( $json_obj->{ vport }, $json_obj->{ profile } ) )
 	{
 		my $msg = "The virtual port must be an acceptable value and must be available.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -126,15 +137,23 @@ sub new_farm    # ( $json_obj )
 
 	$json_obj->{ 'interface' } = &getInterfaceOfIp( $json_obj->{ 'vip' } );
 
-	my $status = &runFarmCreate(
-								 $json_obj->{ profile },
-								 $json_obj->{ vip },
-								 $json_obj->{ vport },
-								 $json_obj->{ farmname },
-								 $json_obj->{ interface }
-	);
+	my $status = 0;
+	if ( exists $json_obj->{ copy_from } )
+	{
+		$status = &runFarmCreateFrom( $json_obj );
+	}
+	else
+	{
+		$status = &runFarmCreate(
+								  $json_obj->{ profile },
+								  $json_obj->{ vip },
+								  $json_obj->{ vport },
+								  $json_obj->{ farmname },
+								  $json_obj->{ interface }
+		);
+	}
 
-	if ( $status == -1 )
+	if ( $status )
 	{
 		my $msg = "The $json_obj->{ farmname } farm can't be created";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -156,12 +175,6 @@ sub new_farm    # ( $json_obj )
 	{
 		&eload(
 				module => 'Zevenet::Cluster',
-				func   => 'zClusterFarmUp',
-				args   => [$json_obj->{ farmname }],
-		) if $json_obj->{ profile } =~ /^l4xnat$/i;
-
-		&eload(
-				module => 'Zevenet::Cluster',
 				func   => 'runZClusterRemoteManager',
 				args   => ['farm', 'start', $json_obj->{ farmname }],
 		);
@@ -171,3 +184,4 @@ sub new_farm    # ( $json_obj )
 }
 
 1;
+

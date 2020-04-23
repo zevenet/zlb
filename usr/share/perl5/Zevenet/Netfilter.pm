@@ -39,7 +39,7 @@ sub loadNfModule    # ($modname,$params)
 
 	my $status  = 0;
 	my $lsmod   = &getGlobalConfiguration( 'lsmod' );
-	my @modules = `$lsmod`;
+	my @modules = @{ &logAndGet( $lsmod, "array" ) };
 
 	if ( !grep { /^$modname /x } @modules )
 	{
@@ -47,8 +47,7 @@ sub loadNfModule    # ($modname,$params)
 		my $modprobe_command = "$modprobe $modname $params";
 
 		&zenlog( "L4 loadNfModule: $modprobe_command", "info", "SYSTEM" );
-		system ( "$modprobe_command >/dev/null 2>&1" );
-		$status = $?;
+		$status = &logAndRun( "$modprobe_command" );
 	}
 
 	return $status;
@@ -66,7 +65,7 @@ sub removeNfModule    # ($modname)
 
 	&zenlog( "L4 removeNfModule: $modprobe_command", "info", "SYSTEM" );
 
-	return system ( "$modprobe_command >/dev/null 2>&1" );
+	return &logAndRun( "$modprobe_command" );
 }
 
 #
@@ -169,3 +168,4 @@ sub renameMarks    # ( $farm_name, $newfname )
 }
 
 1;
+

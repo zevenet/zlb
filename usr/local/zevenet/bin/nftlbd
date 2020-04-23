@@ -23,9 +23,15 @@ fi
 DESC="nftlb daemon service"
 NAME=nftlb
 DAEMON=/usr/local/zevenet/app/nftlb/sbin/nftlb
-DAEMON_ARGS="$DEBUG -H 127.0.0.1 -k HoLa -P 27"
+DAEMON_KEY="HoLa"
+DAEMON_PORT="27"
+DAEMON_HOST="127.0.0.1"
+DAEMON_ARGS="$DEBUG -H $DAEMON_HOST -k $DAEMON_KEY -P $DAEMON_PORT"
+
 PIDFILE=/var/run/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
+SAVEFILEFARMS="/tmp/nft_save_farms"
+SAVEFILEPOLICIES="/tmp/nft_save_policies"
 
 [ -x "$DAEMON" ] || exit 0
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
@@ -43,8 +49,34 @@ do_stop() {
 	PID=`pidof nftlb`
 	[ -n "$PID" ] && kill -9 $PID
 	`$NFTBIN delete table ip nftlb 2> /dev/null`
+	`$NFTBIN delete table ip6 nftlb 2> /dev/null`
 	`$NFTBIN delete table netdev nftlb 2> /dev/null`
 	[ -f $PIDFILE ] && rm -i $PIDFILE
+}
+
+do_save()
+{
+	/usr/bin/curl --noproxy "*" -s -H "Key: $DAEMON_KEY" -X "GET" http://$DAEMON_HOST:$DAEMON_PORT/farms -o "${SAVEFILEFARMS}"
+	/usr/bin/curl --noproxy "*" -s -H "Key: $DAEMON_KEY" -X "GET" http://$DAEMON_HOST:$DAEMON_PORT/policies -o "${SAVEFILEPOLICIES}"
+	[ "$?" -ne 0 ] && exit 2
+}
+
+do_load()
+{
+	PID=`pidof nftlb`
+	[ -z "$PID" ] && do_start
+	[ -f "$SAVEFILEPOLICIES" ] && /usr/bin/curl --noproxy "*" -s -H "Key: $DAEMON_KEY" -X "POST" -d "@${SAVEFILEPOLICIES}" http://$DAEMON_HOST:$DAEMON_PORT/policies
+	[ "$?" -ne 0 ] && exit 2
+	[ -f "$SAVEFILEFARMS" ] && /usr/bin/curl --noproxy "*" -s -H "Key: $DAEMON_KEY" -X "POST" -d "@${SAVEFILEFARMS}" http://$DAEMON_HOST:$DAEMON_PORT/farms
+	[ "$?" -ne 0 ] && exit 2
+}
+
+do_reload()
+{
+	do_save
+	do_stop
+	do_start
+	do_load
 }
 
 case "$1" in
@@ -87,8 +119,33 @@ case "$1" in
 		esac
 		;;
 
+	reload)
+		echo "Reloading $DESC" "$NAME"
+		do_reload
+		case "$?" in
+		0|1) exit 0 ;;
+		2) exit 1 ;;
+		esac
+		;;
+	save)
+		echo "Saving $DESC" "$NAME"
+		do_save
+		case "$?" in
+		0|1) exit 0 ;;
+		2) exit 1 ;;
+		esac
+		;;
+	load)
+		echo "Loading $DESC" "$NAME"
+		do_load
+		case "$?" in
+		0|1) exit 0 ;;
+		2) exit 1 ;;
+		esac
+		;;
+
 	*)
-		echo "Usage: $SCRIPTNAME {start|stop|status|restart}" >&2
+		echo "Usage: $SCRIPTNAME {start|stop|status|restart|reload|save|load}" >&2
 		exit 3
 	;;
 esac

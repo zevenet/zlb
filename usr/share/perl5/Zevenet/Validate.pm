@@ -23,6 +23,7 @@
 
 use strict;
 use Regexp::IPv6 qw($IPv6_re);
+require Zevenet::Net::Validate;
 
 # Notes about regular expressions:
 #
@@ -61,12 +62,13 @@ my $port_range =
   qr/(?:[1-5]?\d{1,4}|6[0-4]\d{3}|65[1-4]\d{2}|655[1-2]\d{1}|6553[1-5])/;
 my $graphsFrequency = qr/(?:daily|weekly|monthly|yearly)/;
 
-#~ my $dos_global= qr/(?:sshbruteforce|dropicmp)/;		# Next version
 my $dos_global = qr/(?:sshbruteforce)/;
 my $dos_all    = qr/(?:limitconns|limitsec)/;
 my $dos_tcp    = qr/(?:bogustcpflags|limitrst)/;
 
 my $run_actions = qr/^(?:stop|start|restart)$/;
+
+my $name = qr/^(?:[a-zA-Z0-9][\w]{5,31})$/;
 
 my %format_re = (
 
@@ -74,6 +76,7 @@ my %format_re = (
 	'integer'     => $integer,
 	'natural_num' => $natural,
 	'boolean'     => $boolean,
+	'ipv4v6'      => $ipv4v6,
 
 	# hostname
 	'hostname' => $hostname,
@@ -116,10 +119,12 @@ my %format_re = (
 	'gslb_service'          => qr/[a-zA-Z0-9][\w\-]*/,
 	'farm_modules'          => qr/(?:gslb|dslb|lslb)/,
 	'service_position'      => qr/\d+/,
-	'farm_maintenance_mode' => qr/(?:drain|cut)/,
+	'l4_session'            => qr/[ \._\:\w]+/,
+	'farm_maintenance_mode' => qr/(?:drain|cut)/,              # not used from API 4
 
 	# cipher
-	'ciphers' => qr/(?:all|highsecurity|customsecurity|ssloffloading)/,
+	'ciphers' =>
+	  qr/(?:all|highsecurity|customsecurity|ssloffloading)/,   # not used from API 4
 
 	# backup
 	'backup'        => qr/[\w-]+/,
@@ -131,30 +136,32 @@ my %format_re = (
 	'mount_point'      => qr/root[\w\-\.\/]*/,
 
 	# http
-	'redirect_code'    => qr/(?:301|302|307)/,
-	'http_sts_status'  => qr/(?:true|false)/,
+	'redirect_code'    => qr/(?:301|302|307)/,                 # not used from API 4
+	'http_sts_status'  => qr/(?:true|false)/,                  # not used from API 4
 	'http_sts_timeout' => qr/(?:\d+)/,
 
 	# GSLB
 	'zone'          => qr/(?:$hostname\.)+[a-z]{2,}/,
 	'resource_id'   => qr/\d+/,
 	'resource_name' => qr/(?:[\w\-\.]+|\@)/,
-	'resource_ttl'  => qr/$natural/,                    # except zero
-	'resource_type' => qr/(?:NS|A|AAAA|CNAME|DYNA|MX|SRV|TXT|PTR|NAPTR)/,
-	'resource_data'      => qr/.+/,            # alow anything (because of TXT type)
-	'resource_data_A'    => $ipv4_addr,
-	'resource_data_AAAA' => $ipv6_addr,
-	'resource_data_DYNA' => $service,
-	'resource_data_NS'   => qr/[a-zA-Z0-9\-]+/,
+	'resource_ttl'  => qr/$natural/,                           # except zero
+	'resource_type' =>
+	  qr/(?:NS|A|AAAA|CNAME|DYNA|MX|SRV|TXT|PTR|NAPTR)/,       # not used from API 4
+	'resource_data'       => qr/.+/,            # allow anything (TXT type needs it)
+	'resource_data_A'     => $ipv4_addr,
+	'resource_data_AAAA'  => $ipv6_addr,
+	'resource_data_DYNA'  => $service,
+	'resource_data_NS'    => qr/[a-zA-Z0-9\-]+/,
 	'resource_data_CNAME' => qr/[a-z\.]+/,
 	'resource_data_MX'    => qr/[a-z\.\ 0-9]+/,
-	'resource_data_TXT'   => qr/.+/,              # all characters allow
+	'resource_data_TXT'   => qr/.+/,            # all characters allow
 	'resource_data_SRV'   => qr/[a-z0-9 \.]/,
 	'resource_data_PTR'   => qr/[a-z\.]+/,
-	'resource_data_NAPTR' => qr/.+/,              # all characters allow
+	'resource_data_NAPTR' => qr/.+/,            # all characters allow
 
 	# interfaces ( WARNING: length in characters < 16  )
 	'mac_addr'         => $mac_addr,
+	'interface'        => $interface,
 	'nic_interface'    => $nic_if,
 	'bond_interface'   => $bond_if,
 	'vlan_interface'   => $vlan_if,
@@ -165,7 +172,8 @@ my %format_re = (
 	'virtual_tag'      => qr/$virtual_tag/,
 	'bond_mode_num'    => qr/[0-6]/,
 	'bond_mode_short' =>
-	  qr/(?:balance-rr|active-backup|balance-xor|broadcast|802.3ad|balance-tlb|balance-alb)/,
+	  qr/(?:balance-rr|active-backup|balance-xor|broadcast|802.3ad|balance-tlb|balance-alb)/
+	,    # not used from API 4
 
 	# notifications
 	'notif_alert'  => qr/(?:backends|cluster)/,
@@ -176,21 +184,21 @@ my %format_re = (
 
 	# IPDS
 	# blacklists
-	'day_of_month'              => qr{$dayofmonth},
-	'weekdays'                  => qr{$weekdays},
-	'blacklists_name'           => qr{\w+},
-	'blacklists_source'         => qr{(?:\d{1,3}\.){3}\d{1,3}(?:\/\d{1,2})?},
-	'blacklists_source_id'      => qr{\d+},
-	'blacklists_type'           => qr{(?:local|remote)},
-	'blacklists_policy'         => qr{(?:allow|deny)},
-	'blacklists_url'            => qr{.+},
-	'blacklists_hour'           => $hours,
-	'blacklists_minutes'        => $minutes,
-	'blacklists_period'         => $natural,
-	'blacklists_unit'           => qr{(:?hours|minutes)},
-	'blacklists_day'            => qr{(:?$dayofmonth|$weekdays)},
-	'blacklists_frequency'      => qr{(:?daily|weekly|monthly)},
-	'blacklists_frequency_type' => qr{(:?period|exact)},
+	'day_of_month'         => qr{$dayofmonth},
+	'weekdays'             => qr{$weekdays},
+	'blacklists_name'      => qr{\w+},
+	'blacklists_source'    => qr{(?:\d{1,3}\.){3}\d{1,3}(?:\/\d{1,2})?},
+	'blacklists_source_id' => qr{\d+},
+	'blacklists_url'       => qr{.+},
+	'blacklists_hour'      => $hours,
+	'blacklists_minutes'   => $minutes,
+	'blacklists_period'    => $natural,
+	'blacklists_day'       => qr{(:?$dayofmonth|$weekdays)},
+	'blacklists_policy'    => qr{(:?allow|deny)},              # not used from API 4
+	'blacklists_type'      => qr{(:?local|remote)},            # not used from API 4
+	'blacklists_unit'      => qr{(:?hours|minutes)},           # not used from API 4
+	'blacklists_frequency' => qr{(:?daily|weekly|monthly)},    # not used from API 4
+	'blacklists_frequency_type' => qr{(:?period|exact)},       # not used from API 4
 
 	# DoS
 	'dos_name'        => qr/[\w]+/,
@@ -203,7 +211,6 @@ my %format_re = (
 	'dos_limit_conns' => $natural,
 	'dos_limit'       => $natural,
 	'dos_limit_burst' => $natural,
-	'dos_status'      => qr/(?:down|up)/,
 	'dos_port'        => $port_range,
 	'dos_hits'        => $natural,
 
@@ -217,7 +224,7 @@ my %format_re = (
 	'rbl_queue_size'    => $natural,
 	'rbl_thread_max'    => $natural,
 	'rbl_local_traffic' => $boolean,
-	'rbl_actions'       => $run_actions,
+	'rbl_actions'       => $run_actions,    # not used from API 4
 
 	# WAF
 	'http_code'      => qr/[0-9]{3}/,
@@ -231,6 +238,7 @@ my %format_re = (
 	'waf_skip'       => qr/[0-9]+/,
 	'waf_skip_after' => qr/\w+/,
 	'waf_set_status' => qr/(?:$boolean|detection)/,
+	'waf_file'       => qr/(?:[\w-]+)/,
 
 	# certificates filenames
 	'certificate' => qr/\w[\w\.\(\)\@ \-]*\.(?:pem|csr)/,
@@ -251,10 +259,10 @@ my %format_re = (
 
 	# farm guardian
 	'fg_name'    => qr/[\w-]+/,
-	'fg_type'    => qr/(?:http|https|l4xnat|gslb)/,
+	'fg_type'    => qr/(?:http|https|l4xnat|gslb)/,    # not used from API 4
 	'fg_enabled' => $boolean,
 	'fg_log'     => $boolean,
-	'fg_time'    => qr/$natural/,                     # this value can't be 0
+	'fg_time'    => qr/$natural/,                      # this value can't be 0
 
 	# RBAC
 	'user_name'     => qr/[a-z][-a-z0-9_]+/,
@@ -266,8 +274,13 @@ my %format_re = (
 	'alias_id'        => qr/(?:$ipv4v6|$interface)/,
 	'alias_backend'   => qr/$ipv4v6/,
 	'alias_interface' => qr/$interface/,
-	'alias_name'      => qr/[\w-]+/,
+	'alias_name'      => qr/(?:$zone|[\w-]+)/,
 	'alias_type'      => qr/(?:backend|interface)/,
+
+	# routing
+	'route_rule_id'  => qr/$natural/,
+	'route_table_id' => qr/[\w\.]+/,
+	'route_entry_id' => qr/$natural/,
 
 );
 
@@ -334,10 +347,9 @@ sub getValidFormat
 =begin nd
 Function: getValidPort
 
-	Validate port format and check if available when possible.
+	Validate if the port is valid for a type of farm.
 
 Parameters:
-	ip - IP address.
 	port - Port number.
 	profile - Farm profile (HTTP, L4XNAT, GSLB or DATALINK). Optional.
 
@@ -354,23 +366,18 @@ sub getValidPort    # ( $ip, $port, $profile )
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $ip       = shift;    # mandatory for HTTP, GSLB or no profile
-	my $port     = shift;
-	my $profile  = shift;    # farm profile, optional
-	my $farmname = shift;    # farm profile, optional
+	my $port    = shift;
+	my $profile = shift;    # farm profile, optional
 
-	#~ &zenlog("getValidPort( ip:$ip, port:$port, profile:$profile )");# if &debug;
 	require Zevenet::Net::Validate;
 	if ( $profile =~ /^(?:HTTP|GSLB)$/i )
 	{
-		return &isValidPortNumber( $port ) eq 'true'
-		  && &checkport( $ip, $port ) eq 'false';
+		return &isValidPortNumber( $port ) eq 'true';
 	}
 	elsif ( $profile =~ /^(?:L4XNAT)$/i )
 	{
 		require Zevenet::Farm::L4xNAT::Validate;
-		return &ismport( $port ) eq 'true'
-		  && &checkport( $ip, $port, $farmname ) eq 'false';
+		return &ismport( $port ) eq 'true';
 	}
 	elsif ( $profile =~ /^(?:DATALINK)$/i )
 	{
@@ -378,8 +385,7 @@ sub getValidPort    # ( $ip, $port, $profile )
 	}
 	elsif ( !defined $profile )
 	{
-		return &isValidPortNumber( $port ) eq 'true'
-		  && &checkport( $ip, $port ) eq 'false';
+		return &isValidPortNumber( $port ) eq 'true';
 	}
 	else    # profile not supported
 	{
@@ -561,8 +567,9 @@ sub checkZAPIParams
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $json_obj  = shift;
-	my $param_obj = shift;
+	my $json_obj    = shift;
+	my $param_obj   = shift;
+	my $description = shift;
 	my $err_msg;
 
 	my @rec_keys = keys %{ $json_obj };
@@ -570,7 +577,7 @@ sub checkZAPIParams
 	# Returns a help with the expected input parameters
 	if ( !@rec_keys )
 	{
-		&httpResponseHelp( $param_obj );
+		&httpResponseHelp( $param_obj, $description );
 	}
 
 	# All required parameters must exist
@@ -849,6 +856,7 @@ Function: httpResponseHelp
 
 Parameters:
 	Model - It is the struct with all allowed parameters and its possible values and options
+	Description - Descriptive message about the zapi call
 
 Returns:
 	None - .
@@ -860,6 +868,7 @@ sub httpResponseHelp
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $param_obj  = shift;
+	my $desc       = shift;
 	my $resp_param = [];
 
 	# build the output
@@ -876,7 +885,7 @@ sub httpResponseHelp
 		}
 		if ( exists $param_obj->{ $p }->{ interval } )
 		{
-			my ( $ll, $hl ) = split ( ',', $param_obj->{ $p }->{ values } );
+			my ( $ll, $hl ) = split ( ',', $param_obj->{ $p }->{ interval } );
 			$ll = '-' if ( !defined $ll );
 			$hl = '-' if ( !defined $hl );
 			$param->{ interval } = "Expects a value between '$ll' and '$hl'.";
@@ -895,15 +904,21 @@ sub httpResponseHelp
 		{
 			$param->{ description } = $param_obj->{ $p }->{ format_msg };
 		}
+		if ( exists $param_obj->{ $p }->{ ref } )
+		{
+			$param->{ ref } = $param_obj->{ $p }->{ ref };
+		}
 
 		push @{ $resp_param }, $param;
 	}
 
-	my $msg = "No parameter has been sent. Please, try with:";
+	my $msg  = "No parameter has been sent. Please, try with:";
 	my $body = {
-				 description => $msg,
-				 params      => $resp_param,
+
+		message => $msg,
+		params  => $resp_param,
 	};
+	$body->{ description } = $desc if ( defined $desc );
 
 	return &httpResponse( { code => 400, body => $body } );
 }
@@ -988,3 +1003,4 @@ sub putArrayAsText
 }
 
 1;
+

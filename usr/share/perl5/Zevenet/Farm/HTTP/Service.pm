@@ -77,7 +77,6 @@ sub setFarmHTTPNewService    # ($farm_name,$service)
 		my $count    = 0;
 		my $proxytpl = &getGlobalConfiguration( 'proxytpl' );
 		tie my @proxytpl, 'Tie::File', "$proxytpl";
-		my $countend = 0;
 
 		foreach my $line ( @proxytpl )
 		{
@@ -183,13 +182,7 @@ sub delHTTPFarmService    # ($farm_name,$service)
 	my $sindex = &getFarmVSI( $farm_name, $service );
 	my $backendsvs = &getHTTPFarmVS( $farm_name, $service, "backends" );
 	my @be = split ( "\n", $backendsvs );
-	my $counter = -1;
-
-	foreach my $subline ( @be )
-	{
-		my @subbe = split ( "\ ", $subline );
-		$counter++;
-	}
+	my $counter = @be;
 
 	# Stop FG service
 	&delFGFarm( $farm_name, $service );
@@ -383,13 +376,9 @@ sub getHTTPServiceBlocks
 				services => {},
 				request  => [],
 	};
-	my @block;
-	my @srv_block;
 	my $current_srv;
 	my $srv_flag;
-	my @srv_request;
 	my $farm_flag = 1;
-	my @aux;
 
 	my $farm_filename = &getFarmFile( $farm );
 	open my $fileconf, '<', "$configdir/$farm_filename";
@@ -514,8 +503,6 @@ sub getHTTPServiceStruct
 	$dyns    = "false" if $dyns eq '';
 	$httpsbe = "false" if $httpsbe eq '';
 
-	my $backends = &getHTTPFarmBackends( $farmname, $service_name );
-
 	# Backends
 	my $backends = &getHTTPFarmBackends( $farmname, $service_name );
 
@@ -609,7 +596,6 @@ sub getHTTPFarmVS    # ($farm_name,$service,$tag)
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = "";
-	my $l;
 
 	open my $fileconf, '<', "$configdir/$farm_filename";
 
@@ -620,6 +606,8 @@ sub getHTTPFarmVS    # ($farm_name,$service,$tag)
 	my $output_ti  = "";
 	my $sw_pr      = 0;
 	my $output_pr  = "";
+	my $sw_w       = 0;
+	my $output_w   = "";
 	my $outputa;
 	my $outputp;
 	my @return;
@@ -790,11 +778,17 @@ sub getHTTPFarmVS    # ($farm_name,$service,$tag)
 					{
 						$output_pr = "Priority -";
 					}
-					$output    = "$output $outputa $outputp $output_ti $output_pr\n";
+					if ( $sw_w == 0 )
+					{
+						$output_w = "Weight -";
+					}
+
+					$output    = "$output $outputa $outputp $output_ti $output_pr $output_w\n";
 					$output_ti = "";
 					$output_pr = "";
 					$sw_ti     = 0;
 					$sw_pr     = 0;
+					$sw_w      = 0;
 				}
 				if ( $line =~ /Address/ )
 				{
@@ -822,6 +816,14 @@ sub getHTTPFarmVS    # ($farm_name,$service,$tag)
 					#$output = $output . "$line";
 					$output_pr = $line;
 					$sw_pr     = 1;
+				}
+				if ( $line =~ /Weight/ )
+				{
+					chomp ( $line );
+
+					#$output = $output . "$line";
+					$output_w = $line;
+					$sw_w     = 1;
 				}
 			}
 			if ( $sw == 1 && $be_section == 1 && $line =~ /#End/ )
@@ -863,7 +865,6 @@ sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 	my $output        = 0;
 	my $sw            = 0;
 	my $j             = -1;
-	my $l;
 
 	$string =~ s/^\s+//;
 	$string =~ s/\s+$//;
@@ -928,19 +929,32 @@ sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 		}
 
 		#client redirect default
-		if ( $tag eq "redirect" or $tag eq "redirectappend" )
+		if ( $tag eq "redirect" )
 		{
-			if ( $line =~ /^\t\t#?Redirect(?:Append)?\s/ )
+			if ( $line =~ /^\t\t#?(Redirect(?:Append)?) (30[127] )?.*/ )
 			{
-				my $policy = 'Redirect';
-				$policy .= 'Append' if $tag eq "redirectappend";
+				my $policy        = $1;
+				my $redirect_code = $2;
+				my $comment       = '';
+				if ( $string eq "" )
+				{
+					$comment = '#';
+					$policy  = "Redirect";
+				}
+				$line = "\t\t${comment}${policy} ${redirect_code}\"${string}\"";
+				last;
+			}
+		}
 
-				my $comment = ( $string eq "" ) ? '#' : '';
+		#client redirect default
+		if ( $tag eq "redirecttype" )
+		{
+			if ( $line =~ /^\t\tRedirect(?:Append)? (.*)/ )
+			{
+				my $rest = $1;
+				my $policy = ( $string eq 'append' ) ? 'RedirectAppend' : 'Redirect';
 
-				$line =~ /Redirect(?:Append)? (30[127] )?"/;
-				my $redirect_code = $1 // "";
-
-				$line = "\t\t${comment}${policy} $redirect_code\"$string\"";
+				$line = "\t\t${policy} $rest";
 				last;
 			}
 		}
@@ -1221,4 +1235,42 @@ sub get_http_all_services_summary_struct
 	return \@services_list;
 }
 
+=begin nd
+Function: getHTTPFarmPriorities
+
+        Get the list of the backends priorities of the service in a http farm
+
+Parameters:
+        farmname - Farm name
+        service - Service name
+
+Returns:
+        Array Ref - it returns an array ref of priority values
+
+=cut
+
+sub getHTTPFarmPriorities    # ( $farmname, $service_name )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $farmname     = shift;
+	my $service_name = shift;
+	my @priorities;
+	my $backends = &getHTTPFarmBackends( $farmname, $service_name );
+	foreach my $backend ( @{ $backends } )
+	{
+		if ( defined $backend->{ priority } )
+		{
+			push @priorities, $backend->{ priority };
+		}
+		else
+		{
+			push @priorities, 1;
+		}
+
+	}
+	return \@priorities;
+}
+
 1;
+

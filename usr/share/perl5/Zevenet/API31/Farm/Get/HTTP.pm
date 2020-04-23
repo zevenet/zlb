@@ -53,6 +53,7 @@ sub get_farm_struct
 	elsif ( $httpverb == 2 ) { $httpverb = "standardWebDAV"; }
 	elsif ( $httpverb == 3 ) { $httpverb = "MSextWebDAV"; }
 	elsif ( $httpverb == 4 ) { $httpverb = "MSRPCext"; }
+	elsif ( $httpverb == 5 ) { $httpverb = "optionsHTTP"; }
 
 	my $type = &getFarmType( $farmname );
 	my $certname;
