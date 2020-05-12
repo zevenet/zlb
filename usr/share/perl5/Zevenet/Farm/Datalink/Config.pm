@@ -216,7 +216,6 @@ sub getDatalinkFarmStatus    # ($farm_name)
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
-	my $output;
 
 	my $piddir = &getGlobalConfiguration( 'piddir' );
 	my $output = "down";
@@ -334,6 +333,7 @@ sub setDatalinkFarmVirtualConf    # ($vip,$interface,$farm_name)
 
 	require Tie::File;
 	require Zevenet::Farm::Action;
+	require Zevenet::Farm::Base;
 
 	# set the interface that has defined the vip
 	require Zevenet::Net::Interface;
@@ -376,3 +376,4 @@ sub setDatalinkFarmVirtualConf    # ($vip,$interface,$farm_name)
 }
 
 1;
+

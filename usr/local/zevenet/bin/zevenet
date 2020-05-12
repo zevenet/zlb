@@ -33,6 +33,7 @@ use Zevenet::Net::Core;
 use Zevenet::Net::Interface;
 use Zevenet::Net::Route;
 use Zevenet::Net::Util;
+use Zevenet::Lock;
 
 $ENV{ SCRIPT_NAME } = 'zevenet';
 
@@ -115,11 +116,38 @@ sub local_http_service
 	die "local_http_service '$command' command not recognized"
 	  unless $command =~ /^(?:start|stop|restart)$/;
 
-	system ( "/etc/init.d/cherokee $command >/dev/null &" );
+	&logAndRunBG( "/etc/init.d/cherokee $command" );
+}
+
+# Compare and rewrite the zna version in the zevenet_version file if they are different.
+sub zna_version
+{
+	my $file          = &getGlobalConfiguration( 'applianceVersionFile' );
+	my $dmidecode_bin = &getGlobalConfiguration( 'dmidecode_bin' );
+	my $grep          = &getGlobalConfiguration( 'grep_bin' );
+
+	# get ZNA version from dmidecode
+	my $zna_version = &logAndGet( "$dmidecode_bin -t1 | $grep 'ZNA-6[5,7]08'" );
+	$zna_version =~ s/\sVersion: //;
+	$zna_version =~ s/-/ /;
+
+	# get version from zevenet_version file
+	my $fh = &openlock( $file, '<' );
+	my $file_version = <$fh>;
+	close ( $fh );
+
+	if ( $zna_version ne $file_version )
+	{
+		# rewriting zna version
+		my $fh = &openlock( $file, '>' );
+		print $fh "$zna_version";
+		close ( $fh );
+	}
 }
 
 if ( $action eq "restart" )
 {
+	# do not use 'logAndRun' function, it is necessary to print the stdoutput
 	system ( '/etc/init.d/zevenet stop' );
 	system ( '/etc/init.d/zevenet start' );
 	&local_http_service( 'restart' );    # force a cherokee restart
@@ -127,6 +155,30 @@ if ( $action eq "restart" )
 
 if ( $action eq "start" )
 {
+	# do not use 'logAndRun' function, it is necessary to print the stdoutput
+	system ( '/usr/local/zevenet/bin/checkglobalconf' );
+
+	# ZNA firmware upgrade
+	my $migration_flag = &getGlobalConfiguration( 'migration_flag' );
+	if ( -f $migration_flag )
+	{
+		my $rm = &getGlobalConfiguration( 'rm' );
+		&zna_version;
+
+		# Migrating config files
+		my $MIG_DIR = "/usr/local/zevenet/migrating/";
+		opendir ( DIR, $MIG_DIR ) or die "can't opendir $MIG_DIR: $!";
+		while ( my $SCRIPT = readdir ( DIR ) )
+		{
+			next if ( $SCRIPT =~ m/^\./ );
+
+			# do not use 'logAndRun' function, it is necessary to print the stdoutput
+			system ( $MIG_DIR . $SCRIPT );
+		}
+		&logAndRun( "$rm $migration_flag" );
+		closedir ( DIR );
+	}
+
 	my $version = &getGlobalConfiguration( 'version' );
 
 	&printAndLog( "Starting Zevenet Load Balancer v$version" );
@@ -155,7 +207,6 @@ if ( $action eq "start" )
 		# FIXME: Make function of this procedure
 		if ( !grep ( /zenmodified/, @file ) )
 		{
-			my %interface;
 			my @blocks = &getInterfaceBlocks( @file );
 
 			for my $block ( @blocks )
@@ -280,7 +331,8 @@ if ( $action eq "start" )
 
 					if ( $return_code )
 					{
-						my @ip_output = `$ip_bin address show dev $$iface{name}`;
+						my @ip_output =
+						  @{ &logAndGet( "$ip_bin address show dev $$iface{name}", "array" ) };
 						$return_code = 0 if ( grep /$$iface{addr}/, @ip_output );
 					}
 
@@ -312,9 +364,6 @@ if ( $action eq "start" )
 	my $cherokee_srv = &getGlobalConfiguration( 'http_server_service' );
 	&logAndRun( "$ssh_srv start" );
 	&logAndRun( "$cherokee_srv start" );
-
-	# enterprise hook
-	&eload( module => $mod, func => 'start_service' ) if $eload;
 
 	&zenlog( "zevenet: Setting up VLAN interfaces..." );
 	@interfaces = @{ &getConfigInterfaceList() };
@@ -354,7 +403,8 @@ if ( $action eq "start" )
 
 				if ( $return_code )
 				{
-					my @ip_output = `$ip_bin address show dev $$iface{name}`;
+					my @ip_output =
+					  @{ &logAndGet( "$ip_bin address show dev $$iface{name}", "array" ) };
 					$return_code = 0 if ( grep /$$iface{addr}/, @ip_output );
 				}
 
@@ -381,12 +431,17 @@ if ( $action eq "start" )
 	if ( $eload )
 	{
 		&zenlog( "zevenet: Setting up Cluster..." );
+
+		$print_msg = &eload( module => $mod, func => 'start_cluster' );
+		print $print_msg . "\n";
+
 		$print_msg = &eload( module => $mod, func => 'enable_cluster' );
-		print $print_msg . "\n\n";
+		print $print_msg . "\n";
 
 		# enable modules
 		$print_msg = &eload( module => $mod, func => 'start_modules' );
 		print $print_msg . "\n";
+
 	}
 
 	&zenlog( "zevenet: Setting up virtual interfaces..." );
@@ -407,7 +462,8 @@ if ( $action eq "start" )
 				{
 					my $toif = &getParentInterfaceName( $$iface{ name } );
 					&zenlog( "failed addIp" );
-					my @ip_output = `$ip_bin -$$iface{ip_v} address list dev $toif`;
+					my @ip_output =
+					  @{ &logAndGet( "$ip_bin -$$iface{ip_v} address list dev $toif", "array" ) };
 					$return_code = 0 if ( grep /$$iface{addr}/, @ip_output );
 				}
 
@@ -484,14 +540,6 @@ if ( $action eq "start" )
 		}
 	}
 
-	#start IPDS
-	#if ($eload)
-	#{
-	#	$print_msg = &eload( module => $mod, func => 'start_ipds_without_cert' );
-	#        print $print_msg . "\n";
-	#
-	#}
-
 	# At this point every zevenet interface and farm is running
 	# now a personalized script can be executed
 	&printAndLog( "Running $configdir/zlb-start ..." );
@@ -501,12 +549,28 @@ if ( $action eq "start" )
 
 	&printAndLog( "End of $configdir/zlb-start" );
 
-	&eload( module => $mod, func => 'start_cluster' ) if $eload;
-
 	# make sure related system services are runnig
-	if ( system ( "/etc/init.d/ssh status >/dev/null 2>&1" ) )
+	if ( &logAndRunCheck( "/etc/init.d/ssh status" ) )
 	{
-		system ( "/etc/init.d/ssh start >/dev/null 2>&1" );
+		&logAndRun( "/etc/init.d/ssh start" );
+	}
+
+	my $systemctl = &getGlobalConfiguration( 'systemctl' );
+	my $snmpdstatus;
+	if ( -e $systemctl )
+	{
+		$snmpdstatus = &logAndGet( "$systemctl is-enabled snmpd" );
+	}
+	else
+	{
+		my $ls = &getGlobalConfiguration( 'ls' );
+		$snmpdstatus = &logAndGet( "$ls /etc/rc*.d/S*snmpd" ) ? 'enabled' : 'disabled';
+	}
+
+	if ( $snmpdstatus eq 'enabled' )
+	{
+		# Bugfix: SNMP didn't start if the IP is not up
+		&logAndRun( "/etc/init.d/snmpd restart" );
 	}
 
 	&local_http_service( 'start' );
@@ -571,9 +635,10 @@ if ( $action eq "stop" )
 
 	print ( "* Stopping nftlb service:" );
 
-	my $stop_nftlb = `/usr/local/zevenet/bin/nftlbd stop`;
-	my $status     = `/usr/local/zevenet/bin/nftlbd status`;
-	my $rtn_code   = 1;
+	my $nftlb_svc = &getGlobalConfiguration( 'nftlb_svc' );
+	&logAndRun( "$nftlb_svc stop" );
+	my $status   = &logAndGet( "$nftlb_svc status" );
+	my $rtn_code = 1;
 	$rtn_code = 0 if ( grep /nftlb is not running/, $status );
 
 	if ( $rtn_code == 0 )
@@ -623,3 +688,4 @@ if ( $action eq "stop" )
 }
 
 &configureDefaultGW();
+

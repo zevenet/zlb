@@ -25,6 +25,14 @@ use strict;
 
 my $q = getCGI();
 
+if ( $ENV{ PATH_INFO } =~ qr{^/ids$} )
+{
+	require Zevenet::API40::Ids;
+
+	#  GET /rbac/users
+	GET qr{^/ids$} => \&list_ids;
+}
+
 # Certificates
 my $cert_re     = &getValidFormat( 'certificate' );
 my $cert_pem_re = &getValidFormat( 'cert_pem' );
@@ -35,6 +43,9 @@ if ( $q->path_info =~ qr{^/certificates} )
 
 	#  GET List SSL certificates
 	GET qr{^/certificates$} => \&certificates;
+
+	#  GET SSL certificate information
+	GET qr{^/certificates/($cert_re)/info$}, \&get_certificate_info;
 
 	#  Download SSL certificate
 	GET qr{^/certificates/($cert_re)$} => \&download_certificate;
@@ -382,7 +393,8 @@ if ( $q->path_info =~ qr{^/system/backup} )
 	  \&apply_backup;                                         #  POST  apply backups
 }
 
-if ( $q->path_info =~ qr{^/system/(?:version|info|license|supportsave)} )
+if (
+	 $q->path_info =~ qr{^/system/(?:version|info|license|supportsave|language)} )
 {
 	require Zevenet::API40::System::Info;
 
@@ -392,6 +404,8 @@ if ( $q->path_info =~ qr{^/system/(?:version|info|license|supportsave)} )
 
 	my $license_re = &getValidFormat( 'license_format' );
 	GET qr{^/system/license/($license_re)$} => \&get_license;
+
+	POST qr{^/system/language$} => \&set_language;
 }
 
 if ( $q->path_info =~ qr{/ciphers$} )

@@ -2,54 +2,52 @@
 This is the repository of **ZEVENET Load Balancer** Community Edition (**Zen Load Balancer** CE next generation) and it'll guide you to install a development and testing instance of load balancer.
 
 ## Repository Contents
-In this repository you'll find the source code usually placed into the folder `/usr/local/zenloadbalancer/` with the following structure:
+In this repository you'll find the source code usually placed into the folder `/usr/local/zevenet/` with the following structure:
 - **app/**: Applications, binaries and libraries that ZEVENET Load Balancer requires.
+- **bin/**: Additional application binaries directory. 
 - **backups/**: Default folder where the configuration backups will be placed.
 - **config/**: Default folder where the load balancing services, health checks and network configuration files will be placed.
 - **etc/**: Some system files to configure ZEVENET Load Balancer services.
 - **lib/**: Folder where Zevenet funcionality library is located.
 - **share/**: Folder for templates and other data.
-- **www/**: Frontend and Backend source files of ZEVENET Load Balancer.
-- **zlb-debian-installer.sh**: Script to automate the installation of ZEVENET Load Balancer over a Fresh Debian Stretch installation.
+- **www/**: Backend API source files of ZEVENET Load Balancer.
 - *other*: License and this readme information.
+And `/usr/share/perl5/Zevent` with the entire Zevenet backend core.
 
 ## ZEVENET Load Balancer Installation and Updates
-Currently, there is only available the installer for Debian Stretch.
+Currently, there is only available package for Debian Buster, the installation is not supported out of this operating system.
 
 ### Requirements
 Please, take into account these requirements before installing the load balancer:
 
 1. You'll need at least 1,5 GB of storage.
 
-2. Install a fresh and basic Debian Stretch (32 bits) system with *openssh* and the basic system tools package recommended during the distribution installation.
+2. Install a fresh and basic Debian Buster (64 bits) system with *openssh* and the basic system tools package recommended during the distribution installation.
 
 3. Configure the load balancer with a static IP address. ZEVENET Load Balancer doesn't support DHCP yet.
 
 4. Configure the *apt* repositories in order to be able to install some dependencies.
 
-### Installation on Debian Stretch
-Get a Debian ISO installable from [debian.org](https://www.debian.org/distrib/). This installation process has been only tested with the 32 bits version.
+### Installation on Debian Buster
+Get a Debian ISO installable from [debian.org](https://www.debian.org/distrib/). This installation process has been only tested with the 64 bits version.
 
-Follow the instructions to fully install the distro, taking care of the requirements listed above.
+This git repository only contains the source code, the installable packages based in this code are updated in our Zevenet APT repos, you can use them configuring your Debian Baster system as follows: 
 
-Once a fresh installation has been finished, reboot the system and login with *root* user. Execute the following commands in a shell terminal in order to install the *git* package and run the ZEVENET Load Balancer installer.
 ```
-apt-get install git
-cd /usr/local
-git clone https://github.com/zevenet/zlb.git
-cd /usr/local/zlb
-./zlb-debian-installer.sh
+root@zevenetlb#> wget -O - http://repo.zevenet.com/zevenet.com.gpg.key | apt-key add -
+
 ```
-The installer script will install all the dependencies from the *apt* repository.
-
-If the installation was successful, just perform a `reboot` and access to the web panel according to the Access section from the [Administration Guide](https://www.zevenet.com/knowledge-base/community-edition/community-edition-v5-0-administration-guide/ce-v5-0-installation-guide/)
-
+Now, update the local APT database
+```
+root@zevenetlb#> apt-get update
+```
+And finally, install the Zevenet CE
+```
+root@zevenetlb#> apt-get install zevenet
+```
 ### Updates
-The source code is able to be updated just updating the repository under the `/usr/local/zlb` directory.
-```
-git pull
-```
-Note that some setup could be needed in order to enable certain options that will be included in the *installers*.
+Please use the Zevenet APT repo in order to check if updates are available. 
+
 
 ## How to Contribute
 You can contribute with the evolution of the ZEVENET Load Balancer in a wide variety of ways:
@@ -105,3 +103,4 @@ For more options, visit https://groups.google.com/a/zevenet.com/d/optout
 
 
 ## [www.zevenet.com](https://www.zevenet.com)
+

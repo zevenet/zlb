@@ -58,9 +58,6 @@ sub getDatalinkFarmBackends    # ($farm_name)
 	require Zevenet::Farm::Base;
 	my $farmStatus = &getFarmStatus( $farm_name );
 
-	my $permission = 0;
-	my $alias;
-
 	open my $fd, '<', "$configdir/$farm_filename";
 
 	while ( my $line = <$fd> )
@@ -257,3 +254,4 @@ sub getDatalinkFarmBackendAvailableID
 }
 
 1;
+

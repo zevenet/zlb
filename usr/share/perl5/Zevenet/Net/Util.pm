@@ -164,7 +164,7 @@ sub sendGPing    # ($pif)
 		my $ping_cmd = "$ping_bin -c $pingc $gw";
 
 		&zenlog( "Sending $pingc ping(s) to gateway $gw", "info", "NETWORK" );
-		system ( "$ping_cmd >/dev/null 2>&1 &" );
+		&logAndRunBG( "$ping_cmd" );
 	}
 }
 
@@ -251,7 +251,7 @@ sub sendGArp    # ($if,$ip)
 		my $arping_cmd = "$arping_bin $arp_arg -c 2 -I $iface[0] $ip";
 
 		&zenlog( "$arping_cmd", "info", "NETWORK" );
-		system ( "$arping_cmd >/dev/null &" );
+		&logAndRunBG( "$arping_cmd" );
 	}
 	elsif ( $ip_v == 6 )
 	{
@@ -259,10 +259,84 @@ sub sendGArp    # ($if,$ip)
 		my $arping_cmd  = "$arpsend_bin -U -i $ip $iface[0]";
 
 		&zenlog( "$arping_cmd", "info", "NETWORK" );
-		system ( "$arping_cmd >/dev/null &" );
+		&logAndRunBG( "$arping_cmd" );
 	}
 
 	&sendGPing( $iface[0] );
+}
+
+=begin nd
+Function: setArpAnnounce
+
+	Set a cron task to cast a ARP packet each minute
+
+Parameters:
+	none - .
+
+Returns:
+	Integer - Error code: 0 on success or another value on failure
+
+=cut
+
+sub setArpAnnounce
+{
+	my $script = &getGlobalConfiguration( "arp_announce_bin" );
+	my $path   = &getGlobalConfiguration( "arp_announce_cron_path" );
+	my $err    = 0;
+
+	my $fh = &openlock( $path, 'w' ) or return 1;
+	print $fh "* * * * *	root	$script &>/dev/null\n";
+	close $fh;
+
+	my $cron_service = &getGlobalConfiguration( 'cron_service' );
+	$err = &logAndRun( "$cron_service reload" );
+
+	if ( !$err )
+	{
+		$err = &setGlobalConfiguration( 'arp_announce', "true" );
+	}
+
+	return $err;
+}
+
+=begin nd
+Function: unsetArpAnnounce
+
+	Remove the cron task to cast a ARP packet each minute
+
+Parameters:
+	none - .
+
+Returns:
+	Integer - Error code: 0 on success or another value on failure
+
+=cut
+
+sub unsetArpAnnounce
+{
+	my $script       = &getGlobalConfiguration( "arp_announce_bin" );
+	my $path         = &getGlobalConfiguration( "arp_announce_cron_path" );
+	my $cron_service = &getGlobalConfiguration( 'cron_service' );
+	my $err          = 0;
+
+	if ( -f $path )
+	{
+		my $rem = unlink $path;
+		if ( !$rem )
+		{
+			&zenlog( "Error deleting the file '$path'", "error", "NETWORK" );
+			return 1;
+		}
+	}
+
+	$err = &logAndRun( "$cron_service reload" );
+
+	if ( !$err )
+	{
+		$err = &setGlobalConfiguration( 'arp_announce', "false" );
+	}
+
+	return $err;
 }
 
 =begin nd
@@ -385,7 +459,7 @@ Parameters:
 	arg - "true" to turn it on or ("false" to turn it off).
 
 Returns:
-	scalar - return code setting the value.
+	scalar - return
 
 See Also:
 	<_runDatalinkFarmStart>
@@ -398,7 +472,7 @@ sub setIpForward    # ($arg)
 			 "debug", "PROFILING" );
 	my $arg = shift;
 
-	my $status = -1;
+	my $status = 0;
 
 	my $switch = ( $arg eq 'true' )
 	  ? 1           # set switch on if arg == 'true'
@@ -407,10 +481,11 @@ sub setIpForward    # ($arg)
 	&zenlog( "setting $arg to IP forwarding ", "info", "NETWORK" );
 
 	# switch forwarding as requested
-	system ( "echo $switch > /proc/sys/net/ipv4/conf/all/forwarding" );
-	system ( "echo $switch > /proc/sys/net/ipv4/ip_forward" );
-	$status = $?;
-	system ( "echo $switch > /proc/sys/net/ipv6/conf/all/forwarding" );
+	$status +=
+	  &logAndRun( "echo $switch > /proc/sys/net/ipv4/conf/all/forwarding" );
+	$status += &logAndRun( "echo $switch > /proc/sys/net/ipv4/ip_forward" );
+	$status +=
+	  &logAndRun( "echo $switch > /proc/sys/net/ipv6/conf/all/forwarding" );
 
 	return $status;
 }

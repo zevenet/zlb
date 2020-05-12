@@ -48,9 +48,11 @@ Returns:
 See Also:
 	<printGraph>
 =cut
+
 sub printImgFile    #($file)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $file ) = @_;
 
 	if ( open my $png, '<', $file )
@@ -84,24 +86,28 @@ Returns:
 See Also:
 	<runFarmDelete>, <setBondMaster>, <delIf>
 =cut
-sub delGraph	#($name, type)
+
+sub delGraph    #($name, type)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $name = shift;
 	my $type = shift;
 
-	my $rrdap_dir = &getGlobalConfiguration('rrdap_dir');
-	my $rrd_dir = &getGlobalConfiguration('rrd_dir');
+	my $rrdap_dir = &getGlobalConfiguration( 'rrdap_dir' );
+	my $rrd_dir   = &getGlobalConfiguration( 'rrd_dir' );
 
 	if ( $type =~ /iface/ )
 	{
-		&zenlog( "Delete graph file: $rrdap_dir/$rrd_dir/${name}iface.rrd", "info", "MONITOR" );
+		&zenlog( "Delete graph file: $rrdap_dir/$rrd_dir/${name}iface.rrd",
+				 "info", "MONITOR" );
 		unlink ( "$rrdap_dir/$rrd_dir/${name}iface.rrd" );
 	}
 
 	if ( $type =~ /farm/ )
 	{
-		&zenlog( "Delete graph file: $rrdap_dir/$rrd_dir/$name-farm.rrd", "info", "MONITOR" );
+		&zenlog( "Delete graph file: $rrdap_dir/$rrd_dir/$name-farm.rrd",
+				 "info", "MONITOR" );
 		unlink glob ( "$rrdap_dir/$rrd_dir/$name-farm.rrd" );
 	}
 }
@@ -121,13 +127,15 @@ Returns:
 See Also:
 	<genCpuGraph>, <genDiskGraph>, <genLoadGraph>, <genMemGraph>, <genMemSwGraph>, <genNetGraph>, <genFarmGraph>, <genLoadGraph>
 =cut
+
 sub printGraph    #($type,$time)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $type, $time ) = @_;
 
-	my $img_dir = &getGlobalConfiguration('img_dir');
-	my $graph = $img_dir . "/" . $type . "_" . $time . ".png";
+	my $img_dir = &getGlobalConfiguration( 'img_dir' );
+	my $graph   = $img_dir . "/" . $type . "_" . $time . ".png";
 
 	if ( $type eq "cpu" )
 	{
@@ -190,9 +198,11 @@ See Also:
 
 	<genDiskGraph>, <genLoadGraph>, <genMemGraph>, <genMemSwGraph>, <genNetGraph>, <genFarmGraph>, <genLoadGraph>
 =cut
+
 sub genCpuGraph    #($type,$graph,$time)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $type, $graph, $time ) = @_;
 
 	my $db_cpu = "$type.rrd";
@@ -282,20 +292,20 @@ See Also:
 
 	<genCpuGraph>, <genLoadGraph>, <genMemGraph>, <genMemSwGraph>, <genNetGraph>, <genFarmGraph>, <genLoadGraph>
 =cut
+
 sub genDiskGraph    #($type,$graph,$time)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $type, $graph, $time ) = @_;
 
-	my $db_hd     = "$type.rrd";
-	my $df_bin    = &getGlobalConfiguration('df_bin');
-	my @df_system = `$df_bin -k`;
-	my $dev       = $type;
+	my $db_hd = "$type.rrd";
+	my $dev   = $type;
 	$dev =~ s/hd$//;
 	$dev =~ s/dev-//;
 	$dev =~ s/-/\// if $dev !~ /dm-/;
 
-	my $mount = &getDiskMountPoint($dev);
+	my $mount = &getDiskMountPoint( $dev );
 
 	if ( -e "$rrdap_dir/$rrd_dir/$db_hd" )
 	{
@@ -356,9 +366,11 @@ See Also:
 
 	<genCpuGraph>, <genDiskGraph>, <genMemGraph>, <genMemSwGraph>, <genNetGraph>, <genFarmGraph>, <genLoadGraph>
 =cut
+
 sub genLoadGraph    #($type,$graph,$time)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $type, $graph, $time ) = @_;
 
 	my $db_load = "$type.rrd";
@@ -419,9 +431,11 @@ See Also:
 
 	<genCpuGraph>, <genDiskGraph>, <genLoadGraph>, <genMemSwGraph>, <genNetGraph>, <genFarmGraph>, <genLoadGraph>
 =cut
+
 sub genMemGraph    #($type,$graph,$time)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $type, $graph, $time ) = @_;
 
 	my $db_mem = "$type.rrd";
@@ -487,9 +501,11 @@ See Also:
 
 	<genCpuGraph>, <genDiskGraph>, <genLoadGraph>, <genMemGraph>, <genNetGraph>, <genFarmGraph>, <genLoadGraph>
 =cut
+
 sub genMemSwGraph    #($type,$graph,$time)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $type, $graph, $time ) = @_;
 
 	my $db_memsw = "$type.rrd";
@@ -556,9 +572,11 @@ See Also:
 
 	<genCpuGraph>, <genDiskGraph>, <genLoadGraph>, <genMemGraph>, <genMemSwGraph>, <genFarmGraph>, <genLoadGraph>
 =cut
+
 sub genNetGraph    #($type,$graph,$time)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $type, $graph, $time ) = @_;
 
 	my $db_if   = "$type.rrd";
@@ -619,9 +637,11 @@ See Also:
 
 	<genCpuGraph>, <genDiskGraph>, <genLoadGraph>, <genMemGraph>, <genMemSwGraph>, <genNetGraph>, <genLoadGraph>
 =cut
+
 sub genFarmGraph    #($type,$graph,$time)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $type, $graph, $time ) = @_;
 
 	my $db_farm = "$type.rrd";
@@ -688,34 +708,35 @@ See Also:
 
 	<genCpuGraph>, <genDiskGraph>, <genLoadGraph>, <genMemGraph>, <genMemSwGraph>, <genNetGraph>, <genFarmGraph>, <genLoadGraph>
 =cut
+
 #~ sub genTempGraph    #($type,$graph,$time)
 #~ {
-	#~ my $db_temp = "$type.rrd";
+#~ my $db_temp = "$type.rrd";
 
-	#~ if ( -e "$rrdap_dir/$rrd_dir/$db_temp" )
-	#~ {
-		#~ RRDs::graph(
-					 #~ "$graph",
-					 #~ "--imgformat=$imagetype",
-					 #~ "--start=-1$time",
-					 #~ "--width=$width",
-					 #~ "--height=$height",
-					 #~ "--alt-autoscale-max",
-					 #~ "--lower-limit=0",
-					 #~ "--title=CPU TEMPERATURE",
-					 #~ "--vertical-label=LOAD",
-					 #~ "DEF:temp=$rrdap_dir/$rrd_dir/$db_temp:temp:AVERAGE",
-					 #~ "STACK:temp#46b971:CPU temperature\\t",
-					 #~ "GPRINT:temp:LAST:Last\\:%4.2lf C",
-					 #~ "GPRINT:temp:MIN:Min\\:%4.2lf C",
-					 #~ "GPRINT:temp:AVERAGE:Avg\\:%4.2lf C",
-					 #~ "GPRINT:temp:MAX:Max\\:%4.2lf C\\n"
-		#~ );
+#~ if ( -e "$rrdap_dir/$rrd_dir/$db_temp" )
+#~ {
+#~ RRDs::graph(
+#~ "$graph",
+#~ "--imgformat=$imagetype",
+#~ "--start=-1$time",
+#~ "--width=$width",
+#~ "--height=$height",
+#~ "--alt-autoscale-max",
+#~ "--lower-limit=0",
+#~ "--title=CPU TEMPERATURE",
+#~ "--vertical-label=LOAD",
+#~ "DEF:temp=$rrdap_dir/$rrd_dir/$db_temp:temp:AVERAGE",
+#~ "STACK:temp#46b971:CPU temperature\\t",
+#~ "GPRINT:temp:LAST:Last\\:%4.2lf C",
+#~ "GPRINT:temp:MIN:Min\\:%4.2lf C",
+#~ "GPRINT:temp:AVERAGE:Avg\\:%4.2lf C",
+#~ "GPRINT:temp:MAX:Max\\:%4.2lf C\\n"
+#~ );
 
-		#~ my $rrdError = RRDs::error;
-		#~ print "$0: unable to generate $graph: $rrdError\n" if ( $rrdError );
+#~ my $rrdError = RRDs::error;
+#~ print "$0: unable to generate $graph: $rrdError\n" if ( $rrdError );
 
-	#~ }
+#~ }
 #~ }
 
 =begin nd
@@ -732,10 +753,12 @@ Returns:
 See Also:
 	zapi/v3/system_stats.cgi
 =cut
+
 #function that returns the graph list to show
 sub getGraphs2Show    #($graphtype)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $graphtype ) = @_;
 
 	my @list = -1;
@@ -774,3 +797,4 @@ sub getGraphs2Show    #($graphtype)
 }
 
 1;
+

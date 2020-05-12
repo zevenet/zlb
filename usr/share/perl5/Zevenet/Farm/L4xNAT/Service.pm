@@ -55,26 +55,27 @@ sub loadL4FarmModules
 	if ( $eload )
 	{
 		my $cmd = "$modprobe_bin nf_conntrack enable_hooks=1";
-		$error += system ( "$cmd >/dev/null 2>&1" );
+		$error += &logAndRun( "$cmd" );
 	}
 	else
 	{
-		$error += system ( "$modprobe_bin nf_conntrack >/dev/null 2>&1" );
+		$error += &logAndRun( "$modprobe_bin nf_conntrack" );
 
 		# Initialize conntrack
 		my $nftbin = &getGlobalConfiguration( "nft_bin" );
 
 		# Flush nft tables
-		system ( "$nftbin flush ruleset" );
+		&logAndRun( "$nftbin flush table ip dummyTable" );
 
 		my $nftCmd =
 		  "$nftbin add table ip dummyTable; $nftbin add chain ip dummyTable dummyChain { type nat hook input priority 0 \\; }; $nftbin add rule ip dummyTable dummyChain ct state established accept";
 
-		$error += system ( "$nftCmd" )
-		  if ( system ( "$nftbin list table dummyTable >/dev/null 2>&1" ) );
+		$error += &logAndRun( "$nftCmd" )
+		  if ( &logAndRunCheck( "$nftbin list table dummyTable" ) );
 	}
 
 	return $error;
 }
 
 1;
+

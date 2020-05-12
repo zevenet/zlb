@@ -55,7 +55,7 @@ sub create_backup
 	};
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -99,7 +99,7 @@ sub download_backup
 
 	# Download function ends communication if itself finishes successful.
 	# It is not necessary to send "200 OK" msg here
-	my $error = &downloadBackup( $backup );
+	&downloadBackup( $backup );
 
 	my $msg = "Error, downloading backup.";
 	&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -198,10 +198,14 @@ sub apply_backup
 								 'required'  => 'true',
 								 'values'    => ['apply'],
 				   },
+				   "force" => {
+								'non_blank' => 'true',
+								'values'    => ['true', 'false'],
+				   },
 	};
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -211,16 +215,37 @@ sub apply_backup
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
+	my $b_version   = &getBackupVersion( $backup );
+	my $sys_version = &getGlobalConfiguration( 'version' );
+	if ( $b_version ne $sys_version )
+	{
+		if ( !exists $json_obj->{ force }
+			 or ( exists $json_obj->{ force } and $json_obj->{ force } ne 'true' ) )
+		{
+			my $msg =
+			  "The backup version ($b_version) is different to the Zevenet version ($sys_version). The parameter 'force' must be used to force the backup applying.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+		else
+		{
+			&zenlog(
+				"Applying The backup version ($b_version) is different to the Zevenet version ($sys_version)."
+			);
+		}
+	}
+
+	my $msg =
+	  "The backup was properly applied. Some changes need a system reboot to work.";
 	my $error = &applyBackup( $backup );
 
 	if ( $error )
 	{
-		my $msg = "There was a error applying the backup.";
+		$msg = "There was a error applying the backup.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	&httpResponse(
-			   { code => 200, body => { description => $desc, params => $json_obj } } );
+	&httpResponse( { code => 200, body => { description => $desc, msg => $msg } } );
 }
 
 1;
+

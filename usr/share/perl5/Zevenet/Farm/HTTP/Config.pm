@@ -322,6 +322,7 @@ Function: setFarmHttpVerb
 		2. standardWebDAV, add the verbs LOCK, UNLOCK, PROPFIND, PROPPATCH, SEARCH, MKCOL, MOVE, COPY, OPTIONS, TRACE, MKACTIVITY, CHECKOUT, MERGE, REPORT.
 		3. MSextWebDAV, add the verbs SUBSCRIBE, UNSUBSCRIBE, NOTIFY, BPROPFIND, BPROPPATCH, POLL, BMOVE, BCOPY, BDELETE, CONNECT.
 		4. MSRPCext, add the verbs RPC_IN_DATA, RPC_OUT_DATA.
+		5. OptionsHTTP, add the verb OPTIONS to the set extendedHTTP.
 
 Parameters:
 	verb - accepted verbs: 0, 1, 2, 3 or 4
@@ -379,6 +380,7 @@ Function: getFarmHttpVerb
 		2. standardWebDAV, add the verbs LOCK, UNLOCK, PROPFIND, PROPPATCH, SEARCH, MKCOL, MOVE, COPY, OPTIONS, TRACE, MKACTIVITY, CHECKOUT, MERGE, REPORT.
 		3. MSextWebDAV, add the verbs SUBSCRIBE, UNSUBSCRIBE, NOTIFY, BPROPFIND, BPROPPATCH, POLL, BMOVE, BCOPY, BDELETE, CONNECT.
 		4. MSRPCext, add the verbs RPC_IN_DATA, RPC_OUT_DATA.
+		5. OptionsHTTP, add the verb OPTIONS to the set extendedHTTP.
 
 Parameters:
 	farmname - Farm name
@@ -924,13 +926,13 @@ sub getHTTPFarmMaxClientTime    # ($farm_name)
 =begin nd
 Function: getHTTPFarmGlobalStatus
 
-	Get the status of a farm and its backends through pound command.
+	Get the status of a farm and its backends through l7 proxy command.
 
 Parameters:
 	farmname - Farm name
 
 Returns:
-	array - Return poundctl output
+	array - Return proxyctl output
 
 =cut
 
@@ -940,9 +942,10 @@ sub getHTTPFarmGlobalStatus    # ($farm_name)
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
-	my $poundctl = &getGlobalConfiguration( 'poundctl' );
+	my $proxyctl = &getGlobalConfiguration( 'proxyctl' );
 
-	return `$poundctl -c "/tmp/$farm_name\_pound.socket"`;
+	return
+	  @{ &logAndGet( "$proxyctl -c \"/tmp/$farm_name\_proxy.socket\"", "array" ) };
 }
 
 =begin nd
@@ -1083,7 +1086,7 @@ sub getHTTPFarmBootStatus    # ($farm_name)
 =begin nd
 Function: setHTTPFarmBootStatus
 
-	Return the farm status at boot zevenet
+	Set the farm status in the configuration file to boot zevenet process
 
 Parameters:
 	farmname - Farm name
@@ -1101,8 +1104,6 @@ sub setHTTPFarmBootStatus    # ($farm_name, $value)
 	my ( $farm_name, $value ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $output        = "down";
-	my $lastline;
 
 	my $lock_file = &getLockFile( $farm_name );
 	my $lock_fh = &openlock( $lock_file, 'w' );
@@ -1176,7 +1177,7 @@ sub getHTTPFarmSocket    # ($farm_name)
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
-	return "/tmp/" . $farm_name . "_pound.socket";
+	return "/tmp/" . $farm_name . "_proxy.socket";
 }
 
 =begin nd
@@ -1200,13 +1201,13 @@ sub getHTTPFarmPid    # ($farm_name)
 
 	my $output  = -1;
 	my $piddir  = &getGlobalConfiguration( 'piddir' );
-	my $pidfile = "$piddir\/$farm_name\_pound.pid";
+	my $nproc   = &getGlobalConfiguration( 'nproc_bin' );
+	my $pidfile = "$piddir\/$farm_name\_proxy.pid";
 
 	# Get number of cores
-	my $processors = `nproc`;
-	chomp $processors;
+	my $processors = &logAndGet( $nproc );
 
-	# If the LB has one core, wait 20ms for pound child process to generate pid.
+	# If the LB has one core, wait 20ms for l7 proxy child process to generate pid.
 	select ( undef, undef, undef, 0.020 ) if ( $processors == 1 );
 
 	if ( -e $pidfile )
@@ -1255,7 +1256,7 @@ sub getHTTPFarmPidFile    # ($farm_name)
 	my ( $farm_name ) = @_;
 
 	my $piddir  = &getGlobalConfiguration( 'piddir' );
-	my $pidfile = "$piddir\/$farm_name\_pound.pid";
+	my $pidfile = "$piddir\/$farm_name\_proxy.pid";
 
 	return $pidfile;
 }
@@ -1388,18 +1389,20 @@ sub getHTTPFarmConfigIsOK    # ($farm_name)
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
-	my $pound         = &getGlobalConfiguration( 'pound' );
+	my $proxy         = &getGlobalConfiguration( 'proxy' );
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $pound_command = "$pound -f $configdir\/$farm_filename -c";
+	my $proxy_command = "$proxy -f $configdir\/$farm_filename -c";
 
-	my $run = `$pound_command 2>&1`;
+# do not use the function 'logAndGet' here is managing the error output and error code
+	my $run = `$proxy_command 2>&1`;
 	my $rc  = $?;
 
 	if ( $rc or &debug() )
 	{
-		my $message = $rc ? 'failed' : 'running';
-		&zenlog( "$message: $pound_command", "error", "LSLB" );
-		&zenlog( "output: $run ",            "error", "LSLB" );
+		my $tag     = ( $rc ) ? 'error'  : 'debug';
+		my $message = $rc     ? 'failed' : 'running';
+		&zenlog( "$message: $proxy_command", $tag, "LSLB" );
+		&zenlog( "output: $run ",            $tag, "LSLB" );
 	}
 
 	return $rc;
@@ -1423,12 +1426,14 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
+	my $service;
 
-	my $pound         = &getGlobalConfiguration( 'pound' );
+	my $proxy         = &getGlobalConfiguration( 'proxy' );
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $pound_command = "$pound -f $configdir\/$farm_filename -c";
+	my $proxy_command = "$proxy -f $configdir\/$farm_filename -c";
 
-	my @run = `$pound_command 2>&1`;
+# do not use the function 'logAndGet' here is managing the error output and error code
+	my @run = `$proxy_command 2>&1`;
 	my $rc  = $?;
 
 	return "" unless ( $rc );
@@ -1437,8 +1442,8 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 	chomp @run;
 	my $msg;
 
-	&zenlog( "Error checking $configdir\/$farm_filename." );
-	&zenlog( $run[0], "Error", "http" );
+	&zenlog( "Error checking $configdir\/$farm_filename.", "Error", "http" );
+	&zenlog( $run[0],                                      "Error", "http" );
 
 	return "Error loading waf configuration" if ( $run[0] =~ /waf/i );
 
@@ -1446,7 +1451,7 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 	my $line_num = $1;
 
 	# get line
-	my ( $farm_name, $service ) = @_;
+	( $farm_name, $service ) = @_;
 	my $file_id = 0;
 	my $file_line;
 	my $srv;
@@ -1467,8 +1472,8 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 	close $fileconf;
 
 # examples of error msg
-#	AAAhttps, /usr/local/zevenet/config/AAAhttps_pound.cfg line 36: unknown directive
-#	AAAhttps, /usr/local/zevenet/config/AAAhttps_pound.cfg line 40: SSL_CTX_use_PrivateKey_file failed - aborted
+#	AAAhttps, /usr/local/zevenet/config/AAAhttps_proxy.cfg line 36: unknown directive
+#	AAAhttps, /usr/local/zevenet/config/AAAhttps_proxy.cfg line 40: SSL_CTX_use_PrivateKey_file failed - aborted
 	$file_line =~ /\s*([\w-]+)/;
 	my $param = $1;
 	$msg = "Error in the configuration file";
@@ -1514,7 +1519,7 @@ sub getHTTPFarmStruct
 	# Output hash reference or undef if the farm does not exist.
 	my $farm;
 
-	return unless $farmname;
+	return $farm unless $farmname;
 
 	my $vip   = &getFarmVip( "vip",  $farmname );
 	my $vport = &getFarmVip( "vipp", $farmname ) + 0;
@@ -1536,27 +1541,28 @@ sub getHTTPFarmStruct
 	elsif ( $httpverb == 2 ) { $httpverb = "standardWebDAV"; }
 	elsif ( $httpverb == 3 ) { $httpverb = "MSextWebDAV"; }
 	elsif ( $httpverb == 4 ) { $httpverb = "MSRPCext"; }
+	elsif ( $httpverb == 5 ) { $httpverb = "optionsHTTP"; }
 
 	my $err414 = &getFarmErr( $farmname, "414" );
 	my $err500 = &getFarmErr( $farmname, "500" );
 	my $err501 = &getFarmErr( $farmname, "501" );
 	my $err503 = &getFarmErr( $farmname, "503" );
 
-	my $farm = {
-				 status          => $status,
-				 restimeout      => $timeout,
-				 contimeout      => $connto,
-				 resurrectime    => $alive,
-				 reqtimeout      => $client,
-				 rewritelocation => $rewritelocation,
-				 httpverb        => $httpverb,
-				 listener        => $type,
-				 vip             => $vip,
-				 vport           => $vport,
-				 error500        => $err500,
-				 error414        => $err414,
-				 error501        => $err501,
-				 error503        => $err503
+	$farm = {
+			  status          => $status,
+			  restimeout      => $timeout,
+			  contimeout      => $connto,
+			  resurrectime    => $alive,
+			  reqtimeout      => $client,
+			  rewritelocation => $rewritelocation,
+			  httpverb        => $httpverb,
+			  listener        => $type,
+			  vip             => $vip,
+			  vport           => $vport,
+			  error500        => $err500,
+			  error414        => $err414,
+			  error501        => $err501,
+			  error503        => $err503
 	};
 
 	# HTTPS parameters
@@ -1652,6 +1658,7 @@ sub getHTTPVerbCode
 					   standardWebDAV => 2,
 					   MSextWebDAV    => 3,
 					   MSRPCext       => 4,
+					   optionsHTTP    => 5,
 	);
 
 	if ( exists $http_verbs{ $verbs_set } )
@@ -1662,11 +1669,11 @@ sub getHTTPVerbCode
 	return $verb_code;
 }
 
-######### Pound Config
+######### l7 proxy Config
 
 # Reading
 
-sub parsePoundConfig
+sub parseL7ProxyConfig
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -1849,7 +1856,7 @@ sub parsePoundConfig
 	return \%conf;
 }
 
-sub getPoundConf
+sub getL7ProxyConf
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -1864,7 +1871,7 @@ sub getPoundConf
 
 	my $file = &slurpFile( "$configdir/$farmfile" );
 
-	return &parsePoundConfig( $file );
+	return &parseL7ProxyConfig( $file );
 }
 
 # Writing
@@ -1932,7 +1939,7 @@ sub print_session
 	return $session_str;
 }
 
-sub writePoundConfigToString
+sub writeL7ProxyConfigToString
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -1967,7 +1974,7 @@ Control 	"$conf->{ Control }"
 
 	if ( $listener_type eq 'HTTP' )
 	{
-		$global_str .= qq(#DHParams 	"/usr/local/zevenet/app/pound/etc/dh2048.pem"
+		$global_str .= qq(#DHParams 	"/usr/local/zevenet/app/zproxy/etc/dh2048.pem"
 #ECDHCurve	"prime256v1"
 );
 	}
@@ -2158,4 +2165,113 @@ sub cleanHashValues
 	return $hash_ref if defined wantarray;
 }
 
+=begin nd
+Function: setFarmProxyNGConf
+
+	It changes the meaning of params Priority and weight in config file.
+
+Parameters:
+	ProxyNGEnabled - 'true' if ProxyNG is used, 'false' if not.
+
+Returns:
+	Integer - return 0 on success or different on failure
+
+=cut
+
+sub setFarmProxyNGConf    # ($proxy_mode,$farm_name)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $proxy_mode, $farm_name ) = @_;
+
+	my $farm_filename = &getFarmFile( $farm_name );
+	my $stat          = 1;
+
+	my $lock_file = &getLockFile( $farm_name );
+	my $lock_fh = &openlock( $lock_file, 'w' );
+
+	require Tie::File;
+	tie my @array, 'Tie::File', "$configdir\/$farm_filename";
+	my $size      = @array;
+	my @array_bak = @array;
+
+	for ( my $i = 0 ; $i < $size ; $i++ )
+	{
+		if ( $array[$i] =~ /Priority\ (\d+)/ )
+		{
+			my $priority = $1;
+			if ( $proxy_mode eq "true" )
+			{
+				if ( $array[$i] =~ s/.*Priority\ .*/\t\t\tWeight\ $priority/ )
+				{
+					$stat = 0;
+				}
+			}
+			elsif ( $proxy_mode eq "false" )
+			{
+				if ( $array[$i + 1] =~ /Weight\ (\d+)/ )
+				{
+					my $weight = $1;
+					if ( $array[$i] =~ s/.*Priority\ .*/\t\t\tPriority\ $weight/ )
+					{
+						splice @array, $i + 1, 1;
+						$stat = 0;
+						$size--;
+					}
+				}
+				else
+				{
+					splice @array, $i, 1;
+					$stat = 0;
+					$size--;
+				}
+
+			}
+		}
+		elsif ( $array[$i] =~ /Weight\ (\d+)/ )
+		{
+			my $weight = $1;
+			if ( $proxy_mode eq "false" )
+			{
+				if ( $array[$i] =~ s/.*Weight\ .*/\t\t\tPriority\ $weight/ )
+				{
+					$stat = 0;
+				}
+			}
+			elsif ( $proxy_mode eq "true" )
+			{
+				#This directive should not be here
+				splice @array, $i, 1;
+				$size--;
+			}
+		}
+	}
+
+	if ( $eload )
+	{
+		&eload(
+				module => 'Zevenet::Farm::HTTP::Ext',
+				func   => 'migrateHTTPFarmLogs',
+				args   => [$farm_name, $proxy_mode],
+		);
+	}
+
+	if ( &getHTTPFarmConfigIsOK( $farm_name ) )
+	{
+		@array = @array_bak;
+		$stat  = 1;
+		&zenlog( "Error in $farm_name config file!", "error", "SYSTEM" );
+	}
+	else
+	{
+		$stat = 0;
+	}
+
+	untie @array;
+	close $lock_fh;
+
+	return $stat;
+}
+
 1;
+

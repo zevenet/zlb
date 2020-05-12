@@ -40,7 +40,6 @@ sub farms_name_l4    # ( $farmname )
 	my $farmname = shift;
 
 	my $out_p;
-	my $out_b;
 
 	my $farm   = &getL4FarmStruct( $farmname );
 	my $status = &getFarmVipStatus( $farmname );
@@ -84,3 +83,4 @@ sub farms_name_l4    # ( $farmname )
 }
 
 1;
+

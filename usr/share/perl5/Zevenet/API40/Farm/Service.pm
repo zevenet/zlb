@@ -81,7 +81,7 @@ sub new_farm_service    # ( $json_obj, $farmname )
 	};
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -128,9 +128,20 @@ sub new_farm_service    # ( $json_obj, $farmname )
 	if ( &getFarmStatus( $farmname ) ne 'down' )
 	{
 		require Zevenet::Farm::Action;
-
-		&setFarmRestart( $farmname );
-		$body->{ status } = 'needed restart';
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ status } = 'needed restart';
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
 	}
 
 	&httpResponse( { code => 201, body => $body } );
@@ -150,7 +161,6 @@ sub farm_services
 	require Zevenet::Farm::HTTP::Service;
 
 	my $desc = "Get services of a farm";
-	my $service;
 
 	# Check if the farm exists
 	if ( !&getFarmExists( $farmname ) )
@@ -254,8 +264,8 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 						 'non_blank'    => 'true',
 		},
 		"persistence" => {
-				 'values'    => ["IP", "BASIC",          "URL", "PARM", "COOKIE", "HEADER"],
-				 'non_blank' => 'false', # it is allowed ''
+			'values' => ["IP", "BASIC", "NONE", "URL", "PARM", "COOKIE", "HEADER"],
+			'non_blank' => 'false',    # it is allowed '' and it is equal to 'NONE'
 		},
 		"sessionid" => {},
 		"ttl"       => {
@@ -272,8 +282,8 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	{
 		$params->{ redirect_code } = { 'values'       => [301, 302, 307], };
 		$params->{ sts_timeout }   = { 'valid_format' => 'http_sts_timeout', };
-		$params->{ sts_status }    = { 'valid_format' => 'http_sts_status', };
-		$params->{ cookieinsert }  = { 'valid_format' => 'boolean', };
+		$params->{ sts_status }    = { 'values'       => ['true', 'false'], };
+		$params->{ cookieinsert }  = { 'values'       => ['true', 'false'], };
 		$params->{ cookiettl } = {
 								   'valid_format' => 'integer',
 								   'non_blank'    => 'true',
@@ -284,10 +294,18 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	}
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
+	# translate params
+	if ( exists $json_obj->{ persistence }
+		 and $json_obj->{ persistence } eq 'NONE' )
+	{
+		$json_obj->{ persistence } = "";
+	}
+
+	# modifying params
 	if ( exists $json_obj->{ vhost } )
 	{
 		&setFarmVS( $farmname, $service, "vs", $json_obj->{ vhost } );
@@ -297,8 +315,6 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	{
 		&setFarmVS( $farmname, $service, "urlp", $json_obj->{ urlp } );
 	}
-
-	my $redirecttype = &getFarmVS( $farmname, $service, "redirecttype" );
 
 	if ( exists $json_obj->{ redirect } )
 	{
@@ -322,25 +338,10 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 		}
 	}
 
-	my $redirect = &getFarmVS( $farmname, $service, "redirect" );
-
 	if ( exists $json_obj->{ redirecttype } )
 	{
 		my $redirecttype = $json_obj->{ redirecttype };
-
-		if ( $redirecttype eq "default" )
-		{
-			&setFarmVS( $farmname, $service, "redirect", $redirect );
-		}
-		elsif ( $redirecttype eq "append" )
-		{
-			&setFarmVS( $farmname, $service, "redirectappend", $redirect );
-		}
-		elsif ( exists $json_obj->{ redirect } && $json_obj->{ redirect } )
-		{
-			my $msg = "Invalid redirecttype value.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
+		&setFarmVS( $farmname, $service, "redirecttype", $redirecttype );
 	}
 
 	if ( exists $json_obj->{ leastresp } )
@@ -524,11 +525,20 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	if ( &getFarmStatus( $farmname ) ne 'down' )
 	{
 		require Zevenet::Farm::Action;
-
-		&setFarmRestart( $farmname );
-		$body->{ status } = 'needed restart';
-		$body->{ info } =
-		  "There're changes that need to be applied, stop and start farm to apply them!";
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ status } = 'needed restart';
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
 	}
 
 	&httpResponse( { code => 200, body => $body } );
@@ -622,11 +632,24 @@ sub delete_service    # ( $farmname, $service )
 	{
 		require Zevenet::Farm::Action;
 
-		$body->{ status } = "needed restart";
-		&setFarmRestart( $farmname );
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ status } = 'needed restart';
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
 	}
 
 	&httpResponse( { code => 200, body => $body } );
 }
 
 1;
+

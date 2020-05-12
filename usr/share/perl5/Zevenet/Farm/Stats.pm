@@ -24,7 +24,10 @@
 use strict;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 =begin nd
 Function: getFarmEstConns
@@ -39,13 +42,15 @@ Returns:
 	unsigned integer - Return number of ESTABLISHED conntrack lines for a farm
 
 =cut
+
 sub getFarmEstConns    # ($farm_name,$netstat)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $netstat ) = @_;
 
-	my $farm_type = &getFarmType( $farm_name );
-	my $pid       = &getFarmPid( $farm_name );
+	my $farm_type   = &getFarmType( $farm_name );
+	my $pid         = &getFarmPid( $farm_name );
 	my $connections = 0;
 
 	if ( $pid eq "-" )
@@ -66,9 +71,9 @@ sub getFarmEstConns    # ($farm_name,$netstat)
 	elsif ( $farm_type eq "gslb" )
 	{
 		$connections = &eload(
-			module => 'Zevenet::Farm::GSLB::Stats',
-			func   => 'getGSLBFarmEstConns',
-			args   => [$farm_name, $netstat],
+							   module => 'Zevenet::Farm::GSLB::Stats',
+							   func   => 'getGSLBFarmEstConns',
+							   args   => [$farm_name, $netstat],
 		) if $eload;
 	}
 
@@ -90,19 +95,21 @@ Returns:
 	unsigned integer - Return number of SYN conntrack lines for a backend of a farm
 
 =cut
+
 sub getBackendSYNConns    # ($farm_name,$ip_backend,$port_backend,$netstat)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $ip_backend, $port_backend, $netstat ) = @_;
 
-	my $farm_type = &getFarmType( $farm_name );
+	my $farm_type   = &getFarmType( $farm_name );
 	my $connections = 0;
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Stats;
 		$connections =
-		  &getHTTPBackendSYNConns( $farm_name, $ip_backend, $port_backend, $netstat );
+		  &getHTTPBackendSYNConns( $farm_name, $ip_backend, $port_backend );
 	}
 	elsif ( $farm_type eq "l4xnat" )
 	{
@@ -127,12 +134,14 @@ Returns:
 	unsigned integer - Return number of SYN conntrack lines for a farm
 
 =cut
+
 sub getFarmSYNConns    # ($farm_name, $netstat)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $netstat ) = @_;
 
-	my $farm_type = &getFarmType( $farm_name );
+	my $farm_type   = &getFarmType( $farm_name );
 	my $connections = 0;
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
@@ -150,3 +159,4 @@ sub getFarmSYNConns    # ($farm_name, $netstat)
 }
 
 1;
+

@@ -74,14 +74,14 @@ require Zevenet::Config;
 require Zevenet::Validate;
 
 #### OPTIONS requests ################################################
-require Zevenet::API40::Routes::Options  if ( $ENV{ REQUEST_METHOD } eq 'OPTIONS' );
+require Zevenet::API40::Options  if ( $ENV{ REQUEST_METHOD } eq 'OPTIONS' );
 
 ##### Authentication #################################################
 require Zevenet::API40::Auth;
 require Zevenet::Zapi;
 
 # Session request
-require Zevenet::API40::Routes::Session if ( $q->path_info eq '/session' );
+require Zevenet::API40::Session if ( $q->path_info eq '/session' );
 
 
 # Verify authentication

@@ -43,9 +43,9 @@ use Zevenet::Farm::Base;
 use Zevenet::Farm::Backend;
 require Zevenet::Nft;
 
-my $conntrack = &getGlobalConfiguration('conntrack');
-my $pidfile = &getGlobalConfiguration('l4sdpid');
-my $algorithm  = "leastconn";
+my $conntrack = &getGlobalConfiguration( 'conntrack' );
+my $pidfile   = &getGlobalConfiguration( 'l4sdpid' );
+my $algorithm = "leastconn";
 
 my $g_param = 60 * 1000 * 1000;
 my $n_param = 3 * 1000 * 1000;
@@ -216,7 +216,7 @@ while ()
 	{
 		if ( $debug ) { printf "Executing G()\n"; }
 
-		%farms    = ();
+		%farms = ();
 		my @files = &getFarmsByType( "l4xnat" );
 
 		if ( scalar ( @files ) <= 0 )
@@ -284,12 +284,14 @@ while ()
 				{
 					next if ( defined $connsperfarm{ $farm }{ $back } );
 
-					my @cmd_output = `$conntrack -L -m $farms{ $farm }{ $back }/0x7fffffff 2>&1 >/dev/null`;
+					# do not use 'logAndRun' function, it is managing the error output
+					my @cmd_output =
+					  `$conntrack -L -m $farms{ $farm }{ $back }/0x7fffffff 2>&1 >/dev/null`;
 					my $nestab = ( split ( ' ', $cmd_output[-1] ) )[3];
 
 					@cmd_output = ();
 					$connsperfarm{ $farm }{ $back } = $nestab;
-					$connsperfarm{ $farm }{ total } += int($nestab);
+					$connsperfarm{ $farm }{ total } += int ( $nestab );
 				}
 			}
 		}
@@ -327,15 +329,22 @@ while ()
 				{
 					if ( $connsperfarm{ $fname }{ total } > 0 )
 					{
-						my $newweight = int( ( 10 - ( $connsperfarm{ $fname }{ $bck } / $connsperfarm{ $fname }{ total } ) * 10 ) + 0.5 );
+						my $newweight = int (
+							(
+							   10 - ( $connsperfarm{ $fname }{ $bck } / $connsperfarm{ $fname }{ total } ) * 10
+							) + 0.5
+						);
+						$newweight = 1 if $newweight <= 0;
 						printf "Setting new weight: $fname - $bck - $newweight \n" if ( $debug );
-						#~ &setL4FarmServer( $fname, $bck, undef, undef, $newweight, undef, undef, undef, undef );
+
+			  #~ &setL4FarmServer( $fname, $bck, undef, undef, $newweight, undef, undef, undef, undef );
 
 						httpNlbRequest(
 							{
 							   method => "PUT",
 							   uri    => "/farms",
-							   body   => qq({"farms" : [ { "name" : "$fname", "backends" : [ { "name" : "bck$bck", "weight" : "$newweight" } ] } ] })
+							   body =>
+								 qq({"farms" : [ { "name" : "$fname", "backends" : [ { "name" : "bck$bck", "weight" : "$newweight" } ] } ] })
 							}
 						);
 					}
@@ -356,3 +365,4 @@ while ()
 
 	$init = 0;
 }
+

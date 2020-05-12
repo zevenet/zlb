@@ -142,8 +142,6 @@ sub setL4sdType
 	my $farm_name = shift;
 	my $type      = shift;
 	my $l4sdfile  = &getGlobalConfiguration( 'l4sdcfg' );
-	my $l4sdbin   = &getGlobalConfiguration( 'l4sd' );
-	my $pidfile   = &getGlobalConfiguration( 'l4sdpid' );
 
 	if ( !-f "$l4sdfile" )
 	{
@@ -175,3 +173,4 @@ sub setL4sdType
 }
 
 1;
+

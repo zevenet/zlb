@@ -138,6 +138,7 @@ sub getHTTPBackendEstConns    # ($farm_name,$backend_ip,$backend_port, $netstat)
 				   state         => 'ESTABLISHED',
 	};
 
+	require Zevenet::Net::ConnStats;
 	my $ct_params = &getConntrackParams( $filter );
 	my $count     = &getConntrackCount( $ct_params );
 
@@ -248,8 +249,8 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 		require Zevenet::Net::ConnStats;
 	}
 
-	# Get pound info
-	#i.e. of poundctl:
+	# Get l7 proxy info
+	#i.e. of proxyctl:
 
 	#Requests in queue: 0
 	#0. http Listener 185.76.64.223:80 a
@@ -258,7 +259,7 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 	#1. Backend 172.16.110.14:80 active (1 0.878 sec) alive (90)
 	#2. Backend 172.16.110.11:80 active (1 0.852 sec) alive (99)
 	#3. Backend 172.16.110.12:80 active (1 0.826 sec) alive (75)
-	my @poundctl = &getHTTPFarmGlobalStatus( $farm_name );
+	my @proxyctl = &getHTTPFarmGlobalStatus( $farm_name );
 
 	my $alias;
 	$alias = &eload(
@@ -267,8 +268,8 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 					 args   => ['backend']
 	) if $eload;
 
-	# Parse pound info
-	foreach my $line ( @poundctl )
+	# Parse ly proxy info
+	foreach my $line ( @proxyctl )
 	{
 		# i.e.
 		#     0. Service "HTTP" active (10)
@@ -319,7 +320,7 @@ sub getHTTPFarmBackendsStats    # ($farm_name)
 
 				# not show fgDOWN status
 				$backendHash->{ "status" } = "down"
-				  if ( $backendHash->{ "status" } eq "fgDOWN" );
+				  if ( $backendHash->{ "status" } ne "maintenance" );
 			}
 			elsif ( $backendHash->{ "status" } eq "alive" )
 			{

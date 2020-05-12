@@ -95,15 +95,25 @@ sub POST
 
 	if ( exists $ENV{ CONTENT_TYPE } && $ENV{ CONTENT_TYPE } eq 'application/json' )
 	{
-		require JSON::XS;
-		JSON::XS->import;
-
-		$input_ref = eval { decode_json( $data ) };
-
-		if ( &debug() )
+		if ( $data )
 		{
-			use Data::Dumper;
-			&zenlog( "json: " . Dumper( $input_ref ), "debug", $LOG_TAG );
+			require JSON::XS;
+			JSON::XS->import;
+
+			$input_ref = eval { decode_json( $data ) };
+
+			if ( &debug() )
+			{
+				use Data::Dumper;
+				&zenlog( "json: " . Dumper( $input_ref ), "debug", $LOG_TAG );
+			}
+
+			if ( !$input_ref )
+			{
+				my $body =
+				  { message => 'The body does not look a valid JSON', error => 'true' };
+				&httpResponse( { code => 400, body => $body } );
+			}
 		}
 	}
 	elsif ( exists $ENV{ CONTENT_TYPE } && $ENV{ CONTENT_TYPE } eq 'text/plain' )
@@ -159,15 +169,25 @@ sub PUT
 
 	if ( exists $ENV{ CONTENT_TYPE } && $ENV{ CONTENT_TYPE } eq 'application/json' )
 	{
-		require JSON::XS;
-		JSON::XS->import;
-
-		$input_ref = eval { decode_json( $data ) };
-
-		if ( &debug() )
+		if ( $data )
 		{
-			use Data::Dumper;
-			&zenlog( "json: " . Dumper( $input_ref ), "debug", $LOG_TAG );
+			require JSON::XS;
+			JSON::XS->import;
+
+			$input_ref = eval { decode_json( $data ) };
+
+			if ( &debug() )
+			{
+				use Data::Dumper;
+				&zenlog( "json: " . Dumper( $input_ref ), "debug", $LOG_TAG );
+			}
+
+			if ( !$input_ref )
+			{
+				my $body =
+				  { message => 'The body does not look a valid JSON', error => 'true' };
+				&httpResponse( { code => 400, body => $body } );
+			}
 		}
 	}
 	elsif ( exists $ENV{ CONTENT_TYPE } && $ENV{ CONTENT_TYPE } eq 'text/plain' )
@@ -407,6 +427,7 @@ sub httpErrorResponse
 	# check errors loading the hash reference
 	if ( $@ )
 	{
+		&zenlog( $@, "debug", "zapi" );
 		&zdie( "httpErrorResponse: Wrong argument received" );
 	}
 
@@ -493,6 +514,7 @@ sub httpDownloadResponse
 	# check errors loading the hash reference
 	if ( $@ )
 	{
+		&zenlog( $@, "debug", "zapi" );
 		&zdie( "httpDownloadResponse: Wrong argument received" );
 	}
 
@@ -602,3 +624,4 @@ sub buildBackendAPIParams
 	}
 }
 1;
+

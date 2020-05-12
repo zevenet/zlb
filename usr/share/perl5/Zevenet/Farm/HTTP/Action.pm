@@ -50,7 +50,7 @@ sub _runHTTPFarmStart    # ($farm_name, $writeconf)
 
 	my $status         = -1;
 	my $farm_filename  = &getFarmFile( $farm_name );
-	my $pound          = &getGlobalConfiguration( 'pound' );
+	my $proxy          = &getGlobalConfiguration( 'proxy' );
 	my $piddir         = &getGlobalConfiguration( 'piddir' );
 	my $ssyncd_enabled = &getGlobalConfiguration( 'ssyncd_enabled' );
 	my $args           = ( $ssyncd_enabled eq 'true' ) ? '-s' : '';
@@ -59,7 +59,7 @@ sub _runHTTPFarmStart    # ($farm_name, $writeconf)
 	return -1 if ( &getHTTPFarmConfigIsOK( $farm_name ) );
 
 	my $cmd =
-	  "$pound $args -f $configdir\/$farm_filename -p $piddir\/$farm_name\_pound.pid";
+	  "$proxy $args -f $configdir\/$farm_filename -p $piddir\/$farm_name\_proxy.pid";
 	$status = &zsystem( "$cmd" );
 
 	if ( $status == 0 )
@@ -97,8 +97,6 @@ sub _runHTTPFarmStop    # ($farm_name, $writeconf)
 
 	require Zevenet::FarmGuardian;
 
-	my $status = -1;
-
 	&runFarmGuardianStop( $farm_name, "" );
 	&setHTTPFarmBootStatus( $farm_name, "down" ) if ( $writeconf );
 
@@ -113,16 +111,19 @@ sub _runHTTPFarmStop    # ($farm_name, $writeconf)
 		}
 		else
 		{
+			my $time = &getGlobalConfiguration( "http_farm_stop_grace_time" );
+			my $signal = ( &getGlobalConfiguration( "proxy_ng" ) eq 'true' ) ? 9 : 15;
 			&zenlog( "Stopping HTTP farm $farm_name with PID $pid", "info", "LSLB" );
 
 			# Returns the number of arguments that were successfully used to signal.
-			kill 15, $pid;
+			kill $signal, $pid;
+			sleep ( $time );
 		}
 
-		unlink ( "$piddir\/$farm_name\_pound.pid" )
-		  if -e "$piddir\/$farm_name\_pound.pid";
-		unlink ( "\/tmp\/$farm_name\_pound.socket" )
-		  if -e "\/tmp\/$farm_name\_pound.socket";
+		unlink ( "$piddir\/$farm_name\_proxy.pid" )
+		  if -e "$piddir\/$farm_name\_proxy.pid";
+		unlink ( "\/tmp\/$farm_name\_proxy.socket" )
+		  if -e "\/tmp\/$farm_name\_proxy.socket";
 
 		require Zevenet::Lock;
 		my $lf = &getLockFile( $farm_name );
@@ -141,59 +142,59 @@ sub _runHTTPFarmStop    # ($farm_name, $writeconf)
 }
 
 =begin nd
-Function: setHTTPNewFarmName
+Function: copyHTTPFarm
 
-	Function that renames a farm. Before call this function, stop the farm.
+	Function that does a copy of a farm configuration.
+	If the flag has the value 'del', the old farm will be deleted.
 
 Parameters:
 	farmname - Farm name
 	newfarmname - New farm name
+	flag - It expets a 'del' string to delete the old farm. It is used to copy or rename the farm.
 
 Returns:
-	Integer - return 0 on success or -1 on failure
+	Integer - Error code: return 0 on success or -1 on failure
+
 =cut
 
-sub setHTTPNewFarmName    # ($farm_name,$new_farm_name)
+sub copyHTTPFarm    # ($farm_name,$new_farm_name)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name, $new_farm_name ) = @_;
+	my ( $farm_name, $new_farm_name, $del ) = @_;
+
+	use File::Copy qw(copy);
 
 	my $output = 0;
 	my @farm_configfiles = (
 							 "$configdir\/$farm_name\_status.cfg",
-							 "$configdir\/$farm_name\_pound.cfg",
+							 "$configdir\/$farm_name\_proxy.cfg",
 							 "$configdir\/$farm_name\_Err414.html",
 							 "$configdir\/$farm_name\_Err500.html",
 							 "$configdir\/$farm_name\_Err501.html",
 							 "$configdir\/$farm_name\_Err503.html",
-							 "$farm_name\_guardian.conf"
 	);
 	my @new_farm_configfiles = (
 								 "$configdir\/$new_farm_name\_status.cfg",
-								 "$configdir\/$new_farm_name\_pound.cfg",
+								 "$configdir\/$new_farm_name\_proxy.cfg",
 								 "$configdir\/$new_farm_name\_Err414.html",
 								 "$configdir\/$new_farm_name\_Err500.html",
 								 "$configdir\/$new_farm_name\_Err501.html",
 								 "$configdir\/$new_farm_name\_Err503.html",
-								 "$farm_name\_guardian.conf"
 	);
-
-	if ( -e "\/tmp\/$farm_name\_pound.socket" )
-	{
-		unlink ( "\/tmp\/$farm_name\_pound.socket" );
-	}
 
 	foreach my $farm_filename ( @farm_configfiles )
 	{
 		if ( -e "$farm_filename" )
 		{
+			copy( "$farm_filename", "$new_farm_configfiles[0]" ) or $output = -1;
+
 			require Tie::File;
-			tie my @configfile, 'Tie::File', "$farm_filename";
+			tie my @configfile, 'Tie::File', "$new_farm_configfiles[0]";
 
 			# Lines to change:
 			#Name		BasekitHTTP
-			#Control 	"/tmp/BasekitHTTP_pound.socket"
+			#Control 	"/tmp/BasekitHTTP_proxy.socket"
 			#\tErr414 "/usr/local/zevenet/config/BasekitHTTP_Err414.html"
 			#\tErr500 "/usr/local/zevenet/config/BasekitHTTP_Err500.html"
 			#\tErr501 "/usr/local/zevenet/config/BasekitHTTP_Err501.html"
@@ -201,7 +202,7 @@ sub setHTTPNewFarmName    # ($farm_name,$new_farm_name)
 			#\t#Service "BasekitHTTP"
 			grep ( s/Name\t\t$farm_name/Name\t\t$new_farm_name/, @configfile );
 			grep (
-				s/Control \t"\/tmp\/${farm_name}_pound.socket"/Control \t"\/tmp\/${new_farm_name}_pound.socket"/,
+				s/Control \t"\/tmp\/${farm_name}_proxy.socket"/Control \t"\/tmp\/${new_farm_name}_proxy.socket"/,
 				@configfile );
 			grep (
 				s/\tErr414 "\/usr\/local\/zevenet\/config\/${farm_name}_Err414.html"/\tErr414 "\/usr\/local\/zevenet\/config\/${new_farm_name}_Err414.html"/,
@@ -219,7 +220,7 @@ sub setHTTPNewFarmName    # ($farm_name,$new_farm_name)
 
 			untie @configfile;
 
-			rename ( "$farm_filename", "$new_farm_configfiles[0]" ) or $output = -1;
+			unlink ( "$farm_filename" ) if ( $del eq 'del' );
 
 			&zenlog( "Configuration saved in $new_farm_configfiles[0] file",
 					 "info", "LSLB" );
@@ -227,7 +228,13 @@ sub setHTTPNewFarmName    # ($farm_name,$new_farm_name)
 		shift ( @new_farm_configfiles );
 	}
 
+	if ( -e "\/tmp\/$farm_name\_pound.socket" and $del eq 'del' )
+	{
+		unlink ( "\/tmp\/$farm_name\_pound.socket" );
+	}
+
 	return $output;
 }
 
 1;
+

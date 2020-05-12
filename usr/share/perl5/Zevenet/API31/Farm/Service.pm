@@ -25,12 +25,16 @@ use strict;
 use Zevenet::Farm::Core;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 # POST
 sub new_farm_service    # ( $json_obj, $farmname )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $farmname = shift;
 
@@ -108,14 +112,14 @@ sub new_farm_service    # ( $json_obj, $farmname )
 	# Return 0 on success
 	if ( $result )
 	{
-		my $msg =
-		  "Error creating the service $json_obj->{ id }.";
+		my $msg = "Error creating the service $json_obj->{ id }.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
 	# no error found, return successful response
 	&zenlog(
-		"Success, a new service has been created in farm $farmname with id $json_obj->{id}.", "info", "LSLB"
+		"Success, a new service has been created in farm $farmname with id $json_obj->{id}.",
+		"info", "LSLB"
 	);
 
 	my $body = {
@@ -127,8 +131,20 @@ sub new_farm_service    # ( $json_obj, $farmname )
 	{
 		require Zevenet::Farm::Action;
 
-		&setFarmRestart( $farmname );
-		$body->{ status } = 'needed restart';
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ status } = 'needed restart';
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
 	}
 
 	&httpResponse( { code => 201, body => $body } );
@@ -139,7 +155,8 @@ sub new_farm_service    # ( $json_obj, $farmname )
 #GET /farms/<name>/services/<service>
 sub farm_services
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farmname, $servicename ) = @_;
 
 	require Zevenet::Farm::Config;
@@ -180,11 +197,12 @@ sub farm_services
 	foreach my $be ( @{ $service->{ backends } } )
 	{
 		$be->{ status } = "up" if $be->{ status } eq "undefined";
+		delete $be->{ priority };
 	}
 
 	my $body = {
 				 description => $desc,
-				 params    => $service,
+				 params      => $service,
 	};
 
 	&httpResponse( { code => 200, body => $body } );
@@ -194,7 +212,8 @@ sub farm_services
 
 sub modify_services    # ( $json_obj, $farmname, $service )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $json_obj, $farmname, $service ) = @_;
 
 	require Zevenet::Farm::Base;
@@ -278,13 +297,9 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	{
 		my $redirecttype = $json_obj->{ redirecttype };
 
-		if ( $redirecttype eq "default" )
+		if ( ( $redirecttype eq "default" ) or ( $redirecttype eq "append" ) )
 		{
-			&setFarmVS( $farmname, $service, "redirect", $redirect );
-		}
-		elsif ( $redirecttype eq "append" )
-		{
-			&setFarmVS( $farmname, $service, "redirectappend", $redirect );
+			&setFarmVS( $farmname, $service, "redirecttype", $redirecttype );
 		}
 		elsif ( exists $json_obj->{ redirect } && $json_obj->{ redirect } )
 		{
@@ -357,7 +372,7 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	}
 
 	# Cookie insertion
-	if ( scalar grep( /^cookie/, keys %{ $json_obj } ) )
+	if ( scalar grep ( /^cookie/, keys %{ $json_obj } ) )
 	{
 		if ( $eload )
 		{
@@ -382,7 +397,8 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 
 	if ( exists $json_obj->{ httpsb } )
 	{
-		if ( $json_obj->{ httpsb } ne &getFarmVS( $farmname, $service, 'httpsbackend' ) )
+		if (
+			 $json_obj->{ httpsb } ne &getFarmVS( $farmname, $service, 'httpsbackend' ) )
 		{
 			if ( $json_obj->{ httpsb } eq "true" )
 			{
@@ -402,9 +418,14 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 
 	# no error found, return succesful response
 	$output_params = &getHTTPServiceStruct( $farmname, $service );
+	foreach my $be_ref ( @{ $output_params->{ backends } } )
+	{
+		delete $be_ref->{ priority };
+	}
 
 	&zenlog(
-		"Success, some parameters have been changed in service $service in farm $farmname.", "info", "LSLB"
+		"Success, some parameters have been changed in service $service in farm $farmname.",
+		"info", "LSLB"
 	);
 
 	my $body = {
@@ -416,10 +437,20 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	{
 		require Zevenet::Farm::Action;
 
-		&setFarmRestart( $farmname );
-		$body->{ status } = 'needed restart';
-		$body->{ info } =
-		  "There're changes that need to be applied, stop and start farm to apply them!";
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ status } = 'needed restart';
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
 	}
 
 	&httpResponse( { code => 200, body => $body } );
@@ -430,7 +461,8 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 # DELETE /farms/<farmname>/services/<servicename> Delete a service of a Farm
 sub delete_service    # ( $farmname, $service )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farmname, $service ) = @_;
 
 	my $desc = "Delete service";
@@ -498,8 +530,8 @@ sub delete_service    # ( $farmname, $service )
 	}
 
 	# no errors found, returning successful response
-	&zenlog(
-			 "Success, the service $service in farm $farmname has been deleted.", "info", "LSLB" );
+	&zenlog( "Success, the service $service in farm $farmname has been deleted.",
+			 "info", "LSLB" );
 
 	my $message = "The service $service in farm $farmname has been deleted.";
 	my $body = {
@@ -512,8 +544,20 @@ sub delete_service    # ( $farmname, $service )
 	{
 		require Zevenet::Farm::Action;
 
-		$body->{ status } = "needed restart";
-		&setFarmRestart( $farmname );
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ status } = 'needed restart';
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
 	}
 
 	&httpResponse( { code => 200, body => $body } );

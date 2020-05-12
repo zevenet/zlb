@@ -236,11 +236,6 @@ sub getAPIFarmBackends
 		push @api_keys, qw(id weight ip priority status interface);
 	}
 
-	if ( $eload )
-	{
-		push @api_keys, "alias";
-	}
-
 	# add static translations
 	$translate->{ status } = { "opt" => "fgdown", "rep" => "down" };
 

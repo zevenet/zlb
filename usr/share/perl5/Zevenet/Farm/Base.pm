@@ -110,7 +110,6 @@ sub getFarmStatus    # ($farm_name)
 	return $output if !defined ( $farm_name );    # farm name cannot be empty
 
 	my $farm_type = &getFarmType( $farm_name );
-	my $piddir    = &getGlobalConfiguration( 'piddir' );
 
 	if ( $farm_type eq "l4xnat" )
 	{
@@ -176,13 +175,13 @@ sub getFarmVipStatus    # ($farm_name)
 
 	$output = "problem";
 
-	require Zevenet::Lock;
+	require Zevenet::Farm::Action;
 
 	if ( $farmStatus eq "down" )
 	{
 		return "down";
 	}
-	elsif ( &getLockStatus( $farm_name ) )
+	elsif ( &getFarmRestartStatus( $farm_name ) )
 	{
 		return "needed restart";
 	}
@@ -382,9 +381,8 @@ sub getFarmProto    # ($farm_name)
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
-	my $farm_type     = &getFarmType( $farm_name );
-	my $farm_filename = &getFarmFile( $farm_name );
-	my $output        = -1;
+	my $farm_type = &getFarmType( $farm_name );
+	my $output    = -1;
 
 	if ( $farm_type eq "l4xnat" )
 	{
@@ -498,3 +496,4 @@ sub getFarmRunning
 }
 
 1;
+

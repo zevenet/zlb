@@ -43,10 +43,7 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 	my $desc = "Modify L4xNAT farm '$farmname'";
 
 	# Flags
-	my $reload_flag = "false";
-	my $error       = "false";
-	my $status;
-	my $initialStatus = &getL4FarmParam( 'status', $farmname );
+	my $status = &getFarmStatus( $farmname );
 
 	# Check that the farm exists
 	if ( !&getFarmExists( $farmname ) )
@@ -62,6 +59,9 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 		&httpErrorResponse( code => 410, desc => $desc, msg => $msg );
 	}
 
+	require Zevenet::Net::Interface;
+	my $ip_list = &getIpAddressList();
+
 	my $params = {
 		   "newfarmname" => {
 							  'valid_format' => 'farm_name',
@@ -71,7 +71,7 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 						'non_blank' => 'true',
 		   },
 		   "vip" => {
-					  'function'   => \&getIpAddressExists,
+					  'values'     => $ip_list,
 					  'non_blank'  => 'true',
 					  'format_msg' => 'The vip IP must exist in some interface.'
 		   },
@@ -109,45 +109,63 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 	if ( $eload )
 	{
 		$params->{ "logs" } = {
-								'valid_format' => 'boolean',
-								'non_blank'    => 'true',
+								'values'    => ['true', 'false'],
+								'non_blank' => 'true',
 		};
 	}
 
 	# Modify the vport if protocol is set to 'all'
-	$json_obj->{ vport } = "*"
-	  if ( exists $json_obj->{ protocol } and $json_obj->{ protocol } eq 'all' );
+	if (    ( exists $json_obj->{ protocol } and $json_obj->{ protocol } eq 'all' )
+		 or ( exists $json_obj->{ vport } and $json_obj->{ vport } eq '*' ) )
+	{
+		$json_obj->{ vport }    = "*";
+		$json_obj->{ protocol } = "all";
+	}
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
 	# Extend parameter checks
-	if ( exists ( $json_obj->{ vip } ) )
-	{
-		# the ip must exist in some interface
-		require Zevenet::Farm::L4xNAT::Backend;
+	# Get current vip & vport
+	my $vip   = $json_obj->{ vip }   // &getFarmVip( 'vip',  $farmname );
+	my $vport = $json_obj->{ vport } // &getFarmVip( 'vipp', $farmname );
 
-		my $backends = &getL4FarmServers( $farmname );
-		unless ( !@{ $backends }[0]
-			|| &ipversion( @{ $backends }[0]->{ ip } ) eq &ipversion( $json_obj->{ vip } ) )
+	# Modify vip and vport
+	if ( exists ( $json_obj->{ vip } ) or exists ( $json_obj->{ vport } ) )
+	{
+		require Zevenet::Net::Validate;
+		if ( $status eq 'up' and &checkport( $vip, $vport, $farmname ) eq 'true' )
 		{
 			my $msg =
-			  "Invalid VIP address, VIP and backends can't be from diferent IP version.";
+			  "The '$vip' ip and '$vport' port are being used for another farm. This farm should be sopped before modifying it";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-	}
 
-	if ( exists ( $json_obj->{ vport } ) )
-	{
-		# VPORT validation
-		if (
-			 !&getValidPort( $json_obj->{ vip }, $json_obj->{ vport }, "L4XNAT", $farmname )
-		  )
+		if ( exists ( $json_obj->{ vip } ) )
 		{
-			my $msg = "The virtual port must be an acceptable value and must be available.";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			# the ip must exist in some interface
+			require Zevenet::Farm::L4xNAT::Backend;
+
+			my $backends = &getL4FarmServers( $farmname );
+			unless ( !@{ $backends }[0]
+					 || &ipversion( @{ $backends }[0]->{ ip } ) eq &ipversion( $vip ) )
+			{
+				my $msg =
+				  "Invalid VIP address, VIP and backends can't be from diferent IP version.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
+
+		if ( exists ( $json_obj->{ vport } ) )
+		{
+			# VPORT validation
+			if ( !&getValidPort( $vport, "L4XNAT", $farmname ) )
+			{
+				my $msg = "The virtual port must be an acceptable value and must be available.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
 		}
 	}
 
@@ -282,10 +300,6 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 	# Modify vip and vport
 	if ( exists ( $json_obj->{ vip } ) or exists ( $json_obj->{ vport } ) )
 	{
-		# Get current vip & vport
-		my $vip   = $json_obj->{ vip }   // "";
-		my $vport = $json_obj->{ vport } // "";
-
 		if ( &setFarmVirtualConf( $vip, $vport, $farmname ) )
 		{
 			my $msg = "Could not set the virtual configuration.";
@@ -356,3 +370,4 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 }
 
 1;
+

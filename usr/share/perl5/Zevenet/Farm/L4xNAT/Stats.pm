@@ -53,6 +53,13 @@ sub getL4BackendEstConns
 	my @fportlist   = &getFarmPortList( $farm->{ vport } );
 	my $regexp      = "";
 	my $connections = 0;
+	my $add_search  = "";
+
+	#if there is a backend port then must be included in the filter
+	if ( $be_port > 0 )
+	{
+		$add_search = "sport=$be_port";
+	}
 
 	if ( $fportlist[0] !~ /\*/ )
 	{
@@ -76,7 +83,7 @@ sub getL4BackendEstConns
 				&getNetstatFilter(
 					"tcp",
 					"",
-					"\.* ESTABLISHED src=\.* dst=$farm->{ vip } \.* dport=$regexp \.*src=$be_ip \.*",
+					"\.* ESTABLISHED src=\.* dst=$farm->{ vip } \.* dport=$regexp \.*src=$be_ip \.*$add_search",
 					"",
 					$netstat
 				)
@@ -87,9 +94,13 @@ sub getL4BackendEstConns
 			 || $farm->{ proto } eq "udp" )
 		{
 			$connections += scalar @{
-				&getNetstatFilter( "udp", "",
-							 "\.* src=\.* dst=$farm->{ vip } \.* dport=$regexp .*src=$be_ip \.*",
-							 "", $netstat )
+				&getNetstatFilter(
+					 "udp",
+					 "",
+					 "\.* src=\.* dst=$farm->{ vip } \.* dport=$regexp .*src=$be_ip \.*$add_search",
+					 "",
+					 $netstat
+				)
 			};
 		}
 	}
@@ -103,7 +114,7 @@ sub getL4BackendEstConns
 				&getNetstatFilter(
 					"tcp",
 					"",
-					"\.*ESTABLISHED src=\.* dst=$farm->{ vip } sport=\.* dport=$regexp \.*src=$be_ip \.*",
+					"\.*ESTABLISHED src=\.* dst=$farm->{ vip } sport=\.* dport=$regexp \.*src=$be_ip \.*$add_search",
 					"",
 					$netstat
 				)
@@ -114,9 +125,13 @@ sub getL4BackendEstConns
 			 || $farm->{ proto } eq "udp" )
 		{
 			$connections += scalar @{
-				&getNetstatFilter( "udp", "",
-							 "\.* src=\.* dst=$farm->{ vip } \.* dport=$regexp .*src=$be_ip \.*",
-							 "", $netstat )
+				&getNetstatFilter(
+					 "udp",
+					 "",
+					 "\.* src=\.* dst=$farm->{ vip } \.* dport=$regexp .*src=$be_ip \.*$add_search",
+					 "",
+					 $netstat
+				)
 			};
 		}
 	}
@@ -259,6 +274,13 @@ sub getL4BackendSYNConns
 	my @fportlist   = &getFarmPortList( $farm->{ vport } );
 	my $regexp      = "";
 	my $connections = 0;
+	my $add_search  = "";
+
+	#if there is a backend port then must be included in the filter
+	if ( $be_port > 0 )
+	{
+		$add_search = "sport=$be_port";
+	}
 
 	if ( $fportlist[0] !~ /\*/ )
 	{
@@ -276,9 +298,13 @@ sub getL4BackendSYNConns
 			 || $farm->{ proto } eq "tcp" )
 		{
 			$connections += scalar @{
-				&getNetstatFilter( "tcp", "",
-					"\.* SYN\.* src=\.* dst=$farm->{ vip } \.* dport=$regexp \.* src=$be_ip \.*",
-					"", $netstat )
+				&getNetstatFilter(
+					"tcp",
+					"",
+					"\.* SYN\.* src=\.* dst=$farm->{ vip } \.* dport=$regexp \.* src=$be_ip \.*$add_search",
+					"",
+					$netstat
+				)
 			};
 		}
 
@@ -291,9 +317,13 @@ sub getL4BackendSYNConns
 			 || $farm->{ proto } eq "tcp" )
 		{
 			$connections += scalar @{
-				&getNetstatFilter( "tcp", "",
-					"\.* SYN\.* src=\.* dst=$farm->{ vip } \.* dport=$regexp \.* src=$be_ip \.*",
-					"", $netstat )
+				&getNetstatFilter(
+					"tcp",
+					"",
+					"\.* SYN\.* src=\.* dst=$farm->{ vip } \.* dport=$regexp \.* src=$be_ip \.*$add_search",
+					"",
+					$netstat
+				)
 			};
 		}
 
@@ -439,69 +469,5 @@ sub getL4FarmBackendsStats
 	return $backends;
 }
 
-#~ "sessions" : [
-#~ {
-#~ "client" : 0,
-#~ "id" : 3,
-#~ "service" : "dfasdf",
-#~ "session" : "192.168.1.186"
-#~ }
-#~ ]
-
-sub getL4FarmSessions
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my $farmname = shift;
-
-	require Zevenet::Net::ConnStats;
-
-	my $nft_bin  = &getGlobalConfiguration( 'nft_bin' );
-	my $farm     = &getL4FarmStruct( $farmname );
-	my $sessions = [];
-	my $data     = 0;
-
-	return 0 if ( $farm->{ persist } eq "" );
-
-	my $map_name   = "persist-$farmname";
-	my @persistmap = `$nft_bin list map nftlb $map_name`;
-
-	my $id = 0;
-
-	foreach my $line ( @persistmap )
-	{
-		$data = 1 if ( $line =~ /elements = / );
-		next if ( !$data );
-
-		my ( $key, $time, $value ) =
-		  ( $line =~ / \s*([\w\.\s\:]+) expires (\w+) : (\w+)[\s,]/ );
-
-		push @{ $sessions },
-		  {
-			'id'      => &getL4ServerByMark( $farm->{ servers }, $value ),
-			'session' => $id,
-			'client'  => $key,
-		  };
-
-		$id += 1;
-
-		( $key, $time, $value ) =
-		  ( $line =~ /, ([\w\.\s\:]+) expires (\w+) : (\w+)[\s,]/ );
-
-		push @{ $sessions },
-		  {
-			'id'      => &getL4ServerByMark( $farm->{ servers }, $value ),
-			'session' => $id,
-			'client'  => $key,
-		  }
-		  if ( $key ne "" );
-
-		$id += 1;
-
-		last if ( $data && $line =~ /\}/ );
-	}
-
-	return $sessions;
-}
-
 1;
+

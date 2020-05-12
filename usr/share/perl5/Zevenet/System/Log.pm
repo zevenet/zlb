@@ -44,11 +44,15 @@ Returns:
 See Also:
 	zapi/v3/system.cgi
 =cut
+
 sub getLogs
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my @logs;
 	my $logdir = &getGlobalConfiguration( 'logdir' );
+
+	require Zevenet::File;
 
 	opendir ( DIR, $logdir );
 	my @files = readdir ( DIR );
@@ -59,17 +63,10 @@ sub getLogs
 		# not list if it is a directory
 		next if -d "$logdir/$line";
 
-		use File::stat; # Cannot 'require' this module
-		#~ use Time::localtime qw(ctime);
-
-		require Time::localtime;
-		Time::localtime->import;
-
 		my $filepath = "$logdir/$line";
 		chomp ( $filepath );
-		my $datetime_string = ctime( stat ( $filepath )->mtime );
-		$datetime_string = `date -d "${datetime_string}" +%F" "%T" "%Z -u`;
-		push @logs, { 'file' => $line, 'date' => $datetime_string };
+
+		push @logs, { 'file' => $line, 'date' => &getFileDateGmt( $filepath ) };
 	}
 
 	return \@logs;
@@ -90,9 +87,11 @@ Returns:
 See Also:
 	zapi/v31/system.cgi
 =cut
+
 sub getLogLines
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $logFile, $lines_number ) = @_;
 
 	my @lines;
@@ -102,14 +101,16 @@ sub getLogLines
 	if ( $logFile =~ /\.gz$/ )
 	{
 		my $zcat = &getGlobalConfiguration( 'zcat' );
-		@lines = `$zcat ${path}/$logFile | $tail -n $lines_number`;
+		@lines =
+		  @{ &logAndGet( "$zcat ${path}/$logFile | $tail -n $lines_number", "array" ) };
 	}
 	else
 	{
-		@lines = `$tail -n $lines_number ${path}/$logFile`;
+		@lines = @{ &logAndGet( "$tail -n $lines_number ${path}/$logFile", "array" ) };
 	}
 
 	return \@lines;
 }
 
 1;
+

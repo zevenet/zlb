@@ -23,13 +23,17 @@
 use strict;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 #  PUT /farms/<farmname>/fg Modify the parameters of the farm guardian in a Farm
 #  PUT /farms/<farmname>/fg Modify the parameters of the farm guardian in a Service
 sub modify_farmguardian    # ( $json_obj, $farmname )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $farmname = shift;
 
@@ -188,16 +192,6 @@ sub modify_farmguardian    # ( $json_obj, $farmname )
 		{
 			my $msg = "It's not possible to create the FarmGuardian configuration file.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-
-		# run farmguardian if enabled and the farm running
-		if ( &getFarmStatus( $farmname ) eq 'up' && $usefarmguardian eq 'true' )
-		{
-			if ( &runFarmGuardianStart( $farmname, $service ) == -1 )
-			{
-				my $msg = "An error ocurred while starting the FarmGuardian service.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
 		}
 
 		# get current farmguardian configuration

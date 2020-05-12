@@ -23,7 +23,7 @@
 
 use strict;
 
-my $configdir = &getGlobalConfiguration('configdir');
+my $configdir = &getGlobalConfiguration( 'configdir' );
 
 =begin nd
 Function: runDatalinkFarmCreate
@@ -42,9 +42,11 @@ FIXME:
 	it is possible calculate here the inteface of VIP and put standard the input as the others create farm functions
 
 =cut
+
 sub runDatalinkFarmCreate    # ($farm_name,$vip,$fdev)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $farm_name, $vip, $fdev ) = @_;
 
 	open my $fd, '>', "$configdir\/$farm_name\_datalink.cfg";
@@ -52,7 +54,7 @@ sub runDatalinkFarmCreate    # ($farm_name,$vip,$fdev)
 	close $fd;
 
 	my $output = $?;
-	my $piddir = &getGlobalConfiguration('piddir');
+	my $piddir = &getGlobalConfiguration( 'piddir' );
 
 	if ( !-e "$piddir/${farm_name}_datalink.pid" )
 	{
@@ -65,3 +67,4 @@ sub runDatalinkFarmCreate    # ($farm_name,$vip,$fdev)
 }
 
 1;
+

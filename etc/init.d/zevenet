@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ### BEGIN INIT INFO
 # Provides:          zevenet
-# Required-Start:    $remote_fs $syslog
-# Required-Stop:     $remote_fs $syslog
+# Required-Start:    $local_fs $remote_fs $syslog
+# Required-Stop:     $local_fs $remote_fs $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: zevenet
@@ -32,11 +32,9 @@
 ###############################################################################
 
 $zenbin="/usr/local/zevenet/bin/zevenet";
-$checkcfg="/usr/local/zevenet/bin/checkglobalconf";
 $action=$ARGV[0];
 
 if ( "$action" eq "start"){
-        my @run = `$checkcfg > /dev/console`;
         my @run = `$zenbin start > /dev/console`;
         exit;
 }
@@ -50,7 +48,7 @@ if ( "$action" eq "stop"){
 if ( "$action" eq "restart"){
 
         my @run = `$zenbin stop > /dev/console`;
-        my @run = `$checkcfg > /dev/console`;
+	sleep(5);
         my @run = `$zenbin start > /dev/console`;
         exit;
 }

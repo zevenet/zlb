@@ -26,6 +26,7 @@ use warnings;
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
+use Zevenet::Config;
 use Zevenet::Nft;
 
 my $eload;
@@ -168,7 +169,6 @@ sub setL4FarmParam
 		{
 			require Zevenet::Farm::L4xNAT::L4sd;
 			&setL4sdType( $farm_name, "none" );
-			&setL4FarmParam( 'persist', "", $farm_name );
 
 			if ( $eload )
 			{
@@ -347,7 +347,8 @@ sub setL4FarmParam
 
 	$output = &sendL4NlbCmd(
 				{
-				  farm   => $farm_req,
+				  farm          => $farm_name,
+				  farm_new_name => $farm_req,
 				  file   => ( $param ne 'status' ) ? "$configdir/$farm_filename" : undef,
 				  method => "PUT",
 				  body   => qq({"farms" : [ { "name" : "$farm_name"$parameters } ] })
@@ -384,8 +385,12 @@ Returns:
 
 sub _getL4ParseFarmConfig
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
+	{
+		no warnings;
+		&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+				 "debug", "PROFILING" );
+		use warnings;
+	}
 	my ( $param, $value, $config ) = @_;
 	my $output = -1;
 	my $exit   = 1;
@@ -616,7 +621,7 @@ Parameters:
 
 Returns:
 	hash ref -
-		\%farm = { $name, $filename, $nattype, $lbalg, $vip, $vport, $vproto, $persist, $ttl, $proto, $status, \@servers }
+		\%farm = { $name, $filename, $nattype, $lbalg, $vip, $vport, $vproto, $sourceip, $persist, $ttl, $proto, $status, \@servers }
 		\@servers = [ \%backend1, \%backend2, ... ]
 
 =cut
@@ -652,6 +657,8 @@ sub getL4FarmStruct
 	$farm{ vip }    = &_getL4ParseFarmConfig( 'vip',   undef, $config );
 	$farm{ vport }  = &_getL4ParseFarmConfig( 'vipp',  undef, $config );
 	$farm{ vproto } = &_getL4ParseFarmConfig( 'proto', undef, $config );
+	$farm{ sourceip } = "";
+	$farm{ sourceip } = &_getL4ParseFarmConfig( 'sourceaddr', undef, $config );
 
 	my $persist = &_getL4ParseFarmConfig( 'persist', undef, $config );
 	$farm{ persist } = ( $persist eq "-1" ) ? '' : $persist;
@@ -989,24 +996,30 @@ sub writeL4NlbConfigFile
 		return 1;
 	}
 
+	&zenlog( "Saving farm conf '$cfgfile'", "debug" );
+
 	my $fo = &openlock( $cfgfile, 'w' );
 	open my $fi, '<', "$nftfile";
-	my $backends = 0;
-	my $policies = 0;
-	while ( my $line = <$fi> )
+	my $write = 1;
+	my $line  = <$fi>;
+	my $next_line;
+	while ( defined $line )
 	{
-		$backends = 1 if ( $line =~ /\"backends\"\:/ );
-		$policies = 1 if ( $line =~ /\"policies\"\:/ );
-		if ( $backends == 1 && $line =~ /\]/ )
+		$next_line = <$fi>;
+		$write = 0 if ( $line =~ /\"policies\"\:/ );
+
+		if ( defined ( $next_line ) && $next_line =~ /\"policies\"\:/ && $line =~ /\]/ )
 		{
-			$backends = 0;
 			$line =~ s/,$//g;
 		}
 		print $fo $line
 		  if (
 			   $line !~ /new-rtlimit|rst-rtlimit|tcp-strict|queue|^[\s]{24}.est-connlimit/
-			   && $policies == 0 );
-		$policies = 0 if ( $policies == 1 && $line =~ /\]/ );
+			   && $write == 1 );
+
+		$write = 1 if ( $write == 0 && $line =~ /\]/ );
+
+		$line = $next_line;
 	}
 	close $fo;
 	close $fi;
@@ -1016,3 +1029,4 @@ sub writeL4NlbConfigFile
 }
 
 1;
+

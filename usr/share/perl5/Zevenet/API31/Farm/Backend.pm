@@ -114,7 +114,9 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		}
 
 		# Create backend
-		my $status = &setL4FarmServer( $farmname, $id,
+		my $status = &setL4FarmServer(
+									   $farmname,
+									   $id,
 									   $json_obj->{ ip },
 									   $json_obj->{ port },
 									   $json_obj->{ weight },
@@ -224,11 +226,14 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		}
 
 		# Create backend
-		my $status = &setDatalinkFarmServer( $id,
+		my $status = &setDatalinkFarmServer(
+											 $id,
 											 $json_obj->{ ip },
 											 $json_obj->{ interface },
 											 $json_obj->{ weight },
-											 $json_obj->{ priority }, $farmname, );
+											 $json_obj->{ priority },
+											 $farmname,
+		);
 
 		# check error adding a new backend
 		if ( $status == -1 )
@@ -381,12 +386,15 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 	}
 
 # First param ($id) is an empty string to let function autogenerate the id for the new backend
-	my $status = &setHTTPFarmServer( "",
+	my $status = &setHTTPFarmServer(
+									 "",
 									 $json_obj->{ ip },
 									 $json_obj->{ port },
 									 $json_obj->{ weight },
 									 $json_obj->{ timeout },
-									 $farmname, $service, );
+									 $farmname,
+									 $service,
+	);
 
 	# check if there was an error adding a new backend
 	if ( $status == -1 )
@@ -404,13 +412,6 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 
 	$json_obj->{ timeout } = $json_obj->{ timeout } + 0 if $json_obj->{ timeout };
 
-	if ( &getFarmStatus( $farmname ) eq 'up' )
-	{
-		require Zevenet::Farm::Action;
-
-		&setFarmRestart( $farmname );
-	}
-
 	my $message = "Added backend to service successfully";
 	my $body = {
 				 description => $desc,
@@ -424,6 +425,27 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 				 message => $message,
 				 status  => &getFarmVipStatus( $farmname ),
 	};
+
+	if ( &getFarmStatus( $farmname ) eq 'up' )
+	{
+		require Zevenet::Farm::Action;
+
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ info } =
+			  "There're changes that need to be applied, stop and start farm to apply them!";
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
+	}
 
 	&httpResponse( { code => 201, body => $body } );
 }
@@ -519,6 +541,11 @@ sub service_backends
 	require Zevenet::Farm::HTTP::Service;
 
 	my $service_ref = &getHTTPServiceStruct( $farmname, $service );
+
+	foreach my $be ( @{ $service_ref->{ backends } } )
+	{
+		delete ( $be->{ priority } );
+	}
 
 	# check if the requested service exists
 	if ( $service_ref == -1 )
@@ -640,7 +667,8 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 			$backend->{ max_conns } = $json_obj->{ max_conns };
 		}
 
-		my $status = &setL4FarmServer( $farmname,
+		my $status = &setL4FarmServer(
+									   $farmname,
 									   $backend->{ id },
 									   $backend->{ vip },
 									   $backend->{ vport },
@@ -928,11 +956,6 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 		"info", "FARMS"
 	);
 
-	if ( &getFarmStatus( $farmname ) eq "up" )
-	{
-		&setFarmRestart( $farmname );
-	}
-
 	my $body = {
 				 description => $desc,
 				 params      => $json_obj,
@@ -942,8 +965,20 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 
 	if ( &getFarmStatus( $farmname ) eq "up" )
 	{
-		$body->{ info } =
-		  "There're changes that need to be applied, stop and start farm to apply them!";
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ status } = 'needed restart';
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
 	}
 
 	&httpResponse( { code => 200, body => $body } );
@@ -1103,11 +1138,6 @@ sub delete_service_backend    # ( $farmname, $service, $id_server )
 		"info", "FARMS"
 	);
 
-	if ( &getFarmStatus( $farmname ) eq 'up' )
-	{
-		&setFarmRestart( $farmname );
-	}
-
 	my $message = "Backend removed";
 	my $body = {
 				 description => $desc,
@@ -1115,6 +1145,24 @@ sub delete_service_backend    # ( $farmname, $service, $id_server )
 				 message     => $message,
 				 status      => &getFarmVipStatus( $farmname ),
 	};
+
+	if ( &getFarmStatus( $farmname ) eq 'up' )
+	{
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ status } = 'needed restart';
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
+	}
 
 	&httpResponse( { code => 200, body => $body } );
 }

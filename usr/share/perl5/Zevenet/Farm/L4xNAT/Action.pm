@@ -24,9 +24,16 @@
 use strict;
 use warnings;
 
-my $configdir = &getGlobalConfiguration( 'configdir' );
-
+use Zevenet::Config;
 use Zevenet::Nft;
+
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
+
+my $configdir = &getGlobalConfiguration( 'configdir' );
 
 =begin nd
 Function: startL4Farm
@@ -156,13 +163,62 @@ sub setL4NewFarmName    # ($farm_name, $new_farm_name)
 			 "debug", "PROFILING" );
 	my $farm_name     = shift;
 	my $new_farm_name = shift;
+
+	my $err = &setL4FarmParam( 'name', "$new_farm_name", $farm_name );
+
+	unlink "$configdir\/${farm_name}_l4xnat.cfg";
+
+	if ( !$err and $eload )
+	{
+		$err = &eload(
+					   module => 'Zevenet::Farm::L4xNAT::Config::Ext',
+					   func   => 'setL4FarmParamExt',
+					   args   => ['log-prefix', undef, $new_farm_name],
+		);
+	}
+
+	return $err;
+}
+
+=begin nd
+Function: copyL4Farm
+
+	Function that copies a l4xnat farm.
+	If the flag has the value 'del', the old farm will be deleted.
+
+Parameters:
+	farmname - Farm name
+	newfarmname - New farm name
+	flag - It expets a 'del' string to delete the old farm. It is used to copy or rename the farm.
+
+Returns:
+	Integer - return 0 on success or <> 0 on failure
+
+=cut
+
+sub copyL4Farm    # ($farm_name, $new_farm_name)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $farm_name     = shift;
+	my $new_farm_name = shift;
+	my $del           = shift // '';
 	my $output        = 0;
 
 	require Tie::File;
+	use File::Copy qw(copy);
 
-	$output = &setL4FarmParam( 'name', "$new_farm_name", $farm_name );
+	my $file_ori = "$configdir/" . &getFarmFile( $farm_name );
+	my $file_new = "$configdir/${new_farm_name}_l4xnat.cfg";
 
-	unlink "$configdir\/${farm_name}_l4xnat.cfg";
+	copy( $file_ori, $file_new );
+
+	# replace the farm directive
+	tie my @lines, 'Tie::File', $file_new;
+	s/"name": "$farm_name"/"name": "$new_farm_name"/ for @lines;
+	untie @lines;
+
+	unlink $file_ori if ( $del eq 'del' );
 
 	return $output;
 }
@@ -263,8 +319,6 @@ sub stopL4FarmNlb    # ($farm_name)
 
 	require Zevenet::Farm::Core;
 
-	my $farmfile = &getFarmFile( $farm_name );
-
 	my $out = &setL4FarmParam( ( $writeconf ) ? 'bootstatus' : 'status',
 							   "down", $farm_name );
 
@@ -302,7 +356,13 @@ Function: sendL4NlbCmd
 	Send the param to Nlb for a L4 Farm
 
 Parameters:
-	self - hash that includes hash_keys -> ( $farm, $backend, $file, $method, $body )
+	self - hash that includes hash_keys:
+		farm, it is the farm that is going to be modified
+		farm_new_name, this field is defined when the farm name is going to be modified.
+		backend, backend id to modify
+		file, file where the HTTP body response of the nftlb is saved
+		method, HTTP verb for nftlb request
+		body, body to use in POST and PUT requests
 
 Returns:
 	Integer - return code of the request command
@@ -330,14 +390,14 @@ sub sendL4NlbCmd
 	if ( $self->{ method } =~ /PUT/
 		 || ( $self->{ method } =~ /DELETE/ && $self->{ uri } =~ /farms\/.*\/.*/ ) )
 	{
-		my $file  = "/tmp/nft_$$";
+		my $file  = "/tmp/get_farm_$$";
 		my $match = 0;
 
 		$output = &httpNlbRequest(
 								   {
 									 method => "GET",
 									 uri    => "/farms/" . $self->{ farm },
-									 file   => "$file"
+									 file   => "$file",
 								   }
 		);
 
@@ -356,7 +416,11 @@ sub sendL4NlbCmd
 			unlink $file;
 		}
 
-		&loadL4FarmNlb( $self->{ farm } ) if ( !$match );
+		if ( !$match )
+		{
+			&zenlog( "The farms was not loaded properly, trying it again", "error", );
+			&loadL4FarmNlb( $self->{ farm } );
+		}
 	}
 
 	if ( $self->{ method } =~ /PUT|DELETE/ )
@@ -370,17 +434,25 @@ sub sendL4NlbCmd
 		$self->{ uri } =
 		  "/farms/" . $self->{ farm } . "/backends/" . $self->{ backend };
 	}
-	else
+	elsif ( !defined $self->{ uri } )
 	{
 		$self->{ uri } = "/farms";
 		$self->{ uri } = "/farms/" . $self->{ farm }
 		  if ( $self->{ method } eq "DELETE" );
 	}
 
+	# use the new name
+	$self->{ farm } = $self->{ farm_new_name } if exists $self->{ farm_new_name };
+
 	$output = &httpNlbRequest( $self );
 
 	return $output if ( $self->{ method } eq "GET" or !defined $self->{ file } );
 
+	# end if the farm was deleted
+	return $output
+	  if ( $self->{ method } eq "DELETE" and !exists $self->{ backend } );
+
+	# save the conf
 	if ( $self->{ method } =~ /PUT|DELETE/ )
 	{
 		$self->{ file } = $cfgfile;
@@ -390,9 +462,29 @@ sub sendL4NlbCmd
 	$self->{ uri }    = "/farms/" . $self->{ farm };
 	$self->{ body }   = "";
 
-	$output = &httpNlbRequest( $self ) || $output;
+	$output = &httpNlbRequest( $self );
 
 	return $output;
 }
 
+sub saveL4Conf
+{
+	my $farm = shift;
+
+	my $configdir = &getGlobalConfiguration( 'configdir' );
+	my $farmfile  = &getFarmFile( $farm );
+	my $file      = "$configdir/$farmfile";
+
+	my $req = {
+				method => "GET",
+				file   => $file,
+				uri    => "/farms/" . $farm,
+	};
+
+	my $err = &httpNlbRequest( $req );
+
+	return $err;
+}
+
 1;
+

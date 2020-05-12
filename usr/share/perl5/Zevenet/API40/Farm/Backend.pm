@@ -95,11 +95,13 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 	}
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
 	my $id = &getFarmBackendAvailableID( $farmname );
+
+	my $info_msg;
 
 	# check of interface for datalink
 	if ( $type eq 'datalink' )
@@ -108,6 +110,21 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		if ( $msg )
 		{
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+	}
+	elsif ( exists $json_obj->{ priority } )
+	{
+		require Zevenet::Farm::L4xNAT::Backend;
+		require Zevenet::Farm::Validate;
+		my $prio = &getL4FarmPriorities( $farmname );
+		push @{ $prio }, $json_obj->{ priority };
+		if ( &priorityAlgorithmIsOK( $prio ) )
+		{
+			$info_msg = "This backend will not be used due to a high priority value.";
+			&zenlog(
+				"Warning, backend with high priority value ($json_obj->{ priority }) in farm $farmname with IP $json_obj->{ip}.",
+				"warning", "FARMS"
+			);
 		}
 	}
 
@@ -125,7 +142,7 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 	}
 
 	&zenlog( "New backend created in farm $farmname with IP $json_obj->{ip}.",
-			 "info", "FARMS", "info", "FARMS" );
+			 "info", "FARMS" );
 
 	# Backend retrieval
 	my $serversArray = &getFarmServers( $farmname );
@@ -139,13 +156,14 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 
 	&getAPIFarmBackends( $out_b, $type );
 
-	my $message = "Backend added";
+	my $message = "Backend added.";
 	my $body = {
 				 description => $desc,
 				 params      => $out_b,
 				 message     => $message,
 				 status      => &getFarmVipStatus( $farmname ),
 	};
+	$body->{ warning } = $info_msg if defined $info_msg;
 
 	&eload(
 			module => 'Zevenet::Cluster',
@@ -170,6 +188,9 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 	my $params = {
 				   "weight" => {
 								 'interval' => '1,9',
+				   },
+				   "priority" => {
+								   'interval' => '1,9',
 				   },
 				   "timeout" => {
 								  'valid_format' => 'natural_num',
@@ -215,6 +236,7 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 	# HTTP
 	require Zevenet::Farm::Config;
 	require Zevenet::Farm::Backend;
+	require Zevenet::Farm::Validate;
 	require Zevenet::Farm::HTTP::Backend;
 	require Zevenet::Farm::HTTP::Service;
 
@@ -237,7 +259,7 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 	}
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -253,6 +275,7 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 									 $json_obj->{ timeout },
 									 $farmname,
 									 $service,
+									 $json_obj->{ priority },
 	);
 
 	# check if there was an error adding a new backend
@@ -263,6 +286,21 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
+	my $info_msg = "";
+	if ( $type =~ /http/ and exists $json_obj->{ priority } )
+	{
+		my $prio = &getHTTPFarmPriorities( $farmname, $service );
+		push @{ $prio }, $json_obj->{ priority };
+		if ( &priorityAlgorithmIsOK( $prio ) )
+		{
+			$info_msg = "This backend will not be used due to a high priority value.";
+			&zenlog(
+				"Warning, new backend with high priority value ($json_obj->{ priority }) added in farm $farmname in service $service with IP $json_obj->{ip}.",
+				"info", "FARMS"
+			);
+		}
+	}
+
 	# no error found, return successful response
 	&zenlog(
 		"Success, a new backend has been created in farm $farmname in service $service with IP $json_obj->{ip}.",
@@ -271,19 +309,32 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 
 	$json_obj->{ timeout } = $json_obj->{ timeout } + 0 if $json_obj->{ timeout };
 
-	if ( &getFarmStatus( $farmname ) eq 'up' )
-	{
-		require Zevenet::Farm::Action;
-		&setFarmRestart( $farmname );
-	}
-
-	my $message = "Added backend to service successfully";
+	my $message = "Added backend to service successfully. $info_msg";
 	my $body = {
 				 description => $desc,
 				 params      => @{ &getFarmServers( $farmname, $service ) }[$id],
 				 message     => $message,
 				 status      => &getFarmVipStatus( $farmname ),
 	};
+
+	if ( &getFarmStatus( $farmname ) eq 'up' )
+	{
+		require Zevenet::Farm::Action;
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ status } = 'needed restart';
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
+	}
 
 	&httpResponse( { code => 201, body => $body } );
 }
@@ -334,7 +385,6 @@ sub service_backends
 	my ( $farmname, $service ) = @_;
 
 	my $desc = "List service backends";
-	my $backendstatus;
 
 	# Check that the farm exists
 	if ( !&getFarmExists( $farmname ) )
@@ -445,7 +495,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 	}
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -481,18 +531,34 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
+	my $info_msg;
+	if ( ( $type ne 'datalink' ) and ( exists $json_obj->{ priority } ) )
+	{
+		require Zevenet::Farm::L4xNAT::Backend;
+		require Zevenet::Farm::Validate;
+		if ( my $prio = &priorityAlgorithmIsOK( &getL4FarmPriorities( $farmname ) ) )
+		{
+			$info_msg = "Backends with high priority value ($prio) will not be used.";
+			&zenlog(
+				"Warning, backend with high priority value ($prio) in farm $farmname with IP $json_obj->{ip}.",
+				"warning", "FARMS"
+			);
+		}
+	}
+
 	&zenlog(
 		"Success, some parameters have been changed in the backend $id_server in farm $farmname.",
 		"info", "FARMS"
 	);
 
-	my $message = "Backend modified";
+	my $message = "Backend modified.";
 	my $body = {
 				 description => $desc,
 				 params      => $json_obj,
 				 message     => $message,
 				 status      => &getFarmVipStatus( $farmname ),
 	};
+	$body->{ warning } = $info_msg if defined $info_msg;
 
 	&eload(
 			module => 'Zevenet::Cluster',
@@ -514,6 +580,9 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 	my $params = {
 				   "weight" => {
 								 'interval' => '1,9',
+				   },
+				   "priority" => {
+								   'interval' => '1,9',
 				   },
 				   "timeout" => {
 								  'valid_format' => 'natural_num',
@@ -585,23 +654,28 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 	}
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
 	# apply BACKEND change
 
-	$be->{ ip }      = $json_obj->{ ip } // $be->{ ip };
-	$be->{ port }    = $json_obj->{ port } // $be->{ port };
-	$be->{ weight }  = $json_obj->{ weight } // $be->{ weight };
-	$be->{ timeout } = $json_obj->{ timeout } // $be->{ timeout };
+	$be->{ ip }       = $json_obj->{ ip }       // $be->{ ip };
+	$be->{ port }     = $json_obj->{ port }     // $be->{ port };
+	$be->{ weight }   = $json_obj->{ weight }   // $be->{ weight };
+	$be->{ priority } = $json_obj->{ priority } // $be->{ priority };
+	$be->{ timeout }  = $json_obj->{ timeout }  // $be->{ timeout };
 
-	my $status = &setHTTPFarmServer( $id_server,
+	my $status = &setHTTPFarmServer(
+									 $id_server,
 									 $be->{ ip },
 									 $be->{ port },
 									 $be->{ weight },
 									 $be->{ timeout },
-									 $farmname, $service );
+									 $farmname,
+									 $service,
+									 $be->{ priority }
+	);
 
 	# check if there was an error modifying the backend
 	if ( $status == -1 )
@@ -611,29 +685,50 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	# no error found, return successful response
-	&zenlog(
-		"Success, some parameters have been changed in the backend $id_server in service $service in farm $farmname.",
-		"info", "FARMS"
-	);
+	my $info_msg;
 
-	if ( &getFarmStatus( $farmname ) eq "up" )
+	if (     ( &getGlobalConfiguration( 'proxy_ng' ) eq 'true' )
+		 and ( exists $json_obj->{ priority } ) )
 	{
-		&setFarmRestart( $farmname );
+		require Zevenet::Farm::Validate;
+		if ( my $prio =
+			 &priorityAlgorithmIsOK( &getHTTPFarmPriorities( $farmname, $service ) ) )
+		{
+			$info_msg = "Backends with high priority value ($prio) will not be used.";
+			&zenlog(
+				"Warning, backend with high priority value ($prio) in farm $farmname in service $service with IP $json_obj->{ip}.",
+				"warning", "FARMS"
+			);
+		}
 	}
-
+	my $msg = "Backend modified.";
 	my $body = {
 				 description => $desc,
 				 params      => $json_obj,
-				 message     => "Backend modified",
+				 message     => $msg,
 				 status      => &getFarmVipStatus( $farmname ),
 	};
 
 	if ( &getFarmStatus( $farmname ) eq "up" )
 	{
-		$body->{ info } =
-		  "There're changes that need to be applied, stop and start farm to apply them!";
+		require Zevenet::Farm::Action;
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ status } = 'needed restart';
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
 	}
+
+	$body->{ warning } = $info_msg if defined $info_msg;
 
 	&httpResponse( { code => 200, body => $body } );
 }
@@ -684,6 +779,18 @@ sub delete_backend    # ( $farmname, $id_server )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
+	my $info_msg;
+	if ( $type eq 'l4xnat' )
+	{
+		require Zevenet::Farm::Validate;
+		if ( my $prio = &priorityAlgorithmIsOK( &getL4FarmPriorities( $farmname ) ) )
+		{
+			$info_msg = "Backends with priority value ($prio) will not be used.";
+			&zenlog( "Warning, backend with high priority value ($prio) in farm $farmname.",
+					 "warning", "FARMS" );
+		}
+	}
+
 	&zenlog( "Success, the backend $id_server in farm $farmname has been deleted.",
 			 "info", "FARMS" );
 
@@ -706,6 +813,7 @@ sub delete_backend    # ( $farmname, $id_server )
 				 message     => $message,
 				 status      => &getFarmVipStatus( $farmname ),
 	};
+	$body->{ warning } = $info_msg if defined $info_msg;
 
 	&httpResponse( { code => 200, body => $body } );
 }
@@ -784,16 +892,26 @@ sub delete_service_backend    # ( $farmname, $service, $id_server )
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
+	my $info_msg;
+	if ( &getGlobalConfiguration( 'proxy_ng' ) eq 'true' )
+	{
+		require Zevenet::Farm::Validate;
+		if ( my $prio =
+			 &priorityAlgorithmIsOK( &getHTTPFarmPriorities( $farmname, $service ) ) )
+		{
+			$info_msg = "Backends with high priority value ($prio) will not be used.";
+			&zenlog(
+				"Warning, backend with high priority value ($prio) in service $service in farm $farmname.",
+				"warning", "FARMS"
+			);
+		}
+	}
+
 	# no error found, return successful response
 	&zenlog(
 		"Success, the backend $id_server in service $service in farm $farmname has been deleted.",
 		"info", "FARMS"
 	);
-
-	if ( &getFarmStatus( $farmname ) eq 'up' )
-	{
-		&setFarmRestart( $farmname );
-	}
 
 	my $message = "Backend removed";
 	my $body = {
@@ -803,6 +921,26 @@ sub delete_service_backend    # ( $farmname, $service, $id_server )
 				 status      => &getFarmVipStatus( $farmname ),
 	};
 
+	if ( &getFarmStatus( $farmname ) eq 'up' )
+	{
+		require Zevenet::Farm::Action;
+		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+		{
+			&setFarmRestart( $farmname );
+			$body->{ status } = 'needed restart';
+		}
+		else
+		{
+			&runFarmReload( $farmname );
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'reload', $farmname],
+			) if ( $eload );
+		}
+	}
+
+	$body->{ warning } = $info_msg if defined $info_msg;
 	&httpResponse( { code => 200, body => $body } );
 }
 
@@ -825,8 +963,8 @@ sub validateDatalinkBackendIface
 		$msg = "It is not possible to configure vlan interface for datalink backends";
 	}
 	elsif (
-			!&getNetValidate( $iface_ref->{ addr }, $iface_ref->{ mask }, $backend->{ ip }
-			)
+		  !&getNetValidate( $iface_ref->{ addr }, $iface_ref->{ mask }, $backend->{ ip }
+		  )
 	  )
 	{
 		$msg =
@@ -837,3 +975,4 @@ sub validateDatalinkBackendIface
 }
 
 1;
+

@@ -66,6 +66,15 @@ sub get_supportsave
 			 "debug", "PROFILING" );
 	my $desc = "Get supportsave file";
 
+	my $req_size = &checkSupportSaveSpace();
+	if ( $req_size )
+	{
+		my $space = &getSpaceFormatHuman( $req_size );
+		my $msg =
+		  "Supportsave cannot be generated because '/tmp' needs '$space' Bytes of free space";
+		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+
 	my $ss_filename = &getSupportSave();
 
 	&httpDownloadResponse( desc => $desc, dir => '/tmp', file => $ss_filename );
@@ -111,6 +120,7 @@ sub get_system_info
 	my $desc = "Get the system information";
 
 	my $zevenet       = &getGlobalConfiguration( 'version' );
+	my $lang          = &getGlobalConfiguration( 'lang' );
 	my $kernel        = &getKernelVersion();
 	my $hostname      = &getHostname();
 	my $date          = &getDate();
@@ -118,6 +128,7 @@ sub get_system_info
 	my $user          = &getUser();
 	my @zapi_versions = &listZapiVersions();
 	my $edition       = ( $eload ) ? "enterprise" : "community";
+	my $platform      = &getGlobalConfiguration( 'cloud_provider' );
 
 	my $params = {
 				   'system_date'             => $date,
@@ -129,6 +140,8 @@ sub get_system_info
 				   'supported_zapi_versions' => \@zapi_versions,
 				   'last_zapi_version'       => $zapi_versions[-1],
 				   'edition'                 => $edition,
+				   'language'                => $lang,
+				   'platform'                => $platform,
 	};
 
 	if ( $eload )
@@ -144,4 +157,39 @@ sub get_system_info
 	&httpResponse( { code => 200, body => $body } );
 }
 
+#  POST /system/language
+sub set_language
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $json_obj = shift;
+
+	my $desc = "Modify the WebGUI language";
+
+	my $params = {
+				   "language" => {
+								   'required' => 'true',
+				   },
+	};
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
+
+	# Check allowed parameters
+	&setGlobalConfiguration( 'lang', $json_obj->{ language } );
+
+	&httpResponse(
+				   {
+					 code => 200,
+					 body => {
+							   description => $desc,
+							   params      => { language => &getGlobalConfiguration( 'lang' ) }
+					 }
+				   }
+	);
+}
+
 1;
+

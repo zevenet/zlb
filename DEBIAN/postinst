@@ -85,6 +85,10 @@ if [ ! -L ${LIBEXEC_PATH}/check_uplink ]; then
 	ln -s ${ZBIN_PATH}/check_uplink ${LIBEXEC_PATH}/check_uplink
 fi
 
+# Apply all migrating scripts to zevenet
+MIG_DIR="/usr/local/zevenet/migrating/"
+for SCRIPT in `ls $MIG_DIR`; do ${MIG_DIR}$SCRIPT; done
+
 # Restarting zevenet service
 echo "Zevenet will be unavailable while the service is restarting."
 /etc/init.d/zevenet stop

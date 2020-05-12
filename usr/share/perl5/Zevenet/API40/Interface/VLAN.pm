@@ -47,20 +47,22 @@ sub new_vlan    # ( $json_obj )
 	my $vlan_tag_re = &getValidFormat( 'vlan_tag' );
 
 	my $params = {
-				   "name" => {
-							   'valid_format' => 'vlan_interface',
-							   'required'     => 'true',
-							   'non_blank'    => 'true',
-				   },
-				   "ip" => {
-							 'valid_format' => 'ip_addr',
-				   },
-				   "netmask" => {
-								  'valid_format' => 'ip_mask',
-				   },
-				   "gateway" => {
-								  'valid_format' => 'ip_addr',
-				   },
+		"name" => {
+			'valid_format' => 'vlan_interface',
+			'required'     => 'true',
+			'non_blank'    => 'true',
+			"format_msg" =>
+			  "is a string formed with the parent interface name, dot ('.') and a VLAN tag. E.g. 'eth1.1'",
+		},
+		"ip" => {
+				  'valid_format' => 'ip_addr',
+		},
+		"netmask" => {
+					   'valid_format' => 'ip_mask',
+		},
+		"gateway" => {
+					   'valid_format' => 'ip_addr',
+		},
 	};
 
 	if ( $eload )
@@ -69,13 +71,11 @@ sub new_vlan    # ( $json_obj )
 								'non_blank' => 'true',
 								'values'    => ['true', 'false'],
 		};
-		$params->{ "mac" } = {
-								'valid_format' => 'mac_addr',
-		};
+		$params->{ "mac" } = { 'valid_format' => 'mac_addr', };
 	}
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -120,9 +120,8 @@ sub new_vlan    # ( $json_obj )
 	$json_obj->{ tag }    = $2;
 
 	# validate PARENT
-	my $parent_exist = &ifexist( $json_obj->{ parent } );
-
-	unless ( $parent_exist eq "true" || $parent_exist eq "created" )
+	my $if_parent = &getInterfaceConfig( $json_obj->{ parent } );
+	unless ( defined $if_parent )
 	{
 		my $msg = "The parent interface $json_obj->{ parent } doesn't exist";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -161,7 +160,7 @@ sub new_vlan    # ( $json_obj )
 	$if_ref = {
 				name   => $json_obj->{ name },
 				dev    => $json_obj->{ parent },
-				status => "up",
+				status => $if_parent->{ status },
 				vlan   => $json_obj->{ tag },
 				dhcp   => $json_obj->{ dhcp } // 'false',
 				mac    => $socket->if_hwaddr( $json_obj->{ parent } ),
@@ -325,6 +324,7 @@ sub delete_interface_vlan    # ( $vlan )
 
 	if ( $@ )
 	{
+		&zenlog( "Module failed: $@", "error", "net" );
 		my $msg = "The VLAN interface $vlan can't be deleted";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
@@ -402,7 +402,7 @@ sub actions_interface_vlan    # ( $json_obj, $vlan )
 	};
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -517,6 +517,8 @@ sub modify_interface_vlan    # ( $json_obj, $vlan )
 
 	my $desc   = "Modify VLAN interface";
 	my $if_ref = &getInterfaceConfig( $vlan );
+	my $old_ip = $if_ref->{ addr };
+
 	my @farms;
 
 	# Check interface errors
@@ -548,13 +550,11 @@ sub modify_interface_vlan    # ( $json_obj, $vlan )
 								'non_blank' => 'true',
 								'values'    => ['true', 'false'],
 		};
-		$params->{ "mac" } = {
-								'valid_format' => 'mac_addr',
-		};
+		$params->{ "mac" } = { 'valid_format' => 'mac_addr', };
 	}
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -663,11 +663,18 @@ sub modify_interface_vlan    # ( $json_obj, $vlan )
 			}
 		}
 
-   # Do not modify gateway or netmask if exists a virtual interface using this interface
 		if ( exists $json_obj->{ ip } or exists $json_obj->{ netmask } )
 		{
-			my @wrong_conf;
+			# check ip and netmas are configured
+			unless ( $new_if->{ addr } ne "" and $new_if->{ mask } ne "" )
+			{
+				my $msg =
+				  "The networking configuration is not valid. It needs an IP ('$new_if->{addr}') and a netmask ('$new_if->{mask}')";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
 
+	   # Do not modify gateway or netmask if exists a virtual interface using this interface
+			my @wrong_conf;
 			foreach my $child_name ( @child )
 			{
 				my $child_if = &getInterfaceConfig( $child_name );
@@ -732,6 +739,15 @@ sub modify_interface_vlan    # ( $json_obj, $vlan )
 	$if_ref->{ ip_v } = &ipversion( $if_ref->{ addr } );
 	$if_ref->{ net } =
 	  &getAddressNetwork( $if_ref->{ addr }, $if_ref->{ mask }, $if_ref->{ ip_v } );
+
+	if ( $eload )
+	{
+		&eload(
+				module => 'Zevenet::Net::Routing',
+				func   => 'updateRoutingVirtualIfaces',
+				args   => [$if_ref->{ parent }, $old_ip],
+		);
+	}
 
 	require Zevenet::Lock;
 	my $vlan_config_file =

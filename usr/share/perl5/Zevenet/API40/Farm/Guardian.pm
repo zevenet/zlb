@@ -39,14 +39,15 @@ sub getZapiFG
 
 	my $fg = &getFGObject( $fg_name );
 	my $out = {
-				'name'        => $fg_name,
-				'description' => $fg->{ description },
-				'command'     => $fg->{ command },
-				'farms'       => $fg->{ farms },
-				'log'         => $fg->{ log } // 'false',
-				'interval'    => $fg->{ interval } + 0,
-				'cut_conns'   => $fg->{ cut_conns },
-				'template'    => $fg->{ template },
+				'name'          => $fg_name,
+				'backend_alias' => $fg->{ backend_alias } // 'false',
+				'description'   => $fg->{ description },
+				'command'       => $fg->{ command },
+				'farms'         => $fg->{ farms },
+				'log'           => $fg->{ log } // 'false',
+				'interval'      => $fg->{ interval } + 0,
+				'cut_conns'     => $fg->{ cut_conns },
+				'template'      => $fg->{ template },
 	};
 
 	return $out;
@@ -76,11 +77,11 @@ sub get_farmguardian
 			 "debug", "PROFILING" );
 	my $fg_name = shift;
 
-	my $desc = "Retrive the farm guardian $fg_name";
+	my $desc = "Retrive the farm guardian '$fg_name'";
 
 	unless ( &getFGExists( $fg_name ) )
 	{
-		my $msg = "The farm guardian $fg_name has not been found.";
+		my $msg = "The farm guardian '$fg_name' has not been found.";
 		return &httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
@@ -109,18 +110,18 @@ sub create_farmguardian
 			 "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $fg_name  = $json_obj->{ name };
-	my $desc     = "Create a farm guardian $fg_name";
+	my $desc     = "Create a farm guardian '$fg_name'";
 
 	if ( &getFGExistsConfig( $fg_name ) )
 	{
-		my $msg = "The farm guardian $fg_name already exists.";
+		my $msg = "The farm guardian '$fg_name' already exists.";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
 	if ( &getFGExistsTemplate( $fg_name ) )
 	{
 		my $msg =
-		  "The farm guardian $fg_name is a template, select another name, please";
+		  "The farm guardian '$fg_name' is a template, select another name, please";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -136,14 +137,14 @@ sub create_farmguardian
 	};
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
 	if ( exists $json_obj->{ copy_from }
 		 and not &getFGExists( $json_obj->{ copy_from } ) )
 	{
-		my $msg = "The parent farm guardian $json_obj->{ copy_from } does not exist.";
+		my $msg = "The parent farm guardian '$json_obj->{ copy_from }' does not exist.";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -157,7 +158,7 @@ sub create_farmguardian
 	my $out = &getZapiFG( $fg_name );
 	if ( $out )
 	{
-		my $msg = "The farm guardian $fg_name has been created successfully.";
+		my $msg = "The farm guardian '$fg_name' has been created successfully.";
 		my $body = {
 					 description => $desc,
 					 params      => $out,
@@ -167,7 +168,7 @@ sub create_farmguardian
 	}
 	else
 	{
-		my $msg = "The farm guardian $fg_name could not be created";
+		my $msg = "The farm guardian '$fg_name' could not be created";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 }
@@ -180,11 +181,11 @@ sub modify_farmguardian
 	my $json_obj = shift;
 	my $fgname   = shift;
 
-	my $desc = "Modify farm guardian $fgname";
+	my $desc = "Modify farm guardian '$fgname'";
 
 	unless ( &getFGExists( $fgname ) )
 	{
-		my $msg = "The farm guardian $fgname does not exist.";
+		my $msg = "The farm guardian '$fgname' does not exist.";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -204,13 +205,16 @@ sub modify_farmguardian
 				   "cut_conns" => {
 									'valid_format' => 'boolean',
 				   },
+				   "backend_alias" => {
+										'valid_format' => 'boolean',
+				   },
 				   "force" => {
 								'valid_format' => 'boolean',
 				   },
 	};
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
@@ -234,10 +238,10 @@ sub modify_farmguardian
 		 and not exists $json_obj->{ force }
 		 and $json_obj->{ force } ne 'true' )
 	{
-		if ( exists $json_obj->{ command } )
+		if ( exists $json_obj->{ command } or exists $json_obj->{ backend_alias } )
 		{
 			my $error_msg =
-			  "Farm guardian $fgname is running in: $run_farms. To apply, send parameter 'force'";
+			  "Farm guardian '$fgname' is running in: '$run_farms'. To apply, send parameter 'force'";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $error_msg );
 		}
 	}
@@ -259,7 +263,7 @@ sub modify_farmguardian
 
 		# no error found, return successful response
 		my $msg =
-		  "Success, some parameters have been changed in farm guardian $fgname.";
+		  "Success, some parameters have been changed in farm guardian '$fgname'.";
 		my $out = &getZapiFG( $fgname );
 		my $body = { description => $desc, params => $out, message => $msg, };
 
@@ -267,7 +271,7 @@ sub modify_farmguardian
 	}
 	else
 	{
-		my $msg = "Modifying farm guardian $fgname.";
+		my $msg = "Modifying farm guardian '$fgname'.";
 		my $body = { description => $desc, message => $msg, };
 
 		&httpResponse( { code => 400, body => $body } );
@@ -281,7 +285,7 @@ sub delete_farmguardian
 			 "debug", "PROFILING" );
 	my $fg_name = shift;
 
-	my $desc = "Delete the farm guardian $fg_name";
+	my $desc = "Delete the farm guardian '$fg_name'";
 
 	unless ( &getFGExists( $fg_name ) )
 	{
@@ -294,7 +298,7 @@ sub delete_farmguardian
 	{
 		my $farm_str = join ( ', ', @running_farms );
 		my $msg =
-		  "It is not possible delete farm guardian $fg_name because it is running in: $farm_str";
+		  "It is not possible delete farm guardian '$fg_name' because it is running in: '$farm_str'";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -322,7 +326,7 @@ sub delete_farmguardian
 	}
 	else
 	{
-		my $msg = "Deleting the farm guardian $fg_name.";
+		my $msg = "Deleting the farm guardian '$fg_name'.";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 }
@@ -336,9 +340,10 @@ sub add_farmguardian_farm
 	my $farm     = shift;
 	my $srv      = shift;
 
-	my $srv_message = ( $srv ) ? "service $srv in the farm $farm" : "farm $farm";
+	my $srv_message =
+	  ( $srv ) ? "service '$srv' in the farm '$farm'" : "farm '$farm'";
 
-	my $desc = "Add the farm guardian $json_obj->{ 'name' } to the $srv_message";
+	my $desc = "Add the farm guardian '$json_obj->{ name }' to the '$srv_message'";
 	my $params = {
 				   "name" => {
 							   'non_blank' => 'true',
@@ -351,21 +356,26 @@ sub add_farmguardian_farm
 	# Check if it exists
 	if ( !&getFarmExists( $farm ) )
 	{
-		my $msg = "The farm $farm does not exist";
+		my $msg = "The farm '$farm' does not exist";
 		return &httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
 
 	# Check if it exists
 	if ( !&getFGExists( $json_obj->{ name } ) )
 	{
-		my $msg = "The farmguardian $json_obj->{ name } does not exist";
+		my $msg = "The farmguardian '$json_obj->{ name }' does not exist";
 		return &httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
 	# Check if it exists
 	if ( $srv and !grep ( /^$srv$/, &getFarmServices( $farm ) ) )
 	{
-		my $msg = "The service $srv does not exist";
+		my $msg = "The service '$srv' does not exist";
 		return &httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
@@ -373,7 +383,7 @@ sub add_farmguardian_farm
 	my $fg_old = &getFGFarm( $farm, $srv );
 	if ( $fg_old )
 	{
-		my $msg = "The $srv_message has already linked a farm guardian";
+		my $msg = "The '$srv_message' has already linked a farm guardian";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -381,16 +391,11 @@ sub add_farmguardian_farm
 	my $farm_tag = $farm;
 	$farm_tag = "${farm}_$srv" if $srv;
 
-	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params );
-	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
-	  if ( $error_msg );
-
 	# check if the farm guardian is already applied to the farm
 	my $fg_obj = &getFGObject( $json_obj->{ name } );
 	if ( grep ( /^$farm_tag$/, @{ $fg_obj->{ farms } } ) )
 	{
-		my $msg = "$json_obj->{ name } is already applied in the $srv_message";
+		my $msg = "'$json_obj->{ name }' is already applied in the '$srv_message'";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -418,7 +423,7 @@ sub add_farmguardian_farm
 		}
 
 		my $msg =
-		  "Success, The farm guardian $json_obj->{ 'name' } was added to the $srv_message";
+		  "Success, The farm guardian '$json_obj->{ name }' was added to the '$srv_message'";
 		my $body = {
 					 description => $desc,
 					 message     => $msg,
@@ -429,7 +434,7 @@ sub add_farmguardian_farm
 	else
 	{
 		my $msg =
-		  "There was an error trying to add $json_obj->{ 'name' } to the $srv_message";
+		  "There was an error trying to add '$json_obj->{ name }' to the '$srv_message'";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -454,29 +459,30 @@ sub rem_farmguardian_farm
 		$fgname = shift;
 	}
 
-	my $srv_message = ( $srv ) ? "service $srv in the farm $farm" : "farm $farm";
-	my $desc = "Remove the farm guardian $fgname from the $srv_message";
+	my $srv_message =
+	  ( $srv ) ? "service '$srv' in the farm '$farm'" : "farm '$farm'";
+	my $desc = "Remove the farm guardian '$fgname' from the '$srv_message'";
 
 	require Zevenet::Farm::Service;
 
 	# Check if it exists
 	if ( !&getFarmExists( $farm ) )
 	{
-		my $msg = "The farm $farm does not exist";
+		my $msg = "The farm '$farm' does not exist";
 		return &httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
 	# Check if it exists
 	if ( !&getFGExists( $fgname ) )
 	{
-		my $msg = "The farmguardian $fgname does not exist";
+		my $msg = "The farmguardian '$fgname' does not exist";
 		return &httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
 	# Check if it exists
 	if ( $srv and !grep ( /^$srv$/, &getFarmServices( $farm ) ) )
 	{
-		my $msg = "The service $srv does not exist";
+		my $msg = "The service '$srv' does not exist";
 		return &httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
@@ -488,7 +494,7 @@ sub rem_farmguardian_farm
 	my $fg_obj = &getFGObject( $fgname );
 	if ( not grep ( /^$farm_tag$/, @{ $fg_obj->{ farms } } ) )
 	{
-		my $msg = "The farm guardian $fgname is not applied to the $srv_message";
+		my $msg = "The farm guardian '$fgname' is not applied to the '$srv_message'";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -498,7 +504,7 @@ sub rem_farmguardian_farm
 	$fg_obj = &getFGObject( $fgname );
 	if ( grep ( /^$farm_tag$/, @{ $fg_obj->{ farms } } ) or &getFGPidFarm( $farm ) )
 	{
-		my $msg = "Error removing $fgname from the $srv_message";
+		my $msg = "Error removing '$fgname' from the '$srv_message'";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 	else
@@ -515,7 +521,7 @@ sub rem_farmguardian_farm
 			);
 		}
 
-		my $msg = "Success, $fgname was removed from the $srv_message";
+		my $msg = "Success, '$fgname' was removed from the '$srv_message'";
 		my $body = {
 					 description => $desc,
 					 message     => $msg,
@@ -526,3 +532,4 @@ sub rem_farmguardian_farm
 }
 
 1;
+

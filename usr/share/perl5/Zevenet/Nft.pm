@@ -24,8 +24,6 @@
 use strict;
 use warnings;
 
-use Zevenet::Nft;
-
 =begin nd
 Function: getNlbPid
 
@@ -118,7 +116,7 @@ sub startNlb
 		#required to wait at startup to ensure the process is up
 		sleep 1;
 
-		$nlbpid = `$pidof nftlb`;
+		$nlbpid = &logAndGet( "$pidof nftlb" );
 		if ( $nlbpid eq "" )
 		{
 			return -1;
@@ -150,10 +148,8 @@ sub stopNlb
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
-	my $nftlbd     = &getGlobalConfiguration( 'zbindir' ) . "/nftlbd";
-	my $pidof      = &getGlobalConfiguration( 'pidof' );
-	my $nlbpidfile = &getNlbPidFile();
-	my $nlbpid     = &getNlbPid();
+	my $nftlbd = &getGlobalConfiguration( 'zbindir' ) . "/nftlbd";
+	my $nlbpid = &getNlbPid();
 
 	if ( $nlbpid ne "-1" )
 	{
@@ -169,7 +165,13 @@ Function: httpNlbRequest
 	Send an action to nftlb
 
 Parameters:
-	self - hash that includes hash_keys -> ( $file, $method, $uri, $body )
+	self - hash that includes hash_keys:
+		file, file where the HTTP body response of the nftlb is saved
+		method, HTTP verb for nftlb request
+		uri, HTTP URI for nftlb request
+		body, body to use in POST and PUT requests
+		check, if this parameter is defined is a flag to not print error if
+				the request is used to check if a element exists.
 
 Returns:
 	Integer - return code of the request command
@@ -181,8 +183,7 @@ sub httpNlbRequest
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $self     = shift;
-	my $curl_cmd = `which curl`;
-	my $output   = -1;
+	my $curl_cmd = &getGlobalConfiguration( 'curl_bin' );
 	my $body     = "";
 
 	my $pid = &startNlb();
@@ -198,31 +199,43 @@ sub httpNlbRequest
 	  if ( defined $self->{ body } && $self->{ body } ne "" );
 
 	my $execmd =
-	  qq($curl_cmd --noproxy "*" -s -H "Key: HoLa" -X "$self->{ method }" $body http://127.0.0.1:27$self->{ uri });
+	  qq($curl_cmd -w "%{http_code}" --noproxy "*" -s -H "Key: HoLa" -X "$self->{ method }" $body http://127.0.0.1:27$self->{ uri });
 
 	my $file = "/tmp/nft_$$";
 	$file = $self->{ file }
-	  if ( defined $self->{ file } && $self->{ file } =~ /ipds/ );
+	  if ( defined $self->{ file } && $self->{ file } =~ /(?:ipds)/ );
 
-	if ( defined $self->{ file } && $self->{ file } ne "" )
+	# Send output to a file to get only the http code by the standard output
+	$execmd = $execmd . " -o $file";
+
+	my $output = &logAndGet( $execmd );
+	if ( $output !~ /^2/ )    # err
 	{
-		$execmd = $execmd . " -f -o $file";
+		my $tag = ( exists $self->{ check } ) ? 'debug' : 'error';
+		&zenlog( "cmd failed: $execmd", $tag, 'system' ) if ( !&debug );
+		if ( open ( my $fh, '<', $file ) )
+		{
+			local $/ = undef;
+			my $err = <$fh>;
+			&zenlog( "(code: $output): $err", $tag, 'system' );
+			close $fh;
+		}
+		else
+		{
+			&zenlog( "The file '$file' could not be opened", 'error', 'system' );
+		}
+		return -1;
 	}
-
-	$output = &logAndRun( $execmd );
 
 	# filter ipds params into the configuration file
 	if (    defined $self->{ file }
 		 && $self->{ file } ne ""
-		 && -f "$file"
-		 && $self->{ file } !~ /\/tmp\//
+		 && !-z "$file"
 		 && $file !~ /ipds/ )
 	{
 		require Zevenet::Farm::L4xNAT::Config;
 		&writeL4NlbConfigFile( $file, $self->{ file } );
 	}
-
-	return -1 if ( $output != 0 );
 
 	return 0;
 }
@@ -265,19 +278,18 @@ sub execNft
 	}
 	elsif ( $action eq "delete" )
 	{
-		if ( $chain eq "" )
+		if ( !defined $chain || $chain eq "" )
 		{
 			&zenlog( "Deleting cluster table $table" );
-			$output = `$nft delete table $table 2> /dev/null`;
+			$output = &logAndRun( "$nft delete table $table" );
 		}
-		elsif ( $rule eq "" )
+		elsif ( !defined $rule || $rule eq "" )
 		{
-			$output = `$nft delete chain $table $chain 2> /dev/null`;
+			$output = &logAndRun( "$nft delete chain $table $chain" );
 		}
 		else
 		{
-			my @rules  = `$nft -a list chain $table $chain 2> /dev/null`;
-			my $handle = "";
+			my @rules = @{ &logAndGet( "$nft -a list chain $table $chain", 'array' ) };
 			foreach my $r ( @rules )
 			{
 				my ( $handle ) = $r =~ / $rule.* \# handle (\d)$/;
@@ -291,16 +303,16 @@ sub execNft
 	}
 	elsif ( $action eq "check" )
 	{
-		if ( $chain eq "" )
+		if ( !defined $chain || $chain eq "" )
 		{
 			$output = 1;
-			my @rules = `$nft list table $table 2> /dev/null`;
+			my @rules = @{ &logAndGet( "$nft list table $table", 'array' ) };
 			$output = 0 if ( scalar @rules == 0 );
 			return $output;
 		}
 		else
 		{
-			my @rules = `$nft list chain $table $chain 2> /dev/null`;
+			my @rules = @{ &logAndGet( "$nft list chain $table $chain", 'array' ) };
 			foreach my $r ( @rules )
 			{
 				if ( $r =~ / $rule / )
@@ -322,3 +334,4 @@ sub execNft
 }
 
 1;
+

@@ -178,4 +178,33 @@ sub createFile
 	return 0;
 }
 
+=begin nd
+Function: getFileDateGmt
+
+	It gets the date of last modification of a file and it returns it in GMT format
+
+Parameters:
+	file path - File path
+
+Returns:
+	String - Date in GMT format
+
+=cut
+
+sub getFileDateGmt
+{
+	my $filepath = shift;
+
+	use File::stat;
+	my @eject = split ( / /, gmtime ( stat ( $filepath )->mtime ) );
+	splice ( @eject, 0, 1 );
+	push ( @eject, "GMT" );
+
+	my $date = join ( ' ', @eject );
+	chomp $date;
+
+	return $date;
+}
+
 1;
+

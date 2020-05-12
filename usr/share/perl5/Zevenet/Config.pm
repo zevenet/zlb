@@ -45,7 +45,7 @@ See Also:
 
 sub getGlobalConfiguration
 {
-	my $parameter    = shift;
+	my $parameter = shift;
 	my $force_reload = shift // 0;
 
 	state $global_conf = &parseGlobalConfiguration();
@@ -124,7 +124,7 @@ sub parseGlobalConfiguration
 		# replace every variable used in the $var_value by its content
 		while ( $global_conf->{ $param } =~ /\$(\w+)/ )
 		{
-			$var   = $1;
+			$var = $1;
 			$value = $global_conf->{ $var } // '';
 			$global_conf->{ $param } =~ s/\$$var/$value/;
 		}
@@ -267,7 +267,7 @@ Function: setTinyObj
 Parameters:
 	path - Tiny conguration file where to apply the change
 	object - Group to apply the change
-	key - parameter to change or struct ref
+	key - parameter to change or struct ref to overwrite (do not remove the fields that are not sent and already exist in the object)
 	value - new value for the parameter
 	action - This is a optional parameter. The possible values are: "add" to add
 	a item to a list, or "del" to delete a item from a list
@@ -292,6 +292,7 @@ sub setTinyObj
 	&zenlog( "Modify $object from $path", "debug2" );
 
 	require Zevenet::Lock;
+	require Config::Tiny;
 
 	my $lock_file = &getLockFile( $path );
 	my $lock_fd = &openlock( $lock_file, 'w' );
@@ -380,3 +381,4 @@ sub delTinyObj
 }
 
 1;
+

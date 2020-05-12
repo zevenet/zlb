@@ -259,9 +259,10 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 	}
 	elsif ( $json_obj->{ action } eq "down" )
 	{
+		my $if_ref = &getInterfaceConfig( $nic, $ip_v );
 		require Zevenet::Net::Core;
 
-		my $state = &downIf( { name => $nic }, 'writeconf' );
+		my $state = &downIf( $if_ref, 'writeconf' );
 
 		if ( $state )
 		{
