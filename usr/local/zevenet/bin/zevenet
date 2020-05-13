@@ -1,0 +1,691 @@
+#!/usr/bin/perl
+###############################################################################
+#
+#    Zevenet Software License
+#    This file is part of the Zevenet Load Balancer software package.
+#
+#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###############################################################################
+
+use strict;
+use warnings;
+
+use Zevenet::Log;
+use Zevenet::Farm::Core;
+use Zevenet::Farm::Base;
+use Zevenet::Farm::Action;
+use Zevenet::FarmGuardian;
+use Zevenet::Net::Core;
+use Zevenet::Net::Interface;
+use Zevenet::Net::Route;
+use Zevenet::Net::Util;
+use Zevenet::Lock;
+
+$ENV{ SCRIPT_NAME } = 'zevenet';
+
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
+
+my $mod          = 'Zevenet::Service';
+my $basedir      = &getGlobalConfiguration( 'basedir' );
+my $configdir    = &getGlobalConfiguration( 'configdir' );
+my $defaultgw    = &getGlobalConfiguration( 'defaultgw' );
+my $defaultgwif  = &getGlobalConfiguration( 'defaultgwif' );
+my $defaultgw6   = &getGlobalConfiguration( 'defaultgw6' );
+my $defaultgwif6 = &getGlobalConfiguration( 'defaultgwif6' );
+my $action       = shift @ARGV // '';
+my $print_msg    = "";
+
+if ( $action !~ /^(start|stop|restart)$/ )
+{
+	print "Usage: /etc/init.d/zevenet start|stop|restart\n";
+	exit 0;
+}
+
+sub printAndLog
+{
+	print ( "@_\n" );
+	zenlog( @_ );
+}
+
+# Read interfaces data blocks
+sub getInterfaceBlocks
+{
+	my @file_lines = @_;
+
+	my @interface_list = ();
+	my @interface      = ();
+	my $in_block       = undef;
+
+	while ( my $line = shift @file_lines )
+	{
+		next if $line =~ /^\s*$/;     # skip blank lines
+		next if $line =~ /^\s*#/;     # skip commented lines
+		next if $line =~ /^auto /;    # skip auto lines
+
+		chomp $line;
+
+		if ( $line =~ /^iface / )
+		{
+			$in_block = 'true';
+
+			if ( @interface )         # exclude first block
+			{
+				my ( @array ) = @interface;
+				push ( @interface_list, \@array );    # store previous iface
+			}
+
+			@interface = ( $line );                   # start new interface
+		}
+		elsif ( $in_block )
+		{
+			push ( @interface, $line );               # store previous iface
+		}
+	}
+
+	# for last block found
+	if ( @interface )
+	{
+		push ( @interface_list, \@interface );        # store last iface
+	}
+
+	return @interface_list;
+}
+
+sub local_http_service
+{
+	my ( $command ) = @_;
+
+	die "local_http_service '$command' command not recognized"
+	  unless $command =~ /^(?:start|stop|restart)$/;
+
+	&logAndRunBG( "/etc/init.d/cherokee $command" );
+}
+
+# Compare and rewrite the zna version in the zevenet_version file if they are different.
+sub zna_version
+{
+	my $file          = &getGlobalConfiguration( 'applianceVersionFile' );
+	my $dmidecode_bin = &getGlobalConfiguration( 'dmidecode_bin' );
+	my $grep          = &getGlobalConfiguration( 'grep_bin' );
+
+	# get ZNA version from dmidecode
+	my $zna_version = &logAndGet( "$dmidecode_bin -t1 | $grep 'ZNA-6[5,7]08'" );
+	$zna_version =~ s/\sVersion: //;
+	$zna_version =~ s/-/ /;
+
+	# get version from zevenet_version file
+	my $fh = &openlock( $file, '<' );
+	my $file_version = <$fh>;
+	close ( $fh );
+
+	if ( $zna_version ne $file_version )
+	{
+		# rewriting zna version
+		my $fh = &openlock( $file, '>' );
+		print $fh "$zna_version";
+		close ( $fh );
+	}
+}
+
+if ( $action eq "restart" )
+{
+	# do not use 'logAndRun' function, it is necessary to print the stdoutput
+	system ( '/etc/init.d/zevenet stop' );
+	system ( '/etc/init.d/zevenet start' );
+	&local_http_service( 'restart' );    # force a cherokee restart
+}
+
+if ( $action eq "start" )
+{
+	# do not use 'logAndRun' function, it is necessary to print the stdoutput
+	system ( '/usr/local/zevenet/bin/checkglobalconf' );
+
+	# ZNA firmware upgrade
+	my $migration_flag = &getGlobalConfiguration( 'migration_flag' );
+	if ( -f $migration_flag )
+	{
+		my $rm = &getGlobalConfiguration( 'rm' );
+		&zna_version;
+
+		# Migrating config files
+		my $MIG_DIR = "/usr/local/zevenet/migrating/";
+		opendir ( DIR, $MIG_DIR ) or die "can't opendir $MIG_DIR: $!";
+		while ( my $SCRIPT = readdir ( DIR ) )
+		{
+			next if ( $SCRIPT =~ m/^\./ );
+
+			# do not use 'logAndRun' function, it is necessary to print the stdoutput
+			system ( $MIG_DIR . $SCRIPT );
+		}
+		&logAndRun( "$rm $migration_flag" );
+		closedir ( DIR );
+	}
+
+	my $version = &getGlobalConfiguration( 'version' );
+
+	&printAndLog( "Starting Zevenet Load Balancer v$version" );
+
+	if ( $eload )
+	{
+		$print_msg = &eload( module => $mod,
+							 func   => 'service_cert_message', );
+		print $print_msg . "\n";
+	}
+
+	# Load required modules
+	require Zevenet::Farm::L4xNAT::Service;
+	&loadL4FarmModules();
+
+	&zenlog( "zevenet: Modules loaded" );
+
+	# import system interface to zen if configured
+	#testing interface configured on the installation and gw
+	if ( -e '/etc/network/interfaces' )
+	{
+		open my $fr, '<', '/etc/network/interfaces';
+		my @file = <$fr>;
+		close $fr;
+
+		# FIXME: Make function of this procedure
+		if ( !grep ( /zenmodified/, @file ) )
+		{
+			my @blocks = &getInterfaceBlocks( @file );
+
+			for my $block ( @blocks )
+			{
+				my ( $ifname, $ip, $netmask, $gateway );
+
+				foreach my $line ( @{ $block } )
+				{
+					chomp ( $line );
+
+					if ( $line =~ /iface.*inet static/i )
+					{
+						( undef, $ifname ) = split ( " ", $line );
+					}
+					elsif ( $line =~ /\Waddress/i )
+					{
+						my ( undef, $ip_n_mask ) = split ( " ", $line );
+						my $mask;
+						( $ip, $mask ) = split ( "/", $ip_n_mask );
+
+						if ( $mask )    # only when bitmask is declared
+						{
+							use Net::Netmask;
+							my $block = Net::Netmask->new2( $ip_n_mask );
+
+							if ( $block )
+							{
+								$netmask = $block->mask;
+							}
+							else
+							{
+								&zenlog( $Net::Netmask::error );
+								die $Net::Netmask::error;
+							}
+						}
+					}
+					elsif ( $line =~ /netmask/i )
+					{
+						( undef, $netmask ) = split ( " ", $line );
+					}
+					elsif ( $line =~ /gateway/i )
+					{
+						( undef, $gateway ) = split ( " ", $line );
+					}
+				}
+
+				my %interface = (
+								  name    => $ifname,
+								  addr    => $ip,
+								  mask    => $netmask,
+								  gateway => $gateway,
+								  status  => "up",
+				);
+
+				# Write interface file
+				if ( $interface{ name } )
+				{
+					&zenlog( "Writing interface: $interface{ name }" );
+					&setInterfaceConfig( \%interface );
+
+					# gateway
+					if ( $interface{ gateway } )
+					{
+						&zenlog( "Writing gateway: $interface{ gateway }" );
+						setGlobalConfiguration( 'defaultgw',   $gateway );
+						setGlobalConfiguration( 'defaultgwif', $ifname );
+					}
+
+					# route table
+					&zenlog( "Writing route table: $interface{ name }" );
+					&writeRoutes( $interface{ name } );
+				}
+			}
+
+			# overwriting interfaces file
+			open my $if_file, '>', '/etc/network/interfaces';
+			print $if_file "#zenmodified\n";
+			print $if_file "auto lo\n";
+			print $if_file "iface lo inet loopback\n";
+			close $if_file;
+		}
+	}
+
+	# enterprise hook
+	if ( $eload )
+	{
+		$print_msg = &eload( module => $mod, func => 'start_service' );
+		print $print_msg . "\n";
+	}
+
+	print ( "* Starting Interfaces:\n" );
+
+	my $ip_bin     = &getGlobalConfiguration( 'ip_bin' );
+	my @interfaces = @{ &getConfigInterfaceList() };
+
+	&zenlog( "zevenet: Setting up NIC interfaces..." );
+	require Zevenet::Net::Core;
+
+	# first real interfaces
+	foreach my $iface ( @interfaces )
+	{
+		# interfaces as eth0 for example
+		if ( $$iface{ name } eq $$iface{ dev } )
+		{
+			use IO::Interface ':flags';
+
+			if ( $$iface{ status } eq "up" )
+			{
+				print ( "  * Starting interface $$iface{name}" );
+				&upIf( $iface );
+
+				if ( exists $$iface{ addr } && length $$iface{ addr } )
+				{
+					print ( "\n    Ip:$$iface{addr} Netmask:$$iface{mask}" );
+
+					if ( defined $$iface{ gateway } && $$iface{ gateway } ne '' )
+					{
+						print ( " Gateway:$$iface{gateway}" );
+					}
+
+					my $return_code = &addIp( $iface );
+
+					if ( $return_code )
+					{
+						my @ip_output =
+						  @{ &logAndGet( "$ip_bin address show dev $$iface{name}", "array" ) };
+						$return_code = 0 if ( grep /$$iface{addr}/, @ip_output );
+					}
+
+					# kept in case it is required for first interface
+					&writeRoutes( $$iface{ name } );
+
+					&applyRoutes( "local", $iface );
+
+					if ( $return_code == 0 )
+					{
+						print ( " \033[1;32m OK \033[0m \n" );
+					}
+					else
+					{
+						print ( " \033[1;31m ERROR \033[0m \n" );
+					}
+				}
+
+				if ( defined $$iface{ ip_v } && $$iface{ ip_v } == 4 )
+				{
+					&sendGPing( $$iface{ name } );
+				}
+			}
+		}
+	}
+
+	# bugfix, force the start of the ssh and http services
+	my $ssh_srv      = &getGlobalConfiguration( 'sshService' );
+	my $cherokee_srv = &getGlobalConfiguration( 'http_server_service' );
+	&logAndRun( "$ssh_srv start" );
+	&logAndRun( "$cherokee_srv start" );
+
+	&zenlog( "zevenet: Setting up VLAN interfaces..." );
+	@interfaces = @{ &getConfigInterfaceList() };
+
+	# vlans interfaces (ie. eth0.20)
+	foreach my $iface ( @interfaces )
+	{
+		if ( $$iface{ vlan } && !defined $$iface{ vini } )
+		{
+			unless ( scalar grep { $$iface{ name } eq $_ } &getLinkNameList() )
+			{
+				&createIf( $iface );
+			}
+
+			if ( $eload )
+			{
+				eload(
+					   module => 'Zevenet::Net::Mac',
+					   func   => 'addMAC',
+					   args   => ["$iface->{ name }", "$iface->{ mac }"]
+				);
+			}
+
+			my $return_code = &addIp( $iface );
+
+			if ( $$iface{ status } eq "up" )
+			{
+				print ( "  * Starting interface $$iface{name}\n" );
+				print ( "    Ip:$$iface{addr} Netmask:$$iface{mask}" );
+
+				if ( $$iface{ gateway } )
+				{
+					print ( " Gateway:$$iface{gateway}" );
+				}
+
+				&upIf( $iface );
+
+				if ( $return_code )
+				{
+					my @ip_output =
+					  @{ &logAndGet( "$ip_bin address show dev $$iface{name}", "array" ) };
+					$return_code = 0 if ( grep /$$iface{addr}/, @ip_output );
+				}
+
+				if ( $return_code == 0 )
+				{
+					print ( " \033[1;32m OK \033[0m \n" );
+				}
+				else
+				{
+					print ( " \033[1;31m ERROR \033[0m \n" );
+				}
+
+				&applyRoutes( "local", $iface );
+
+				if ( $$iface{ ip_v } == 4 )
+				{
+					&sendGPing( $$iface{ name } );
+				}
+			}
+		}
+	}
+
+	# Hook to enable cluster
+	if ( $eload )
+	{
+		&zenlog( "zevenet: Setting up Cluster..." );
+
+		$print_msg = &eload( module => $mod, func => 'start_cluster' );
+		print $print_msg . "\n";
+
+		$print_msg = &eload( module => $mod, func => 'enable_cluster' );
+		print $print_msg . "\n";
+
+		# enable modules
+		$print_msg = &eload( module => $mod, func => 'start_modules' );
+		print $print_msg . "\n";
+
+	}
+
+	&zenlog( "zevenet: Setting up virtual interfaces..." );
+
+	# virtual interfaces (ie. eth0:20, eth0.20:2)
+	foreach my $iface ( @interfaces )
+	{
+		if ( defined $$iface{ vini } )
+		{
+			if ( $$iface{ status } eq "up" )
+			{
+				print ( "  * Starting interface $$iface{name}\n" );
+				print ( "    Ip:$$iface{addr} Netmask:$$iface{mask}" );
+
+				my $return_code = &addIp( $iface );
+
+				if ( $return_code )
+				{
+					my $toif = &getParentInterfaceName( $$iface{ name } );
+					&zenlog( "failed addIp" );
+					my @ip_output =
+					  @{ &logAndGet( "$ip_bin -$$iface{ip_v} address list dev $toif", "array" ) };
+					$return_code = 0 if ( grep /$$iface{addr}/, @ip_output );
+				}
+
+				&applyRoutes( "local", $iface );
+
+				if ( $return_code == 0 )
+				{
+					print ( " \033[1;32m OK \033[0m \n" );
+				}
+				else
+				{
+					print ( " \033[1;31m ERROR \033[0m \n" );
+				}
+
+				if ( $$iface{ ip_v } == 4 )
+				{
+					my ( $parent_if ) = split ( ":", $$iface{ name } );
+					&sendGPing( $parent_if );
+				}
+			}
+		}
+	}
+
+	if ( !$eload or !&eload( module => $mod, func => 'service_start_farms' ) )
+	{
+		print ( "* Starting Farms:\n" );
+
+		my @farmsf    = &getFarmList();
+		my $enable_fg = 1;
+
+		$enable_fg = &eload( module => $mod, func => 'getEnableFarmGuardian' )
+		  if $eload;
+
+		&zenlog( "zevenet: Setting up farms..." );
+
+		foreach my $ffile ( @farmsf )
+		{
+			my $farmname = &getFarmName( $ffile );
+			my $bstatus  = &getFarmBootStatus( $farmname );
+
+			if ( $bstatus eq "up" )
+			{
+				print ( "  * Starting Farm $farmname:" );
+				my $status = &runFarmStart( $farmname, "false" );
+
+				if ( $status == 0 )
+				{
+					print ( " \033[1;32m OK \033[0m \n" );
+				}
+				else
+				{
+					print ( " \033[1;31m ERROR \033[0m \n" );
+				}
+
+				#farmguardian configured and up?
+				if ( $status == 0 )
+				{
+					print ( "  * Starting FarmGuardian for $farmname:" );
+					my $stat = &runFGFarmStart( $farmname );
+					if ( $stat == 0 )
+					{
+						print ( " \033[1;32m OK \033[0m \n" );
+					}
+					else
+					{
+						print ( " \033[1;31m ERROR \033[0m \n" );
+					}
+				}
+			}
+			else
+			{
+				print ( "  Farm $farmname configured DOWN\n" );
+			}
+		}
+	}
+
+	# At this point every zevenet interface and farm is running
+	# now a personalized script can be executed
+	&printAndLog( "Running $configdir/zlb-start ..." );
+
+	my @ownscript = `$configdir/zlb-start 2>&1`;
+	&printAndLog( @ownscript ) if ( @ownscript );
+
+	&printAndLog( "End of $configdir/zlb-start" );
+
+	# make sure related system services are runnig
+	if ( &logAndRunCheck( "/etc/init.d/ssh status" ) )
+	{
+		&logAndRun( "/etc/init.d/ssh start" );
+	}
+
+	my $systemctl = &getGlobalConfiguration( 'systemctl' );
+	my $snmpdstatus;
+	if ( -e $systemctl )
+	{
+		$snmpdstatus = &logAndGet( "$systemctl is-enabled snmpd" );
+	}
+	else
+	{
+		my $ls = &getGlobalConfiguration( 'ls' );
+		$snmpdstatus = &logAndGet( "$ls /etc/rc*.d/S*snmpd" ) ? 'enabled' : 'disabled';
+	}
+
+	if ( $snmpdstatus eq 'enabled' )
+	{
+		# Bugfix: SNMP didn't start if the IP is not up
+		&logAndRun( "/etc/init.d/snmpd restart" );
+	}
+
+	&local_http_service( 'start' );
+
+	&printAndLog( "Start process finished." );
+}
+
+if ( $action eq "stop" )
+{
+	&printAndLog( "Stopping Zevenet Load Balancer...\n" );
+
+	if ( $eload )
+	{
+		$print_msg = &eload( module => $mod,
+							 func   => 'service_cert_message', );
+		print $print_msg . "\n";
+
+		$print_msg = &eload( module => $mod, func => 'stop_service' );
+		print $print_msg . "\n";
+	}
+
+	print ( "* Stopping Farms:\n" );
+
+	foreach my $ffile ( getFarmList() )
+	{
+		my $farmname = &getFarmName( $ffile );
+		my $status   = &getFarmStatus( $farmname );
+
+		if ( $status eq "up" )
+		{
+			#farmguardian configured and up?
+			my $fgstatus = &getFarmGuardianPid( $farmname );
+
+			if ( $fgstatus != -1 )
+			{
+				print ( "  * Stopping Farm Guardian for $farmname:" );
+				my $stat = &runFarmGuardianStop( $farmname, "" );
+
+				if ( $stat == 0 )
+				{
+					print ( " \033[1;32m OK \033[0m \n" );
+				}
+				else
+				{
+					print ( " \033[1;31m ERROR \033[0m \n" );
+				}
+			}
+
+			print ( "  * Stopping Farm $farmname:" );
+			my $status = &runFarmStop( $farmname, "false" );
+
+			if ( $status == 0 )
+			{
+				print ( " \033[1;32m OK \033[0m \n" );
+			}
+			else
+			{
+				print ( " \033[1;31m ERROR \033[0m \n" );
+			}
+		}
+	}
+
+	print ( "* Stopping nftlb service:" );
+
+	my $nftlb_svc = &getGlobalConfiguration( 'nftlb_svc' );
+	&logAndRun( "$nftlb_svc stop" );
+	my $status   = &logAndGet( "$nftlb_svc status" );
+	my $rtn_code = 1;
+	$rtn_code = 0 if ( grep /nftlb is not running/, $status );
+
+	if ( $rtn_code == 0 )
+	{
+		print ( " \033[1;32m OK \033[0m \n" );
+	}
+	else
+	{
+		print ( " \033[1;31m ERROR \033[0m \n" );
+	}
+
+	print ( "* Stopping Virtual Interfaces:\n" );
+
+	# Virtual Network Interfaces
+	foreach my $iface ( @{ &getConfigInterfaceList() } )
+	{
+		if ( defined $$iface{ vini } )
+		{
+			print ( "  * Down interface $$iface{name}\n" );
+			print ( "    Ip:$$iface{addr} Netmask:$$iface{mask}" );
+
+			my $return_code = &stopIf( $iface );
+
+			if ( $return_code == 0 )
+			{
+				print ( " \033[1;32m OK \033[0m \n" );
+			}
+			else
+			{
+				print ( " \033[1;31m ERROR \033[0m \n" );
+			}
+		}
+	}
+
+	&eload( module => $mod, func => 'disable_cluster' ) if $eload;
+
+	# At this point every zevenet interface and farm is stopped
+	# now a personalized script can be executed
+	&printAndLog( "Running $configdir/zlb-stop ..." );
+
+	my @ownscript = `$configdir/zlb-stop 2>&1`;
+	&printAndLog( @ownscript ) if @ownscript;
+
+	&printAndLog( "End of $configdir/zlb-stop" );
+
+	&printAndLog( "Stop process finished..." );
+}
+
+&configureDefaultGW();
+

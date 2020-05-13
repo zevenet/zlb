@@ -1,0 +1,368 @@
+#!/usr/bin/perl
+###############################################################################
+#
+#    Zevenet Software License
+#    This file is part of the Zevenet Load Balancer software package.
+#
+#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###############################################################################
+
+## l4sd 1.0
+# This application is a connection monitor scheduler in order to be used for layer 4
+# farms algorithms through heuristic methods.
+# Parameters:
+#	-g <timeout>		timeout for config refresh in milliseconds, default: 3000
+#	-n <timeout>		timeout for connection parsing in milliseconds, default: 200
+#	-l <timeout>		timeout to calculate the logic and to establish the conditions in milliseconds, default: 200
+#	-a <algorithm>		algorithm needed to calculate the logic and conditions, default: globalleast
+#	-d 			enable debug mode
+#	-h			print help
+
+use strict;
+use warnings;
+use Time::HiRes qw(ualarm usleep clock_gettime CLOCK_REALTIME);
+use Zevenet::Log;
+use Zevenet::Config;
+use Zevenet::Farm::Core;
+use Zevenet::Farm::Config;
+use Zevenet::Farm::Base;
+use Zevenet::Farm::Backend;
+require Zevenet::Nft;
+
+my $conntrack = &getGlobalConfiguration( 'conntrack' );
+my $pidfile   = &getGlobalConfiguration( 'l4sdpid' );
+my $algorithm = "leastconn";
+
+my $g_param = 60 * 1000 * 1000;
+my $n_param = 3 * 1000 * 1000;
+my $l_param = 3 * 1000 * 1000;
+
+my $pid = $$;
+
+my $debug = 0;
+my $init  = 1;
+
+my $argvi = 0;
+my $argvc = @ARGV;
+
+# Check input parameters
+while ( $argvi < $argvc )
+{
+	if ( $ARGV[$argvi] eq "-h" )
+	{
+		print "L4SD Layer 4 load balancing Scheduler daemon for Zen Load Balancer \n
+	-g <timeout>		timeout for config refresh in milliseconds, default: 3000
+	-n <timeout>		timeout for connection parsing in milliseconds, default: 200
+	-l <timeout>		timeout to calculate the logic and to establish the conditions in milliseconds, default: 200
+	-a <algorithm>		algorithm needed to calculate the logic and conditions, default: globalleast
+	-d 			enable debug mode
+	-h			print help\n";
+		$argvi++;
+		exit;
+	}
+	if ( $ARGV[$argvi] eq "-g" )
+	{
+		$argvi++;
+		$g_param = $ARGV[$argvi] * 1000;
+		$argvi++;
+		next;
+	}
+	if ( $ARGV[$argvi] eq "-n" )
+	{
+		$argvi++;
+		$n_param = $ARGV[$argvi] * 1000;
+		$argvi++;
+		next;
+	}
+	if ( $ARGV[$argvi] eq "-l" )
+	{
+		$argvi++;
+		$l_param = $ARGV[$argvi] * 1000;
+		$argvi++;
+		next;
+	}
+	if ( $ARGV[$argvi] eq "-a" )
+	{
+		$argvi++;
+		$algorithm = $ARGV[$argvi];
+		$argvi++;
+		next;
+	}
+	if ( $ARGV[$argvi] eq "-d" )
+	{
+		print ( "DETECTED DEBUG ENABLED\n" );
+		$argvi++;
+		$debug = 1;
+		next;
+	}
+}
+
+if ( -e "$pidfile" )
+{
+	open my $file, '<', "$pidfile";
+	my $pidffile = <$file>;
+	close $file;
+
+	my $pidexist = kill 0, $pidffile;
+
+	if ( $pidexist )
+	{
+		&zenlog( "l4sd: Already launched. Exiting..." );
+		exit 0;
+	}
+	else
+	{
+		unlink ( $pidfile );
+	}
+}
+
+if ( !-e "$pidfile" )
+{
+	open my $file, '>', "$pidfile";
+	print $file "$pid";
+	close $file;
+
+	&zenlog(
+		"l4sd: Daemon launched with pid $pid -g $g_param -n $n_param -l $l_param -a $algorithm"
+	);
+}
+
+sub min    #($value1,$value2,$value3)
+{
+	my ( $x, $y, $z ) = @_;
+
+	my $min = $x;
+
+	if ( $y < $min )
+	{
+		$min = $y;
+	}
+
+	if ( $z < $min )
+	{
+		$min = $z;
+	}
+
+	return $min;
+}
+
+sub sigUSR1Handler
+{
+	&zenlog( "l4sd: Signal sigUSR1 received..." );
+	$init = 1;
+	kill ALRM => $pid;
+	return;
+}
+
+sub sigTERMHandler
+{
+	&zenlog( "l4sd: Signal sigTERM/sigINT received..." );
+	unlink $pidfile;
+	exit;
+}
+
+local $SIG{ "USR1" } = \&sigUSR1Handler;
+local $SIG{ "TERM" } = \&sigTERMHandler;
+local $SIG{ "INT" }  = \&sigTERMHandler;
+
+my $counter_g = $g_param;
+my $counter_n = $n_param;
+my $counter_l = $l_param;
+
+my %farms;
+my %connsperfarm;
+
+while ()
+{
+	my $min = 0;
+
+	local $SIG{ ALRM } = sub { };
+
+	if ( $init == 0 )
+	{
+		$min = &min( $counter_g, $counter_n, $counter_l );
+
+		if ( $debug )
+		{
+			printf "Min: $min\n";
+			printf "Time: " . clock_gettime( CLOCK_REALTIME ) . "\n";
+		}
+
+		eval {
+			local $SIG{ ALRM } = sub { die "alarm\n" };    # NB: \n required
+			ualarm( $min );
+
+			sleep;
+			ualarm( 0 );
+		};
+	}
+
+	# Read l4 configuration, backends
+	if ( $min == $counter_g || $init == 1 )
+	{
+		if ( $debug ) { printf "Executing G()\n"; }
+
+		%farms = ();
+		my @files = &getFarmsByType( "l4xnat" );
+
+		if ( scalar ( @files ) <= 0 )
+		{
+			&sigTERMHandler;
+		}
+
+		foreach my $file ( @files )
+		{
+			my $fname  = &getFarmName( $file );
+			my $falg   = &getFarmAlgorithm( $fname );
+			my $fstate = &getFarmStatus( $fname );
+
+			if ( $falg eq $algorithm && $fstate eq 'up' )
+			{
+				my $backends = &getFarmServers( $fname );
+
+				foreach my $l_serv ( @{ $backends } )
+				{
+					my $server = $l_serv->{ id };
+					my $mark   = $l_serv->{ tag };
+					my $status = $l_serv->{ status };
+
+					if ( $status eq "up" )
+					{
+						$farms{ $fname }{ $server } = $mark;
+					}
+				}
+			}
+		}
+
+		if ( keys %farms <= 0 )
+		{
+			&sigTERMHandler;
+		}
+
+		# Print
+		if ( $debug )
+		{
+			for my $farm ( keys %farms )
+			{
+				for my $backend ( keys %{ $farms{ $farm } } )
+				{
+					print "$farm, $backend: $farms{$farm}{$backend}\n";
+				}
+			}
+		}
+	}
+
+	# Parse connections
+	if ( $min == $counter_n || $init == 1 )
+	{
+		if ( $debug ) { printf "Executing N()\n"; }
+
+		%connsperfarm = ();
+		my $num_farms = scalar ( keys %farms );
+
+		if ( $num_farms > 0 )
+		{
+			for my $farm ( keys %farms )
+			{
+				$connsperfarm{ $farm }{ total } = 0;
+
+				foreach my $back ( keys %{ $farms{ $farm } } )
+				{
+					next if ( defined $connsperfarm{ $farm }{ $back } );
+
+					# do not use 'logAndRun' function, it is managing the error output
+					my @cmd_output =
+					  `$conntrack -L -m $farms{ $farm }{ $back }/0x7fffffff 2>&1 >/dev/null`;
+					my $nestab = ( split ( ' ', $cmd_output[-1] ) )[3];
+
+					@cmd_output = ();
+					$connsperfarm{ $farm }{ $back } = $nestab;
+					$connsperfarm{ $farm }{ total } += int ( $nestab );
+				}
+			}
+		}
+
+		# Print
+		if ( $debug )
+		{
+			for my $farm ( keys %connsperfarm )
+			{
+				for my $back ( keys %{ $connsperfarm{ $farm } } )
+				{
+					print "bck $back: $connsperfarm{$farm}{$back}\n";
+				}
+			}
+		}
+	}
+
+	# Algorithm logic and set the condition
+	if ( $min == $counter_l || $init == 1 )
+	{
+		my $num_farms = scalar ( keys %farms );
+
+		if ( $debug )
+		{
+			printf "Executing L()\n";
+			printf "Farms: $num_farms\n";
+		}
+
+		if ( $num_farms > 0 )
+		{
+			# for every farm check the least connection backend
+			foreach my $fname ( keys %farms )
+			{
+				foreach my $bck ( keys %{ $farms{ $fname } } )
+				{
+					if ( $connsperfarm{ $fname }{ total } > 0 )
+					{
+						my $newweight = int (
+							(
+							   10 - ( $connsperfarm{ $fname }{ $bck } / $connsperfarm{ $fname }{ total } ) * 10
+							) + 0.5
+						);
+						$newweight = 1 if $newweight <= 0;
+						printf "Setting new weight: $fname - $bck - $newweight \n" if ( $debug );
+
+			  #~ &setL4FarmServer( $fname, $bck, undef, undef, $newweight, undef, undef, undef, undef );
+
+						httpNlbRequest(
+							{
+							   method => "PUT",
+							   uri    => "/farms",
+							   body =>
+								 qq({"farms" : [ { "name" : "$fname", "backends" : [ { "name" : "bck$bck", "weight" : "$newweight" } ] } ] })
+							}
+						);
+					}
+				}
+			}
+		}
+	}
+
+	# Counters update
+	if   ( $counter_g != $min ) { $counter_g = $counter_g - $min }
+	else                        { $counter_g = $g_param; }
+	if   ( $counter_n != $min ) { $counter_n = $counter_n - $min }
+	else                        { $counter_n = $n_param; }
+	if   ( $counter_l != $min ) { $counter_l = $counter_l - $min }
+	else                        { $counter_l = $l_param; }
+
+	if ( $debug ) { printf ( "Counters: $counter_g $counter_n $counter_l\n" ); }
+
+	$init = 0;
+}
+

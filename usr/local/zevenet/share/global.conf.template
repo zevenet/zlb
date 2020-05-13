@@ -1,0 +1,538 @@
+#::INI Global information
+
+
+## version ZEVENET
+$version="_VERSION_";#update
+
+
+## Variables
+# debug level
+$debug="0";
+#ZAPI Versions
+$zapi_versions="3 3.1 3.2 4.0.1";
+#ZAPI KEY
+$zapikey="";
+#proxy
+$http_proxy="";
+$https_proxy="";
+# connection logs for farms. If this parameter is "true" all traffic will be logged
+# else only the new connections will be logged
+$full_farm_logs="false";
+
+
+## Zevenet Paths
+#Zevenet root directory
+$zdir="/usr/local/zevenet";#update
+#Zevenet lib directory
+$zlibdir="/usr/share/perl5/Zevenet";#update
+#Zevenet bin directory
+$zbindir="$zdir/bin";#update
+#Document Root for Web Aplication directory
+$basedir="$zdir/www";#update
+#configuration directory.In this section all config files are saved.
+$configdir="$zdir/config";#update
+#certificates directory
+$certdir="$zdir/config/certificates";#update
+# directory for local configurations, it is not sync by the cluster
+$localconfig="$configdir/local";#update
+#Directory where is check script. In this directory you can save your own check scripts.
+$libexec_dir="/usr/lib/nagios/plugins";
+#Zevenet bin directory
+$templatedir="$zdir/share";#update
+#Save backups on
+$backupdir="$zdir/backups";#update
+#Log directory
+$logdir="/var/log";#update
+#piddir
+$piddir="/var/run";
+#zevenet activation certificate path
+$zlbcertfile_path="$basedir/zlbcertfile.pem";#update
+# directory of the zapi binaries
+$zapi_directory="$basedir/zapi";
+#first boot flag
+$first_boot_flag="/etc/firstzlbboot";
+#zna migration flag
+$migration_flag="/etc/zlbmigration";
+#zevenet service
+$zevenet_service="/etc/init.d/zevenet";
+
+# System files
+#rt tables file
+$rttables="/etc/iproute2/rt_tables";
+#HTPASSWD file
+$htpass="/etc/passwd";#update
+#shadow file
+$shadow_file="/etc/shadow";
+#dns file server?
+$filedns="/etc/resolv.conf";
+# apt sources configuration file
+$fileapt="/etc/apt/sources.list";
+# apt Zevenet source
+$apt_source_zevenet="/etc/apt/sources.list.d/zevenet.list";
+# apt user conf
+$apt_conf_file="/etc/apt/apt.conf";
+# apt updates dir
+$update_dir="/usr/local/zevenet/updates";
+# Zevenet URL repo
+$repo_url_zevenet="repo.zevenet.com";
+# Zevenet GPG key
+$gpg_key_zevenet="ee.zevenet.com.gpg.key";
+# Bios version
+$bios_version="/sys/devices/virtual/dmi/id/bios_version";
+
+# networking service
+$networking_service="/etc/init.d/networking";
+
+#SNMP Service
+$snmpdconfig_tpl="$templatedir/snmpd.conf.template";
+$snmpdconfig_file="/etc/snmp/snmpd.conf";
+$snmpd_service="/etc/init.d/snmpd";
+
+# start / stop scripts
+$zlb_start_script="$configdir/zlb-start";
+$zlb_stop_script="$configdir/zlb-stop";
+$zlb_start_tpl="$templatedir/zlb-start.template";
+$zlb_stop_tpl="$templatedir/zlb-stop.template";
+
+## Zevenet Files
+#appliance version file
+$applianceVersionFile="/etc/zevenet_version";
+#this file
+$globalcfg="$configdir/global.conf";#update
+$globalcfg_tpl="$templatedir/global.conf.template";
+# Zen license
+$licenseFileTxt="$zdir/license.txt";#update
+# Zen license
+$licenseFileHtml="$zdir/license.html";#update
+#File configuration Zen Cluster
+$filecluster="$configdir/cluster.conf";#update
+
+#let's encrypt configuration
+$temp_farm="letsencryptZevenet";
+$le_binary="certbot-auto";
+$le_fullchain_path="/usr/local/zevenet/config/letsencrypt/";
+$le_webroot_path="/usr/local/zevenet/app/letsencryptz/webroot/";
+$le_webserver_config_file="/usr/local/zevenet/app/letsencryptz/etc/cherokee_localhost.conf";
+$le_config_path="$le_fullchain_path";
+$le_email="";
+
+#File configuration GUI
+$http_server_dir="$zdir/app/cherokee";
+$http_server_service="/etc/init.d/cherokee";
+$confhttp="$http_server_dir/etc/cherokee/cherokee.conf";#update
+$confhttp_tpl="$templatedir/cherokee.conf.template";#update
+$http_server_cert="$certdir/zencert.pem";#update
+$http_server_key="$certdir/zencert-c.key";#update
+$http_server_cert_tpl="$templatedir/zencert.pem";
+$http_server_key_tpl="$templatedir/zencert-c.key";
+$http_bin="$http_server_dir/sbin/cherokee";
+
+#Where is temperature file?
+$temperatureFile="/proc/acpi/thermal_zone/THRM/temperature";
+# network files
+$sys_net_dir="/sys/class/net";
+
+
+## binaries
+#Where is file binary?
+$file_bin="/usr/bin/file";
+#Where is cat binary?
+$aws_cat_bin="/bin/cat";#update
+$default_cat_bin="/usr/bin/cat";#update
+#This variable is modified from postinst
+$cat_bin="/usr/bin/cat";
+#Where is hostname binary?
+$hostname="/bin/hostname";
+#Where is kill binary?
+$kill_bin="/bin/kill";
+#Where is uname binary?
+$uname="/bin/uname";
+#Where is tar binary?
+$tar="/bin/tar";
+#where is ifconfig binary?
+$aws_ifconfig_bin="/sbin/ifconfig";#update
+$default_ifconfig_bin="/usr/sbin/ifconfig";#update
+#This variable is modified from postinst
+$ifconfig_bin="/usr/sbin/ifconfig";
+#Where is ip bynary?
+$ip_bin="/bin/ip";#update
+#Where is wc binary?
+$wc_bin="/usr/bin/wc";
+#Where is fdisk binary?
+$aws_fdisk_bin="/sbin/fdisk";#update
+$default_fdisk_bin="/usr/sbin/fdisk";#update
+#This variable is modified from postinst
+$fdisk_bin="/usr/sbin/fdisk";
+#Where is df binary?
+$df_bin="/bin/df";
+#Where is ssh-keygen binary?
+$sshkeygen="/usr/bin/ssh-keygen";
+#Where is ssh client?
+$ssh="/usr/bin/ssh";
+#Where is scp binary?
+$scp="/usr/bin/scp";
+#Where is rsync binary?
+$rsync="/usr/bin/rsync";
+#Where is pidof binary?
+$pidof="/bin/pidof";
+#Where is ps binary?
+$ps="/bin/ps";
+#Where is tail binary?
+$tail="/usr/bin/tail";
+#Where is zcat binary?
+$zcat="/bin/zcat";
+#Where is ntpserver?
+$datentp="/usr/sbin/ntpdate";
+#Where is date?
+$date="/usr/bin/date";
+#Where is arping?
+$arping_bin="/usr/bin/arping";
+#Where is ping?
+$ping_bin="/bin/ping";
+#Where is apt?
+$apt_bin="/usr/bin/apt";
+#Where is apt-get?
+$aptget_bin="/usr/bin/apt-get";
+#Where is apt-key?
+$aptkey_bin="/usr/bin/apt-key";
+#Where is apt-cache?
+$aptcache_bin="/usr/bin/apt-cache";
+#Where is checkupgrades?
+$checkupgrades_bin="/usr/local/zevenet/bin/checkupgrades";#update
+#Where is openssl?
+$openssl="/usr/bin/openssl";
+#Where is unzip?
+$unzip="/usr/bin/unzip";
+#Where is mv?
+$mv="/bin/mv";
+#Where is mkdir?
+$mkdir="/bin/mkdir";
+#Where is awk binary?
+$awk="/usr/bin/awk";
+#Where is logger?
+$logger="/usr/bin/logger";
+#Where is sec?
+$sec="/usr/bin/sec";
+#Where is touch?
+$touch="/usr/bin/touch";
+#Where is sed?
+$sed_bin="/bin/sed";
+#Where is cut?
+$cut_bin="/bin/cut";
+#Where is ls?
+$ls="/bin/ls";
+#Where is pgrep?
+$pgrep="/usr/bin/pgrep";
+#Where is stat?
+$stat="/usr/bin/stat";
+#Where is cp?
+$cp="/bin/cp";
+#Where is rm?
+$rm="/bin/rm";
+#Where is modprobe?
+$aws_modprobe="/sbin/modprobe";#update
+$default_modprobe="/usr/sbin/modprobe";#update
+#This variable is modified from postinst
+$modprobe="/sbin/modprobe";#update
+#Where is lsmod?
+$aws_lsmod="/sbin/lsmod";#update
+$default_lsmod="/usr/sbin/lsmod";#update
+#This variable is modified from postinst
+$lsmod="/usr/sbin/lsmod";
+#Where is gdnsd?
+$gdnsd="/usr/sbin/gdnsd";#update
+#Where is gdnsd plugins?
+$gdnsd_plugin="/usr/lib/x86_64-linux-gnu/gdnsd/";
+#Where is l4sd?
+$l4sd="$zbindir/l4sd";#update
+#Where is factory_reset?
+$factory_reset_bin="$zbindir/factory_reset.sh";
+#Where is id binary?
+$bin_id="/usr/bin/id";
+#Where is wget binary?
+$wget="/usr/bin/wget";
+#Where is conntrack binary?
+$conntrack="/usr/sbin/conntrack";
+#systemctl
+$systemctl="/bin/systemctl";
+#Where is insserv?
+$insserv="/sbin/insserv";
+#Where is update-rc.d?
+$updatercd="/usr/sbin/update-rc.d";
+#Where is packetbl?
+$packetbl_bin="/bin/packetbl";
+#Where is adduser?
+$adduser_bin="/usr/sbin/adduser";
+#Where is deluser?
+$deluser_bin="/usr/sbin/deluser";
+#Where is groupadd?
+$groupadd_bin="/usr/sbin/groupadd";
+#Where is groupdel?
+$groupdel_bin="/usr/sbin/groupdel";
+#Where is groups?
+$groups_bin="/usr/bin/groups";
+#Where is echo?
+$echo_bin="/bin/echo";
+#Where is dpkg?
+$dpkg_bin="/usr/bin/dpkg";
+#Where is dpkg-query?
+$dpkg_query ="/usr/bin/dpkg-query";
+#Where is nproc?
+$nproc_bin="/usr/bin/nproc";
+#Where is grep?
+$grep_bin="/bin/grep";
+#Where is nft?
+$nft_bin="/usr/sbin/nft";#update
+#Where is nftlb?
+$nftlb_bin="/usr/local/zevenet/app/nftlb/sbin/nftlb";
+#Where is the nftlb service?
+$nftlb_svc="$zbindir/nftlbd";
+#Where is poweroff
+$aws_poweroff_bin="/sbin/poweroff";#update
+$default_poweroff_bin="/usr/sbin/poweroff";#update
+#This variable is modified from postinst
+$poweroff_bin="/usr/sbin/poweroff";
+#Where is reboot
+$aws_reboot_bin="/sbin/reboot";#update
+$default_reboot_bin="/usr/sbin/reboot";#update
+#This variable is modified from postinst
+$reboot_bin="/usr/sbin/reboot";
+#Where is arpsend
+$arpsend_bin="/usr/sbin/arpsend";
+#Where is dhclient
+$aws_dhcp_bin="/sbin/dhclient";#update
+$default_dhcp_bin="/usr/sbin/dhclient";#update
+#This variable is modified from postinst
+$dhcp_bin="/usr/sbin/dhclient";
+#Where is netcat
+$aws_netcat_bin="/bin/nc.openbsd";#update
+$default_netcat_bin="/usr/bin/nc.openbsd";#update
+#This variable is modified from postinst
+$netcat_bin="/usr/bin/nc.openbsd";
+#Where is dmidecode
+$dmidecode_bin="/usr/sbin/dmidecode";
+
+
+# zproxy
+#where is zproxy dir?
+$base_zproxy="$zdir/app/zproxy";#update
+#where is zproxy binary?
+$zproxy="$base_zproxy/bin/zproxy";#update
+#where is zproxy ctl?
+$zproxyctl="$base_zproxy/bin/zproxyctl";#update
+
+# Pound
+#where is pound binary?
+$base_pound="$zdir/app/pound";#update
+#where is pound binary?
+$pound="$base_pound/sbin/pound";#update
+#where is pound ctl?
+$poundctl="$base_pound/sbin/poundctl";#update
+
+# l7 proxy
+# Set the l7 binary: NG = true => zproxy, NG = false => pound
+$proxy_ng="true";
+
+#where is l7 proxy dir?
+$base_proxy="$base_zproxy";
+#where is l7 proxy binary?
+$proxy="$zproxy";
+#where is l7 proxy ctl?
+$proxyctl="$zproxyctl";
+#l7 file configuration template?
+$proxytpl="$templatedir/proxytpl.cfg";#update
+
+#maximum value of http body to pass to modsecurity
+#Where is modsec rules check
+$waf_rule_check_bin="/usr/bin/modsec-rules-check";
+#time to ensure that the farm has been stopped completaly
+$http_farm_stop_grace_time="2";
+
+#Cipher PCI
+$cipher_pci="kEECDH+ECDSA+AES128:kEECDH+ECDSA+AES256:kEECDH+AES128:kEECDH+AES256:kEDH+AES128:kEDH+AES256:DES-CBC3-SHA:+SHA:!aNULL:!eNULL:!LOW:!kECDH:!DSS:!MD5:!EXP:!PSK:!SRP:!CAMELLIA:!SEED";#update
+#Cipher ssloffloading
+$cipher_ssloffloading="AES";
+#ntp server
+$ntp="pool.ntp.org";
+
+
+## Network global configuration options ##
+$fwmarksconf="$configdir/fwmarks.conf";
+#System Default Gateway
+$defaultgw="";
+#Interface Default Gateway
+$defaultgwif="";
+#System Default IPv6 Gateway
+$defaultgw6="";
+#Interface Default IPv6 Gateway
+$defaultgwif6="";
+#Number of gratuitous pings
+$pingc="1";
+#routing options
+$routeparams="";
+#IPv6
+$ipv6_enabled="false";
+
+
+## L4xNat - netfilter
+# Maximum recent ip list
+# Recent ip hash
+
+
+#FarmGuardian binary, create advanced check for backend servers
+$farmguardian="$zbindir/farmguardian";#update
+
+# files to save the status of the system packages
+$apt_msg="$localconfig/apt_message.txt";
+$apt_outdated_list="$localconfig/apt_outdated_list.txt";
+
+#Where is ZenRRD Directory?. There is a perl script that create rrd database and images from Monitoring section
+$rrdap_dir="$zdir/app/zenrrd";#update
+#Relative path in Web Root directory ($basedir) where is graphs from ZenRRD *no modify
+$img_dir="/tmp";#update
+#Relative path where is rrd databases from ZenRRD * no modify
+$rrd_dir="rrd";#update
+
+
+#Service for configure Zen directory replication
+$zenino="$zbindir/enterprise.bin zeninotify";#update
+#Zen Inotify pid file
+$zeninopid="/var/run/zeninotify.pid";
+#Rsync replication parameters
+$zenrsync="-azvr --delete";#update
+#ARP unsolicited
+$arp_unsolicited="";
+#ARP announcement, true / false (default)
+$arp_announce="";
+#Where is the script ARP announcement?
+$arp_announce_bin="/usr/local/zevenet/bin/arp_announce";
+#path for cron task of arp announcement
+$arp_announce_cron_path="/etc/cron.d/arp_announce";
+
+#Network duplicated net. It is used to include the route of a virtual interface in all of interfaces where this networking segment is defined
+$duplicated_net="false";
+
+
+
+
+
+# Cron service
+$cron_service="/etc/init.d/cron";
+$cron_conf="/etc/cron.d/zevenet";
+$cron_tpl="$templatedir/zevenet.cron";
+
+# Netplug service
+$netplug_init_tpl="$templatedir/netplug.template";
+$netplugd_conf_tpl="$templatedir/netplugd.conf.template";
+$netplug_init="/etc/netplug/netplug";
+$netplugd_conf="/etc/netplug/netplugd.conf";
+$netplugd_srv="/etc/init.d/netplug";
+
+
+#syslog service
+$syslog_service="/etc/init.d/rsyslog";
+
+
+# keepalived configuration file
+$keepalived_conf="/etc/keepalived/keepalived.conf";
+# conntrackd configuration file
+$conntrackd_conf="/etc/conntrackd/conntrackd.conf";
+#Where is curl binary?
+$curl_bin="/usr/bin/curl";
+# cluster floating interfaces configuration file path
+$floatfile="$configdir/float.conf";#update
+# node_status file path
+$znode_status_file="$zdir/node_status";#update
+
+# zcluster-manager command path
+# ssh-copy-id file path
+# primary-backup conntrackd script
+$primary_backup="/usr/share/doc/conntrackd/examples/sync/primary-backup.sh";
+
+# sshd file
+$sshConf="/etc/ssh/sshd_config";
+# ssh service
+$sshService="/etc/init.d/ssh";
+# sshkey file path
+$key_path="/root/.ssh";
+# sshkey file path
+$key_id="id_rsa";
+# ssh keygen command
+$keygen_cmd="ssh-keygen -t rsa -f $key_path/$key_id -N '' -q";#update
+
+#Zen backup
+$zenbackup="$zbindir/zenbackup.pl";#update
+
+#Do backup to
+$backupfor="$configdir $basedir/*.pem $confhttp $rttables $sshConf $snmpdconfig_file /etc/hostname $filedns /etc/cron.d/zevenet $applianceVersionFile";#update
+
+#Bonding interfaces
+
+#Notifications Module
+
+#IPDS Module
+$ipdsCronFile="/etc/cron.d/ipds";
+$lockIpdsPackage="/tmp/ipds_package.lock";
+$rblDNSTemplate="$templatedir/zevenet_nameservers.conf";
+$rblDNSConfig="$configdir/ipds/rbl/zevenet_nameservers.conf";
+
+# Rabc Module
+$rbacRolesTpl_dir="$templatedir/rbac_roles";
+
+# Ssyncd for pound
+#where is pound ssyncd base?
+$base_ssyncd_pound="$zdir/app/ssyncd/pound";#update
+#where is pound ssyncd binary?
+$ssyncd_pound_bin="$base_ssyncd_pound/bin/ssyncd";#update
+#where is pound ssyncd ctl?
+$ssyncdctl_pound_bin="$base_ssyncd_pound/bin/ssyncdctl";#update
+
+# Ssyncd for zproxy
+#where is zproxy ssyncd base?
+$base_ssyncd_zproxy="$zdir/app/ssyncd/zproxy";#update
+#where is zproxy ssyncd binary?
+$ssyncd_zproxy_bin="$base_ssyncd_zproxy/bin/ssyncd";#update
+#where is zproxy ssyncd ctl?
+$ssyncdctl_zproxy_bin="$base_ssyncd_zproxy/bin/ssyncdctl";#update
+
+#Ssyncd
+#where is ssyncd dir?
+$base_ssyncd="$base_ssyncd_zproxy";
+#where ssyncd binary?
+#where is ssyncd ctl?
+
+#L4sd configuration
+$l4sdpid="/var/run/l4sd.pid";#update
+$l4sdcfg="$configdir/l4sd.cfg";#update
+
+# routing
+# L4 farm prio
+$routingRulePrioFarmL4="25000";
+# datalink farm prio
+$routingRulePrioFarmDatalink="26000";
+# Min prio for rules created by the user. It must be greater than all farms rules
+$routingRulePrioUserMin="29000";
+# Maximum prio for rules created by the user. It must be lower than ifaces priority
+$routingRulePrioUserMax="30999";
+# Prio for virtual interfaces that have the networking segmend defined in two interfaces
+$routingRulePrioIfacesDuplicated="31000";
+# initial interface tables prio
+$routingRulePrioIfaces="32000";
+# deafult priority for routing entries
+$routingRoutePrio="5";
+
+# time period to get the interface throughput stats
+
+$doc_v4_0="https://www.zevenet.com/zapidoc_ce_v4.0/";
+
+# language used for the webgui
+$lang="";
+
+# cloud
+$cloud_provider="nocloud";
+$cloud_address_metadata="169.254.169.254";
+$aws_bin="/usr/bin/aws";
+$aws_credentials="$configdir/cloud/.aws/credentials";
+$aws_config="$configdir/cloud/.aws/config";
+
+#::END Global Section

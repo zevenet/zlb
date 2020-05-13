@@ -1,0 +1,74 @@
+#!/usr/bin/env perl
+###############################################################################
+#
+#    Zevenet Software License
+#    This file is part of the Zevenet Load Balancer software package.
+#
+#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###############################################################################
+
+use strict;
+use warnings;
+use Zevenet::Config;
+use Zevenet::Farm::Core;
+use Zevenet::Farm::Backend;
+use Zevenet::Farm::Action;
+
+my ( $farmname, $count ) = @ARGV;
+
+$count = 1 if not $count;
+
+my $filename  = &getFarmFile( $farmname );
+my $type      = &getFarmType( $farmname );
+my $configdir = &getGlobalConfiguration( 'configdir' );
+
+if ( -e "$configdir/$filename" && $type eq "datalink" )
+{
+	my @backends = &getFarmServers( $farmname );
+
+	foreach my $line ( @backends )
+	{
+		my @lines   = split ( ';', $line );
+		my $index   = $lines[0];
+		my $backend = $lines[1];
+		my $status  = $lines[5];
+		chomp ( $status );
+
+		if ( $backend ne "" && $backend =~ /\./ )
+		{
+			my $output = &logAndRunCheck( "ping -c $count $backend" );
+
+			if ( $output ne 0 && $status eq "up" )
+			{
+				&zenlog(
+					  "disabling datalink backend $index with ip $backend for the $farmname farm" );
+				&setFarmBackendStatus( $farmname, $index, "down" );    # disable backend
+				&runFarmStop( $farmname, "true" );
+				&runFarmStart( $farmname, "true" );
+			}
+			if ( $output eq 0 && $status eq "down" )
+			{
+				&zenlog(
+					   "enabling datalink backend $index with ip $backend for the $farmname farm" );
+				&setFarmBackendStatus( $farmname, $index, "up" );      # enable backend
+				&runFarmStop( $farmname, "true" );
+				&runFarmStart( $farmname, "true" );
+			}
+		}
+	}
+}
+

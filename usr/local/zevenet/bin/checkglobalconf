@@ -1,0 +1,99 @@
+#!/usr/bin/perl
+###############################################################################
+#
+#    Zevenet Software License
+#    This file is part of the Zevenet Load Balancer software package.
+#
+#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###############################################################################
+
+# This script updates or generates the file global.conf:
+#
+# * If a variable on global.conf does not exist but exists on global.conf.template then adds the new variable on global.conf.
+# * If a variable on global.conf.template equals "" do nothing.
+# * If a variable on global.conf.template is equal to the variable on global.conf.template do nothing
+# * If a variable on global.conf is not equal to variable on global.conf.template, the variable on globa.conf is not changed.
+# * If a valiable's line on global.conf.template ends with #update, the variable is updated on global.conf.
+
+use strict;
+use warnings;
+use File::Copy;
+
+my $gc_tmp_fn = "/tmp/global.conf.tmp";
+my $gc_fn     = "/usr/local/zevenet/config/global.conf";
+my $gc_tpl_fn = "/usr/local/zevenet/share/global.conf.template";
+my $tag       = '#update';
+
+unless ( -f $gc_fn )
+{
+	copy( $gc_tpl_fn, $gc_fn );
+	my $err = system ( "sed -E 's/;$tag\$/;/g' -i $gc_fn" );
+	exit $err;
+}
+
+open my $gc_tmp, '>', $gc_tmp_fn;
+open my $gc_tpl, '<', $gc_tpl_fn;
+
+while ( my $tpl_line = <$gc_tpl> )
+{
+	my $newline = $tpl_line;
+
+	# for lines starting with $
+	if ( $tpl_line =~ /^\$/ )
+	{
+		my ( $var, $new_value ) = $tpl_line =~ /(.+)\s*=\s*(.+)/;
+
+		# strip variable name
+		$var =~ s/\$//;
+		$var =~ s/\s*$//;    # important
+
+		open my $gconf, '<', $gc_fn;
+
+		while ( my $gc_line = <$gconf> )
+		{
+			next unless $gc_line =~ /^\$$var\s*=/;
+
+			my ( undef, $gc_value ) = $gc_line =~ /(.+)\s*=\s*(.+)/;
+			$gc_value =~ s/^\s+//;
+			$new_value =~ s/^\s+//;
+
+			# update if the line is tagged to be updated
+			if ( $new_value =~ /$tag/i )
+			{
+				$tpl_line =~ s/\s*$tag//i;
+				$newline = $tpl_line;
+			}
+			elsif ( $gc_value !~ $new_value )
+			{
+				$newline = $gc_line;
+			}
+
+			last;
+		}
+
+		close $gconf;
+	}
+
+	print $gc_tmp "$newline";
+}
+
+close $gc_tmp;
+close $gc_tpl;
+
+move( $gc_tmp_fn, $gc_fn );
+print "Update global.conf file done...\n";
+

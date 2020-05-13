@@ -1,0 +1,151 @@
+#!/bin/bash
+
+DEBUG=""
+GLOBALCONF="/usr/local/zevenet/config/global.conf"
+
+if [ -f "/usr/local/zevenet/bin/load_global_conf" ];
+then
+	source /usr/local/zevenet/bin/load_global_conf
+	load_global_conf
+else
+	echo "Error loading the envirovement"
+	exit
+fi
+NFTBIN=$nft_bin
+
+if [ -f "$GLOBALCONF" ]; then
+	# debug
+	if [ ! -z $debug ] && [ "$debug" != "0" ]; then
+		DEBUG="-l $debug"
+	fi
+fi
+
+DESC="nftlb daemon service"
+NAME=nftlb
+DAEMON=/usr/local/zevenet/app/nftlb/sbin/nftlb
+DAEMON_KEY="HoLa"
+DAEMON_PORT="27"
+DAEMON_HOST="127.0.0.1"
+DAEMON_ARGS="$DEBUG -H $DAEMON_HOST -k $DAEMON_KEY -P $DAEMON_PORT"
+
+PIDFILE=/var/run/$NAME.pid
+SCRIPTNAME=/etc/init.d/$NAME
+SAVEFILEFARMS="/tmp/nft_save_farms"
+SAVEFILEPOLICIES="/tmp/nft_save_policies"
+
+[ -x "$DAEMON" ] || exit 0
+[ -r /etc/default/$NAME ] && . /etc/default/$NAME
+. /lib/init/vars.sh
+. /lib/lsb/init-functions
+
+do_start()
+{
+	start-stop-daemon --start --quiet --oknodo --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON -- $DAEMON_ARGS
+	[ "$?" -ne 0 ] && exit 2
+}
+
+do_stop() {
+	start-stop-daemon --stop --signal 1 --quiet --remove-pidfile --pidfile $PIDFILE --name $NAME
+	PID=`pidof nftlb`
+	[ -n "$PID" ] && kill -9 $PID
+	`$NFTBIN delete table ip nftlb 2> /dev/null`
+	`$NFTBIN delete table ip6 nftlb 2> /dev/null`
+	`$NFTBIN delete table netdev nftlb 2> /dev/null`
+	[ -f $PIDFILE ] && rm -i $PIDFILE
+}
+
+do_save()
+{
+	/usr/bin/curl --noproxy "*" -s -H "Key: $DAEMON_KEY" -X "GET" http://$DAEMON_HOST:$DAEMON_PORT/farms -o "${SAVEFILEFARMS}"
+	/usr/bin/curl --noproxy "*" -s -H "Key: $DAEMON_KEY" -X "GET" http://$DAEMON_HOST:$DAEMON_PORT/policies -o "${SAVEFILEPOLICIES}"
+	[ "$?" -ne 0 ] && exit 2
+}
+
+do_load()
+{
+	PID=`pidof nftlb`
+	[ -z "$PID" ] && do_start
+	[ -f "$SAVEFILEPOLICIES" ] && /usr/bin/curl --noproxy "*" -s -H "Key: $DAEMON_KEY" -X "POST" -d "@${SAVEFILEPOLICIES}" http://$DAEMON_HOST:$DAEMON_PORT/policies
+	[ "$?" -ne 0 ] && exit 2
+	[ -f "$SAVEFILEFARMS" ] && /usr/bin/curl --noproxy "*" -s -H "Key: $DAEMON_KEY" -X "POST" -d "@${SAVEFILEFARMS}" http://$DAEMON_HOST:$DAEMON_PORT/farms
+	[ "$?" -ne 0 ] && exit 2
+}
+
+do_reload()
+{
+	do_save
+	do_stop
+	do_start
+	do_load
+}
+
+case "$1" in
+	start)
+		echo "Starting $DESC" "$NAME"
+		do_start
+		case "$?" in
+		0|1) exit 0 ;;
+		2) exit 1 ;;
+		esac
+		;;
+
+	stop)
+		echo "Stopping $DESC" "$NAME"
+		do_stop
+		case "$?" in
+		0|1) exit 0 ;;
+		2) exit 1 ;;
+		esac
+		;;
+
+	status)
+		status_of_proc "$DAEMON" "$NAME" && exit 0 || exit $?
+		;;
+
+	restart)
+		echo "Restarting $DESC" "$NAME"
+		do_stop
+		case "$?" in
+		0|1)
+			do_start
+			case "$?" in
+				0) exit 0 ;;
+				1) exit 1 ;;
+				*) exit 1 ;;
+			esac
+			;;
+		*)
+			exit 1	;;
+		esac
+		;;
+
+	reload)
+		echo "Reloading $DESC" "$NAME"
+		do_reload
+		case "$?" in
+		0|1) exit 0 ;;
+		2) exit 1 ;;
+		esac
+		;;
+	save)
+		echo "Saving $DESC" "$NAME"
+		do_save
+		case "$?" in
+		0|1) exit 0 ;;
+		2) exit 1 ;;
+		esac
+		;;
+	load)
+		echo "Loading $DESC" "$NAME"
+		do_load
+		case "$?" in
+		0|1) exit 0 ;;
+		2) exit 1 ;;
+		esac
+		;;
+
+	*)
+		echo "Usage: $SCRIPTNAME {start|stop|status|restart|reload|save|load}" >&2
+		exit 3
+	;;
+esac
