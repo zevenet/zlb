@@ -50,6 +50,8 @@ my $defaultgw    = &getGlobalConfiguration( 'defaultgw' );
 my $defaultgwif  = &getGlobalConfiguration( 'defaultgwif' );
 my $defaultgw6   = &getGlobalConfiguration( 'defaultgw6' );
 my $defaultgwif6 = &getGlobalConfiguration( 'defaultgwif6' );
+my $docker_flag  = &getGlobalConfiguration( 'docker_flag' );
+my $zbindir  	 = &getGlobalConfiguration( 'zbindir' );
 my $action       = shift @ARGV // '';
 my $print_msg    = "";
 
@@ -157,6 +159,12 @@ if ( $action eq "start" )
 {
 	# do not use 'logAndRun' function, it is necessary to print the stdoutput
 	system ( '/usr/local/zevenet/bin/checkglobalconf' );
+
+	# Configure NIC interfaces in docker.
+	if ( -f $docker_flag )
+	{
+			&logAndRun( "$zbindir/check-nic-dhcp" );
+	}
 
 	# ZNA firmware upgrade
 	my $migration_flag = &getGlobalConfiguration( 'migration_flag' );

@@ -1,0 +1,77 @@
+#!/usr/bin/perl
+
+###############################################################################
+#
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
+#
+#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###############################################################################
+
+use strict;
+use warnings;
+use IO::Interface::Simple;
+
+require Zevenet;
+require Zevenet::Farm::Base;
+require Zevenet::Farm::Config;
+
+# Get a list of all network interfaces detected in the system.
+my @interfaces = IO::Interface::Simple->interfaces;
+foreach my $iface ( @interfaces )
+{
+	next if $iface eq 'lo';
+	next if $iface eq 'cl_maintenance';
+
+	# Get the system addr
+	my $addr = $iface->address;
+
+	# Get the system netmask
+	my $netmask = $iface->netmask;
+	&zenlog( "system interface = $iface", "debug", "NETWORK" );
+	&zenlog( "system addr = $addr",       "debug", "NETWORK" );
+	&zenlog( "system netmask = $netmask", "debug", "NETWORK" );
+
+	# Get config file of interface
+	my $cfg_file = &getInterfaceConfigFile( $iface );
+	&zenlog( "Interface config file = $cfg_file", "debug", "NETWORK" );
+
+	my $iface_hash_ref = &getSystemInterface( $iface );
+	$iface_hash_ref->{ 'addr' } = $addr;
+	$iface_hash_ref->{ 'mask' } = $netmask;
+
+	if ( !-f $cfg_file )
+	{
+		# Store a network interface configuration.
+		&setInterfaceConfig( $iface_hash_ref );
+		next;
+	}
+
+	# Get IP from configuration file
+	my $ip_ref = &getInterfaceConfig( $iface );
+	my $ip     = $ip_ref->{ 'addr' };
+
+	if ( $ip ne $addr )
+	{
+		# Store a network interface configuration.
+		&setInterfaceConfig( $iface_hash_ref );
+
+		# Change the virtual interface for a set of farms.
+		my @farms = &getFarmListByVip( $ip );
+		&setAllFarmByVip( $addr, \@farms );
+	}
+}
