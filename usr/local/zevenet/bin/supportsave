@@ -91,10 +91,11 @@ echo "- Partitions"
 echo "- Time"
 ${zbindir}/zenntp                    	>> $backup_dir/ntp_test.txt 2>&1
 
-echo "- Sessions Table"
-ssyncdctl=`perl -MZevenet::Config -e 'print getGlobalConfiguration("ssyncdctl_bin");'`;
-$ssyncdctl show http	>> $backup_dir/sessions_http.txt 2>&1
-$ssyncdctl show nft	>> $backup_dir/sessions_nft.txt 2>&1
+if [[ ! -z $ssyncdctl_bin ]]; then
+	echo "- Sessions Table"
+	$ssyncdctl_bin show http >> $backup_dir/sessions_http.txt 2>&1
+	$ssyncdctl_bin show nft	>> $backup_dir/sessions_nft.txt 2>&1
+fi
 
 if [[ -d ${home_dir}/lib/Zevenet/RBAC ]];
 then
