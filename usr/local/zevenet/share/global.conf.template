@@ -535,4 +535,7 @@ $aws_bin="/usr/bin/aws";
 $aws_credentials="$configdir/cloud/.aws/credentials";
 $aws_config="$configdir/cloud/.aws/config";
 
+# docker
+$docker_flag="/.dockerenv";
+
 #::END Global Section

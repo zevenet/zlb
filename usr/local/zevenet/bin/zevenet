@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -50,6 +50,8 @@ my $defaultgw    = &getGlobalConfiguration( 'defaultgw' );
 my $defaultgwif  = &getGlobalConfiguration( 'defaultgwif' );
 my $defaultgw6   = &getGlobalConfiguration( 'defaultgw6' );
 my $defaultgwif6 = &getGlobalConfiguration( 'defaultgwif6' );
+my $docker_flag  = &getGlobalConfiguration( 'docker_flag' );
+my $zbindir      = &getGlobalConfiguration( 'zbindir' );
 my $action       = shift @ARGV // '';
 my $print_msg    = "";
 
@@ -132,7 +134,7 @@ sub zna_version
 	$zna_version =~ s/-/ /;
 
 	# get version from zevenet_version file
-	my $fh = &openlock( $file, '<' );
+	my $fh           = &openlock( $file, '<' );
 	my $file_version = <$fh>;
 	close ( $fh );
 
@@ -158,6 +160,12 @@ if ( $action eq "start" )
 	# do not use 'logAndRun' function, it is necessary to print the stdoutput
 	system ( '/usr/local/zevenet/bin/checkglobalconf' );
 
+	# Configure NIC interfaces in docker.
+	if ( -f $docker_flag )
+	{
+		&logAndRun( "$zbindir/check-nic-dhcp" );
+	}
+
 	# ZNA firmware upgrade
 	my $migration_flag = &getGlobalConfiguration( 'migration_flag' );
 	if ( -f $migration_flag )
@@ -181,7 +189,7 @@ if ( $action eq "start" )
 
 	my $version = &getGlobalConfiguration( 'version' );
 
-	&printAndLog( "Starting Zevenet Load Balancer v$version" );
+	&printAndLog( "Starting ZEVENET Load Balancer v$version" );
 
 	if ( $eload )
 	{
@@ -580,7 +588,7 @@ if ( $action eq "start" )
 
 if ( $action eq "stop" )
 {
-	&printAndLog( "Stopping Zevenet Load Balancer...\n" );
+	&printAndLog( "Stopping ZEVENET Load Balancer...\n" );
 
 	if ( $eload )
 	{
@@ -688,4 +696,3 @@ if ( $action eq "stop" )
 }
 
 &configureDefaultGW();
-
