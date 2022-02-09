@@ -14,11 +14,24 @@ In this repository you'll find the source code usually placed into the folder `/
 - *other*: License and this readme information.
 And `/usr/share/perl5/Zevent` with the entire Zevenet backend core.
 
-## ZEVENET Load Balancer Installation and Updates
+## ZEVENET Load Balancer Installation
+
 Currently, there is only available package for Debian Buster, the installation is not supported out of this operating system.
 
-### Requirements
-Please, take into account these requirements before installing the load balancer:
+There are two options to deploy a ZEVENET load balancer: The first is deploying the ZEVENET CE ISO, and the other is deploying a Debian Buster image and installing Zevenet with its dependencies.
+
+### ISO
+
+ZEVENET CE ISO is a Debian Buster template with Zevenet already installed. It can be got from the following link, clicking on the "Download ISO image" button.
+
+https://www.zevenet.com/products/community/
+
+
+### Installation on Debian Buster
+
+If you prefer install zevenet yourself, you should get a Debian ISO installable from [debian.org](https://www.debian.org/distrib/). This installation process has been only tested with the 64 bits version.
+
+Please, take into account these **requirements** before installing the load balancer:
 
 1. You'll need at least 1,5 GB of storage.
 
@@ -28,14 +41,12 @@ Please, take into account these requirements before installing the load balancer
 
 4. Configure the *apt* repositories in order to be able to install some dependencies.
 
-### Installation on Debian Buster
-Get a Debian ISO installable from [debian.org](https://www.debian.org/distrib/). This installation process has been only tested with the 64 bits version.
 
-This git repository only contains the source code, the installable packages based in this code are updated in our Zevenet APT repos, you can use them configuring your Debian Baster system as follows: 
+This git repository only contains the source code, the installable packages based in this code are updated in our Zevenet APT repos, you can use them configuring your Debian Buster system as follows: 
 
 ```
+root@zevenetlb#> echo "deb http://repo.zevenet.com/ce/v5 buster main" >> /etc/apt/sources.list.d/zevenet.list
 root@zevenetlb#> wget -O - http://repo.zevenet.com/zevenet.com.gpg.key | apt-key add -
-
 ```
 Now, update the local APT database
 ```
@@ -45,7 +56,9 @@ And finally, install the Zevenet CE
 ```
 root@zevenetlb#> apt-get install zevenet
 ```
-### Updates
+
+## Updates
+
 Please use the Zevenet APT repo in order to check if updates are available. 
 
 
@@ -103,4 +116,3 @@ For more options, visit https://groups.google.com/a/zevenet.com/d/optout
 
 
 ## [www.zevenet.com](https://www.zevenet.com)
-
