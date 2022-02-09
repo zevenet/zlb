@@ -282,7 +282,7 @@ $nproc_bin="/usr/bin/nproc";
 #Where is grep?
 $grep_bin="/bin/grep";
 #Where is nft?
-$nft_bin="/usr/sbin/nft";#update
+$nft_bin="/usr/local/sbin/nft";#update
 #Where is nftlb?
 $nftlb_bin="/usr/local/zevenet/app/nftlb/sbin/nftlb";
 #Where is the nftlb service?
