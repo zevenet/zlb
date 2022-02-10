@@ -28,9 +28,11 @@ use Zevenet::Log;
 use Zevenet::Debug;
 use Zevenet::CGI;
 use Zevenet::API40::HTTP;
+use Zevenet::Zapi;
+
+&setZapiVersion( "4.0" );
 
 my $q = &getCGI();
-
 
 ##### Debugging messages #############################################
 #
@@ -39,42 +41,42 @@ my $q = &getCGI();
 #
 #~ if ( debug() )
 #~ {
-	&zenlog( "REQUEST: $ENV{REQUEST_METHOD} $ENV{SCRIPT_URL}" ) if &debug;
-	#~ &zenlog( ">>>>>> CGI REQUEST: <$ENV{REQUEST_METHOD} $ENV{SCRIPT_URL}> <<<<<<" ) if &debug;
-	#~ &zenlog( "HTTP HEADERS: " . join ( ', ', $q->http() ) );
-	#~ &zenlog( "HTTP_AUTHORIZATION: <$ENV{HTTP_AUTHORIZATION}>" )
-	#~ if exists $ENV{ HTTP_AUTHORIZATION };
-	#~ &zenlog( "HTTP_ZAPI_KEY: <$ENV{HTTP_ZAPI_KEY}>" )
-	#~ if exists $ENV{ HTTP_ZAPI_KEY };
-	#~
-	#~ #my $session = new CGI::Session( $q );
-	#~
-	#~ my $param_zapikey = $ENV{'HTTP_ZAPI_KEY'};
-	#~ my $param_session = new CGI::Session( $q );
-	#~
-	#~ my $param_client = $q->param('client');
-	#~
-	#~
-	#~ &zenlog("CGI PARAMS: " . Dumper $params );
-	#~ &zenlog("CGI OBJECT: " . Dumper $q );
-	#~ &zenlog("CGI VARS: " . Dumper $q->Vars() );
-	#~ &zenlog("PERL ENV: " . Dumper \%ENV );
-	#~
-	#~
-	#~ my $post_data = $q->param( 'POSTDATA' );
-	#~ my $put_data  = $q->param( 'PUTDATA' );
-	#~
-	#~ &zenlog( "CGI POST DATA: " . $post_data ) if $post_data && &debug && $ENV{ CONTENT_TYPE } eq 'application/json';
-	#~ &zenlog( "CGI PUT DATA: " . $put_data )   if $put_data && &debug && $ENV{ CONTENT_TYPE } eq 'application/json';
-#~ }
+&zenlog( "REQUEST: $ENV{REQUEST_METHOD} $ENV{SCRIPT_URL}" ) if &debug;
 
+#~ &zenlog( ">>>>>> CGI REQUEST: <$ENV{REQUEST_METHOD} $ENV{SCRIPT_URL}> <<<<<<" ) if &debug;
+#~ &zenlog( "HTTP HEADERS: " . join ( ', ', $q->http() ) );
+#~ &zenlog( "HTTP_AUTHORIZATION: <$ENV{HTTP_AUTHORIZATION}>" )
+#~ if exists $ENV{ HTTP_AUTHORIZATION };
+#~ &zenlog( "HTTP_ZAPI_KEY: <$ENV{HTTP_ZAPI_KEY}>" )
+#~ if exists $ENV{ HTTP_ZAPI_KEY };
+#~
+#~ #my $session = new CGI::Session( $q );
+#~
+#~ my $param_zapikey = $ENV{'HTTP_ZAPI_KEY'};
+#~ my $param_session = new CGI::Session( $q );
+#~
+#~ my $param_client = $q->param('client');
+#~
+#~
+#~ &zenlog("CGI PARAMS: " . Dumper $params );
+#~ &zenlog("CGI OBJECT: " . Dumper $q );
+#~ &zenlog("CGI VARS: " . Dumper $q->Vars() );
+#~ &zenlog("PERL ENV: " . Dumper \%ENV );
+#~
+#~
+#~ my $post_data = $q->param( 'POSTDATA' );
+#~ my $put_data  = $q->param( 'PUTDATA' );
+#~
+#~ &zenlog( "CGI POST DATA: " . $post_data ) if $post_data && &debug && $ENV{ CONTENT_TYPE } eq 'application/json';
+#~ &zenlog( "CGI PUT DATA: " . $put_data )   if $put_data && &debug && $ENV{ CONTENT_TYPE } eq 'application/json';
+#~ }
 
 ##### Load more basic modules ########################################
 require Zevenet::Config;
 require Zevenet::Validate;
 
 #### OPTIONS requests ################################################
-require Zevenet::API40::Options  if ( $ENV{ REQUEST_METHOD } eq 'OPTIONS' );
+require Zevenet::API40::Options if ( $ENV{ REQUEST_METHOD } eq 'OPTIONS' );
 
 ##### Authentication #################################################
 require Zevenet::API40::Auth;
@@ -82,7 +84,6 @@ require Zevenet::Zapi;
 
 # Session request
 require Zevenet::API40::Session if ( $q->path_info eq '/session' );
-
 
 # Verify authentication
 unless (    ( exists $ENV{ HTTP_ZAPI_KEY } && &validZapiKey() )
@@ -92,13 +93,12 @@ unless (    ( exists $ENV{ HTTP_ZAPI_KEY } && &validZapiKey() )
 				   { code => 401, body => { message => 'Authorization required' } } );
 }
 
-
 ##### Load API routes ################################################
 #~ require Zevenet::SystemInfo;
 require Zevenet::API40::Routes;
 
 my $desc = 'Request not found';
-my $req = $ENV{ PATH_INFO };
+my $req  = $ENV{ PATH_INFO };
 
 &httpErrorResponse( code => 404, desc => $desc, msg => "$desc: $req" );
 
