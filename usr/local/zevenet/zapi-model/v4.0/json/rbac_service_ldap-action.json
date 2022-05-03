@@ -1,0 +1,14 @@
+{
+   "action" : "set",
+   "description" : "Try a connection with the LDAP server to check the service status.",
+   "method" : "POST",
+   "params" : {
+      "action" : {
+         "description" : "it is the LDAP version used by the server",
+         "values" : [
+            "test"
+         ]
+      }
+   },
+   "url" : "/rbac/ldap/actions"
+}

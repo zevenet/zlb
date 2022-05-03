@@ -76,34 +76,32 @@ sub getNewMark    # ($farm_name)
 	my $farm_name = shift;
 
 	require Tie::File;
+	require Zevenet::Lock;
 
 	my $found       = 0;
 	my $marknum     = 0x200;
 	my $fwmarksconf = &getGlobalConfiguration( 'fwmarksconf' );
+	my @contents;
 
-	require Tie::File;
-	tie my @contents, 'Tie::File', "$fwmarksconf";
+	&ztielock( \@contents, "$fwmarksconf" );
 
-	for my $i ( 512 .. 1023 )
+	for my $i ( 512 .. 4095 )
 	{
-		last if $found;
-
 		my $num = sprintf ( "0x%x", $i );
 		if ( !grep { /^$num/x } @contents )
 		{
 			$found   = 1;
 			$marknum = $num;
+			last;
 		}
 	}
 
-	untie @contents;
-
 	if ( $found )
 	{
-		open ( my $marksfile, '>>', "$fwmarksconf" );
-		print $marksfile "$marknum // FARM\_$farm_name\_\n";
-		close $marksfile;
+		push @contents, "$marknum // FARM\_$farm_name\_";
 	}
+
+	untie @contents;
 
 	return $marknum;
 }
@@ -115,24 +113,23 @@ sub delMarks    # ($farm_name,$mark)
 			 "debug", "PROFILING" );
 	my ( $farm_name, $mark ) = @_;
 
-	require Tie::File;
+	require Zevenet::Lock;
 
 	my $status      = 0;
 	my $fwmarksconf = &getGlobalConfiguration( 'fwmarksconf' );
+	my @contents;
 
 	if ( $farm_name ne "" )
 	{
-		tie my @contents, 'Tie::File', "$fwmarksconf";
+		&ztielock( \@contents, "$fwmarksconf" );
 		@contents = grep { !/ \/\/ FARM\_$farm_name\_$/ } @contents;
-		$status = $?;
 		untie @contents;
 	}
 
 	if ( $mark ne "" )
 	{
-		tie my @contents, 'Tie::File', "$fwmarksconf";
-		@contents = grep { !/^$mark \// } @contents;
-		$status = $?;
+		&ztielock( \@contents, "$fwmarksconf" );
+		@contents = grep { !/^$mark \/\/ FARM\_/ } @contents;
 		untie @contents;
 	}
 

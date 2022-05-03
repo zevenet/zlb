@@ -1,0 +1,13 @@
+{
+	"method": "POST",
+	"url": "/azure/ssh",
+	"action": "set",
+	"description": "Modify the SSH configuration for Azure.",
+	"params": {
+		"remote_ip": {
+			"description": "",
+			"non_blank": "true",
+			"regex": "$ssh_listen"
+		}
+	}
+}

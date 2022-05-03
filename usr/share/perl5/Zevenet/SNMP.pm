@@ -202,6 +202,10 @@ sub setSnmpdConfig    # ($snmpd_conf)
 
 	return -1 if ref $snmpd_conf ne 'HASH';
 
+	# scope has to be network range definition
+	my $network = new NetAddr::IP( $snmpd_conf->{ scope } )->network();
+	return -1 if ( $network ne $snmpd_conf->{ scope } );
+
 	# Open config file
 	open my $config_file, '>', $snmpdconfig_file;
 

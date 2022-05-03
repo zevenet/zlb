@@ -1,0 +1,40 @@
+# strongswan.conf - StrongSwan configuration file for ZEVENET
+#
+
+starter {
+
+	config_file = __CONN_FILE__
+}
+
+charon {
+	install_routes = no
+	process_routes = no
+	retransmit_timeout = 1.0
+	retransmit_tries = 3
+	retransmit_limit = 10
+	close_ike_on_child_failure = yes
+	routing_table = __TABLE_ROUTE__
+	routing_table_prio = __TABLE_ROUTE_PRIO__
+
+	plugins {
+
+		stroke {
+			secrets_file = __SECRET_FILE__
+			timeout = 30000
+		}
+		kernel-netlink {
+                        process_rules = no
+                        roam_events = no
+                }
+	}
+	syslog {
+	
+		auth {
+			default=-1
+		}
+		daemon {
+			default=-1
+		}
+	}
+}
+

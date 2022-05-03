@@ -1,0 +1,13 @@
+{
+   "action" : "add",
+   "description" : "Disable an interface for outcoming traffic.",
+   "method" : "POST",
+   "params" : {
+      "interface" : {
+         "format_msg" : "It is the interface which does not be used to outcomming packets from this table.",
+         "non_blank" : "true",
+         "required" : "true"
+      }
+   },
+   "url" : "/routing/tables/<table>/unmanaged"
+}

@@ -63,26 +63,17 @@ sub modify_gateway    # ( $json_obj )
 	my $desc       = "Modify default gateway";
 	my $ip_v       = ( $ip_ver == 6 ) ? 6 : 4;
 	my $default_gw = ( $ip_v == 6 ) ? &getIPv6DefaultGW() : &getDefaultGW();
-	my $mandatory  = 'false';
 	my $ip_format  = ( $ip_v == 6 ) ? 'IPv6_addr' : 'IPv4_addr';
+
+	my $params = &getZAPIModel( "gateway-modify.json" );
 
 	# if default gateway is not configured requires address and interface
 	if ( !$default_gw )
 	{
-		$mandatory = 'true';
+		$params->{ interface }->{ required } = "true";
+		$params->{ address }->{ required }   = "true";
 	}
-
-	my $params = {
-				   "interface" => {
-									'non_blank' => 'true',
-									'required'  => $mandatory,
-				   },
-				   "address" => {
-								  'valid_format' => $ip_format,
-								  'non_blank'    => 'true',
-								  'required'     => $mandatory,
-				   },
-	};
+	$params->{ address }->{ valid_format } = $ip_format;
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -117,7 +108,7 @@ sub modify_gateway    # ( $json_obj )
 	# check if network is correct
 	require Zevenet::Net::Validate;
 
-	unless ( &getNetValidate( $if_ref->{ addr }, $if_ref->{ mask }, $address ) )
+	unless ( &validateGateway( $if_ref->{ addr }, $if_ref->{ mask }, $address ) )
 	{
 		my $msg = "The gateway is not valid for the network.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );

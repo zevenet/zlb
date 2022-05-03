@@ -54,6 +54,20 @@ sub moveByIndex
 	splice ( @{ $list }, $dst_index, 0, $elem );
 }
 
+=begin nd
+Function: getARRIndex
+
+	It retuns the index of for a value of a list. It retunrs the first index where the value appears.
+
+Parameters:
+	Array ref - Array reference with the list to look for.
+	Value - Value to get its index
+
+Returns:
+	Integer - index for an array value
+
+=cut
+
 sub getARRIndex
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
@@ -72,7 +86,77 @@ sub getARRIndex
 		$id++;
 	}
 
+	# fixme:  return undef when the index is not found
+
 	return $ind;
+}
+
+=begin nd
+Function: uniqueArray
+
+	It gets an array for reference and it removes the items that are repeated.
+	The original input array is modified. This function does not return anything
+
+Parameters:
+	Array ref - It is the array is going to be managed
+
+Returns:
+	None - .
+
+=cut
+
+sub uniqueArray
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $arr = shift;
+
+	my %hold = ();
+	my @hold;
+
+	foreach my $v ( @{ $arr } )
+	{
+		unless ( exists $hold{ $v } )
+		{
+			$hold{ $v } = 1;
+			push @hold, $v;
+		}
+	}
+
+	@{ $arr } = @hold;
+}
+
+=begin nd
+Function: getArrayCollision
+
+	It checks if two arrays have some value repeted.
+	The arrays have to contain scalar values.
+
+Parameters:
+	Array ref 1 - List of values 1
+	Array ref 2 - List of values 2
+
+Returns:
+	scalar - It returns the first value which is contained in both arrays
+
+=cut
+
+sub getArrayCollision
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $arr1 = shift;
+	my $arr2 = shift;
+
+	foreach my $it ( sort @{ $arr1 } )
+	{
+		if ( grep ( /^$it$/, @{ $arr2 } ) )
+		{
+			return $it;
+		}
+	}
+
+	return undef;
 }
 
 1;

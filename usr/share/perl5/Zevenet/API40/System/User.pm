@@ -45,8 +45,9 @@ sub get_system_user
 		my $params = {
 			'user'             => $user,
 			'zapi_permissions' => &getZAPI( "status" ),
+			'service'          => 'local'
 
-			# 'zapikey'	=> &getZAPI( "zapikey" ), # it is configured if the status is up
+			  # 'zapikey'	=> &getZAPI( "zapikey" ), # it is configured if the status is up
 		};
 
 		&httpResponse(
@@ -86,20 +87,7 @@ sub set_system_user
 	my $user  = &getUser();
 	my $desc  = "Modify the user $user";
 
-	$desc = "Modify the user $user";
-	my $params = {
-		"zapikey"          => { 'valid_format' => 'zapi_key' },
-		"zapi_permissions" => { 'valid_format' => 'boolean', 'non_blank' => 'true' }
-		,    # it is the permissions value
-		"password" => {
-						'non_blank' => 'true',
-		},
-		"newpassword" => {
-				  'valid_format' => 'rbac_password',
-				  'non_blank'    => 'true',
-				  'format_msg' => 'must be alphanumeric and must have at least 8 characters'
-		},
-	};
+	my $params = &getZAPIModel( "system_user-modify.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -120,10 +108,32 @@ sub set_system_user
 			my $msg = "The new password must be different to the current password.";
 			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
+		if ( $eload )
+		{
+			my $local_user = &eload(
+									 module => 'Zevenet::RBAC::User::Core',
+									 func   => 'getRBACUserLocal',
+									 args   => [$user],
+			);
+			if ( !$local_user )
+			{
+				my $msg = "The $user User is not valid to change password.";
+				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
 
-		elsif ( !&checkValidUser( $user, $json_obj->{ 'password' } ) )
+		if ( !&checkValidUser( $user, $json_obj->{ 'password' } ) )
 		{
 			my $msg = "Invalid current password.";
+			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+	}
+
+	if ( $json_obj->{ 'password' } )
+	{
+		if ( not exists $json_obj->{ 'newpassword' } )
+		{
+			my $msg = "The parameter newpassword is required.";
 			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}

@@ -1,0 +1,34 @@
+{
+	"method": "PUT",
+	"url": "/rbac/users/<name>",
+	"action": "set",
+	"description": "Modify the configuration of a user. name is the user name and it is a unique identifier.",
+	"params": {
+		"zapikey": {
+			"description": "It is the group name where the user is. The user can be only in one group.",
+			"regex": "$zapi_key"
+		},
+		"zapi_permissions": {
+			"description": "The possible values are: true, to enable the access to the load balancer through the ZAPI; or false, to not allow accessing through the ZAPI.",
+			"values": [
+				"false",
+				"true"
+			],
+			"non_blank": "true"
+		},
+		"webgui_permissions": {
+			"description": "The possible values are: true, to enable the access to the load balancer through the WebGUI; or false, to not allow accessing through the WebGUI.",
+			"values": [
+				"false",
+				"true"
+			],
+			"non_blank": "true"
+		},
+		"newpassword": {
+			"description": "New user password to access through the WebGUI.",
+			"regex": "$rbac_password",
+			"non_blank": "true",
+			"format_msg": "must contain at least a letter and a number and a minimum length of 8 characters."
+		}
+	}
+}

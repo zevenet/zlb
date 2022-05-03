@@ -114,6 +114,84 @@ sub zenlog    # ($string, $type)
 }
 
 =begin nd
+Function: notlog
+
+	Write logs through syslog. Exclusive use for logging notifications.
+
+	Usage:
+
+		&zenlog($text, $priority, $tag);
+
+	Examples:
+
+		&zenlog("This is a message.", "info", "LSLB");
+		&zenlog("Some errors happened.", "err", "FG");
+		&zenlog("testing debug mode", "debug", "SYSTEM");
+
+
+	The different debug levels are:
+	1 - Command executions.
+		API inputs.
+	2 - The command standart output, when there isn't any error.
+		API outputs.
+		Parameters modified in configuration files.
+	3 - (reserved)
+	4 - (reserved)
+	5 - Profiling.
+
+Parametes:
+	string - String to be written in log.
+	type   - Log level. info, error, debug, debug2, warn
+	tag    - RBAC, LSLB, GSLB, DSLB, IPDS, FG, NOTIF, NETWORK, MONITOR, SYSTEM, CLUSTER, AWS
+
+Returns:
+	none - .
+=cut
+
+sub notlog    # ($string, $type)
+{
+	my $string = shift;              # string = message
+	my $type   = shift // 'info';    # type   = log level (Default: info))
+	my $tag    = shift // "";
+
+	if ( $tag eq 'PROFILING' )
+	{
+		$type = "debug5";
+		require Zevenet::Debug;
+		return 0 if ( &debug() < 5 );
+	}
+
+	if ( $type =~ /^(debug)(\d*)?$/ )
+	{
+		require Zevenet::Debug;
+
+		# debug lvl
+		my $debug_lvl = $2;
+		$debug_lvl = 1 if not $debug_lvl;
+		$type = "$1$debug_lvl";
+		return 0 if ( &debug() lt $debug_lvl );
+	}
+
+	$tag = lc $tag    if $tag;
+	$tag = "$tag :: " if $tag;
+
+	# Get the program name
+	my $program = $basename;
+
+	#~ openlog( $program, 'pid', 'local1' );    #open syslog
+	openlog( $program, LOG_PID, LOG_LOCAL2 );
+
+	my @lines = split /\n/, $string;
+
+	foreach my $line ( @lines )
+	{
+		syslog( LOG_INFO, "(" . uc ( $type ) . ") " . "${tag}$line" );
+	}
+
+	closelog();    #close syslog
+}
+
+=begin nd
 Function: zlog
 
 	Log some call stack information with an optional message.
@@ -258,7 +336,7 @@ Returns:
 	integer - Returns 0 on success or another value on failure
 
 See Also:
-	<runFarmGuardianStart>, <_runHTTPFarmStart>, <runHTTPFarmCreate>, <_runGSLBFarmStart>, <_runGSLBFarmStop>, <runGSLBFarmReload>, <runGSLBFarmCreate>, <setGSLBFarmStatus>
+	<runFarmGuardianStart>, <_runHTTPFarmStart>, <runHTTPFarmCreate>, <_runGSLBFarmStart>, <_runGSLBFarmStop>, <runGSLBFarmReload>, <runGSLBFarmCreate>
 =cut
 
 sub zsystem
@@ -397,6 +475,53 @@ sub logAndRunCheck
 
 	# returning error code of the execution
 	return $return_code;
+}
+
+=begin nd
+Function: logRunAndGet
+
+	Execute a command in the system to get both the standard output and the stderr.
+
+Parameters:
+	command - String with the command to be run in order to get info from the system.
+	format - Force that the output will be convert to 'string' or 'array'. String by default.
+	outflush - Flush standard output. If true, the standard output will be sent to null.
+
+Returns:
+	Hash ref - hash reference with the items:
+
+		stdout - standard output of the command executed in the given format. If 'array'
+			format is selected, then a hash array is provided. 'string' by default.
+		stderr - output error code of the command executed.
+
+=cut
+
+sub logRunAndGet
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $command  = shift;
+	my $format   = shift // 'string';
+	my $outflush = shift // 0;
+
+	$command .= " 2>&1";
+	$command .= " > /dev/null" if ( $outflush );
+
+	my @get = ( $_ = qx{$command}, $? >> 8 );
+
+	my $exit;
+	$exit->{ stdout } = $get[0];
+	$exit->{ stderr } = $get[1];
+
+	&zenlog( "Executed (out: $exit->{ stderr }): $command", "debug", "system" );
+
+	if ( $format eq 'array' )
+	{
+		my @out = split ( "\n", $get[0] );
+		$exit->{ stdout } = \@out;
+	}
+
+	return $exit;
 }
 
 1;

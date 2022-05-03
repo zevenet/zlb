@@ -1,0 +1,12 @@
+{
+	"method": "PUT",
+	"url": "/farms/<farmname>/zones/<id>",
+	"action": "set",
+	"description": "Modify the parameters of a zone.",
+	"params": {
+		"defnamesv": {
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

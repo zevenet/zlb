@@ -1,0 +1,28 @@
+{
+   "action" : "set",
+   "description" : "Modify the configuration of the email sender method.",
+   "method" : "POST",
+   "params" : {
+      "from" : {
+         "description" : "Email account that sends the email, this account will appear in the SMTP header From and it will be used if the receiver replies the email."
+      },
+      "password" : {
+         "description" : "Password for user SMTP account, this password is needed if Server requires SMTP authentication."
+      },
+      "server" : {
+         "description" : "SMTP server through the email is sent."
+      },
+      "tls" : {
+         "description" : "Enable TLS validation for sending an email, this property uses STARTTLS and this feature has to be supported in the SMTP server. Some SMTP servers require to enable it. The possible values are: true, TLS validation is enabled for sending email; or false, sending email doesn’t use TLS validation.",
+         "non_blank" : "true",
+         "regex" : "(?^:(?:true|false))"
+      },
+      "to" : {
+         "description" : "Email account that receives the email, this account will appear in the SMTP header To."
+      },
+      "user" : {
+         "description" : "Email account allowed to send emails, this account is needed if the server requires SMTP authentication."
+      }
+   },
+   "url" : "/system/notifications/methods/email"
+}

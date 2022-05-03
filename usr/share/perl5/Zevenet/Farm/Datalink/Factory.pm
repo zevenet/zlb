@@ -28,12 +28,12 @@ my $configdir = &getGlobalConfiguration( 'configdir' );
 =begin nd
 Function: runDatalinkFarmCreate
 
-	Create a datalink farm through its configuration file and run it
+	Create a datalink farm through its configuration file and run it.
 
 Parameters:
 	farmname - Farm name
 	vip - Virtual IP
-	port - Virtual port where service is listening
+	iface - Interface name used by the vip
 
 Returns:
 	Integer - Error code: return 0 on success or different of 0 on failure
@@ -48,6 +48,12 @@ sub runDatalinkFarmCreate    # ($farm_name,$vip,$fdev)
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $vip, $fdev ) = @_;
+
+	# remove the default gateway for the iface. This farm will replace it
+	require Zevenet::Net::Interface;
+	my $if_ref = &getInterfaceConfig( $fdev );
+	$if_ref->{ gateway } = "";
+	&setInterfaceConfig( $if_ref );
 
 	open my $fd, '>', "$configdir\/$farm_name\_datalink.cfg";
 	print $fd "$farm_name\;$vip\;$fdev\;weight\;up\n";

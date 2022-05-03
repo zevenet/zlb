@@ -1,0 +1,24 @@
+{
+	"method": "POST",
+	"url": "/farms/<farmname>/backends",
+	"action": "add",
+	"description": "Create a new Backend in a given datalink Farm.",
+	"params": {
+		"priority": {
+			"interval": "1,9"
+		},
+		"weight": {
+			"interval": "1,9"
+		},
+		"ip": {
+			"regex": "$ip_addr",
+			"non_blank": "true",
+			"format_msg": "expects an IP",
+			"required": "true"
+		},
+		"interface": {
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

@@ -1,0 +1,14 @@
+{
+	"method": "POST",
+	"url": "/ipds/rbl/<name>/domains",
+	"action": "add",
+	"description": "Add a domain that was added previously to the load balancer to an RBL rule.",
+	"params": {
+		"domain": {
+			"description": "It is a zone of an RBL provider where an RBL rule will do queries.",
+			"regex": "$rbl_domain",
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

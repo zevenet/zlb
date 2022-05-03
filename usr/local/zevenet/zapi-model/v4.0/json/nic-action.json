@@ -1,0 +1,16 @@
+{
+   "action" : "status",
+   "description" : "Apply an action to a NIC interface. This call lets enable or disable a network interface.",
+   "method" : "POST",
+   "params" : {
+      "action" : {
+         "non_blank" : "true",
+         "required" : "true",
+         "values" : [
+            "up",
+            "down"
+         ]
+      }
+   },
+   "url" : "/interfaces/nic/<name>/actions"
+}

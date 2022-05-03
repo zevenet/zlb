@@ -1,0 +1,13 @@
+{
+	"method": "PUT",
+	"url": "/farms/<farmname>/service/<servicename>/replacerequestheader/<id>/actions",
+	"action": "move",
+	"description": "Move replaceHeader",
+	"params": {
+		"position": {
+			"regex": "$integer",
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

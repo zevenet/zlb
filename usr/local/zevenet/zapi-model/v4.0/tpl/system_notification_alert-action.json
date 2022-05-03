@@ -1,0 +1,17 @@
+{
+	"description": "Enable or disable the notifications for a type of alert. alert is the alert unique identifier.",
+	"method": "POST",
+	"url": "/system/notifications/alerts/<alert>/actions",
+	"action": "action",
+	"params": {
+		"action": {
+			"description": "The actions available for alerts are disable, the system doesn’t send a notification when there is an event; or enable, the system sends an alert when it is detected a changed of status.",
+			"values": [
+				"enable",
+				"disable"
+			],
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

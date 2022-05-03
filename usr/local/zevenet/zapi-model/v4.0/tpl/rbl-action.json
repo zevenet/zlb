@@ -1,0 +1,17 @@
+{
+	"method": "POST",
+	"url": "/ipds/rbl/<id>/farms/<farmname>/actions",
+	"action": "status",
+	"description": "Apply an action to an RBL farm, see the Request parameters table for actions. To apply an action to a rule it is necessary that the rule is applied almost to one farm.",
+	"params": {
+		"action": {
+			"description": "Apply the action desired. The actions are: stop, the RBL rule will be stopped and the traffic forward farms where it is applied the rule will not be dropped. start, the RBL rule will be started and all traffic forward the farms where this rule is applied will be dropped.",
+			"non_blank": "true",
+			"values": [
+				"stop",
+				"start"
+			],
+			"required": "true"
+		}
+	}
+}

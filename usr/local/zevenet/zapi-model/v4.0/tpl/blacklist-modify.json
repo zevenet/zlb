@@ -1,0 +1,89 @@
+{
+	"method": "PUT",
+	"url": "/ipds/blacklists/<name>",
+	"action": "set",
+	"description": "Modify the configuration of a blacklist rule. name is the blacklist unique identifier.",
+	"params": {
+		"policy": {
+			"description": "Action to apply to a source. The options are: deny, block the input traffic from sources of the list; or allow accept the traffic from sources of the list.",
+			"values": [
+				"allow",
+				"deny"
+			],
+			"non_blank": "true"
+		},
+		"name": {
+			"description": "Blacklist name. It is used as a unique identifier. Only it is modifiable on no preloaded lists.",
+			"depend_on": "preload==false",
+			"regex": "$blacklists_name",
+			"non_blank": "true",
+			"exceptions": [
+				"0"
+			]
+		},
+		"source": {
+			"description": "It is a list of IP addresses or net segments that the list checks. To change only a source please see documentation section IPDS > Blacklists > Modify a source of a blacklist. Sources only are modifiable on no preload lists.",
+			"depend_on": "type==local",
+			"ref": "array",
+			"non_blank": "true"
+		},
+		"url": {
+			"description": "Where the remote list is downloaded from.",
+			"depend_on": "type==remote",
+			"regex": "$blacklists_url",
+			"non_blank": "true"
+		},
+		"frequency": {
+			"description": "Remote list update frequency. The options are: daily, update all days, once or period, this is indicated in frequency_type field; weekly, update once in a week; or monthly, update once in a month.",
+			"depend_on": "type==remote",
+			"values": [
+				"daily",
+				"weekly",
+				"monthly"
+			],
+			"non_blank": "true"
+		},
+		"frequency_type": {
+			"description": "This parameter completes the frequency daily when its value is daily. The possible values are: exact. define an hour in the day; or period, define a period time to update during the day.",
+			"depend_on": "type==remote && frequency==daily",
+			"values": [
+				"exact",
+				"period"
+			],
+			"non_blank": "true"
+		},
+		"day": {
+			"description": "",
+			"depend_on": "type==remote && (frequency==monthly || frequency==weekly)",
+			"regex": "$blacklists_day",
+			"non_blank": "true"
+		},
+		"hour": {
+			"description": "Hour to update the list. The value must be a number between 0 and 23.",
+			"depend_on": "type==remote && frequency_type==exact",
+			"interval": "0,23",
+			"non_blank": "true"
+		},
+		"minutes": {
+			"description": "Minutes to update the list. The value must be a number between 0 and 59.",
+			"depend_on": "type==remote && frequency_type==exact",
+			"interval": "0,59",
+			"non_blank": "true"
+		},
+		"period": {
+			"description": "How often to update the list.",
+			"depend_on": "type==remote && frequency_type==period",
+			"regex": "$natural_num",
+			"non_blank": "true"
+		},
+		"unit": {
+			"description": "Period unit. The options are: minutes or hours, indicate the unit of measurement for the list updates.",
+			"depend_on": "type==remote && frequency_type==period",
+			"values": [
+				"minutes",
+				"hours"
+			],
+			"non_blank": "true"
+		}
+	}
+}

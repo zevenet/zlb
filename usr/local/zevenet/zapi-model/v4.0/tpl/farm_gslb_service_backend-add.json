@@ -1,0 +1,13 @@
+{
+	"method": "POST",
+	"url": "/farms/<farmname>/services/<id>/backends",
+	"action": "add",
+	"description": "Create a new Backend in a given service in a GSLB Farm. id is the service unique identifier where the backend will be added. The priority services have 2 backends as maximun, the active host and the passive host.",
+	"params": {
+		"ip": {
+			"regex": "$ip_addr",
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

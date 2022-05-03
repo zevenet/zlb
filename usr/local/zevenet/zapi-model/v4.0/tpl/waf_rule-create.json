@@ -1,0 +1,91 @@
+{
+	"method": "POST",
+	"url": "/ipds/waf/<name>/rules",
+	"action": "create",
+	"description": "There are 3 types of rules available. This call lets to create any of them. Also, it is possible to create rules using the SecLang syntax. They are called custom and are modified by the raw field.",
+	"params": {
+		"mark": {
+			"description": "It is a name for the mark. It will be used to use it.",
+			"depend_on_msg": "if this parameter is configured, no one more is expected",
+			"depend_on": "raw==undefined && copy_from==undefined && rule_id==undefined",
+			"non_blank": "true"
+		},
+		"raw": {
+			"description": "It is the WAF rule shown as a string with all its parameters. This field accepts any kind of rule, or batch of rules, that matches with SecLang syntax.",
+			"depend_on": "mark==undefined && copy_from==undefined && rule_id==undefined",
+			"depend_on_msg": "if this parameter is configured, no one more is expected",
+			"non_blank": "true"
+		},
+		"copy_from": {
+			"description": "It is the WAF rule id, it is showed in the rule_id field of a rule object of type action.",
+			"depend_on": "raw==undefined && mark==undefined && rule_id==undefined",
+			"depend_on_msg": "if this parameter is configured, no one more is expected",
+			"regex": "$waf_rule_id",
+			"non_blank": "true"
+		},
+		"rule_id": {
+			"description": "",
+			"depend_on": "raw==undefined && copy_from==undefined && mark==undefined",
+			"depend_on_msg": "if this parameter is configured: mark, copy_from and raw could not appear in request",
+			"regex": "$waf_rule_id"
+		},
+		"description": {
+			"description": "It is a descriptive message for the rule.",
+			"negated_regex": "$newline",
+			"depend_on": "rule_id==defined"
+		},
+		"severity": {
+			"description": "",
+			"depend_on": "rule_id==defined",
+			"regex": "$waf_severity"
+		},
+		"phase": {
+			"description": "The phase represents the point of the HTTP request where a rule will be executed. The possible values are 1, it is executed when the request headers are received; 2, it is executed when the body request is received; 3, it is executed when the response headers are received; 4, it is executed when the response body is received; or 5, it is executed just before logging.",
+			"depend_on": "rule_id==defined",
+			"regex": "$waf_phase"
+		},
+		"resolution": {
+			"description": "To execute this action, it is necessary to have configured the ruleset parameter status to true. This parameter is the action to apply when a WAF rule matches. The possible values are: pass, the rule will apply the other options configured (log, execute…) and the request won’t be cut. The following rules will be checked; deny, ends the connection, the following rules won’t be executed; redirect, the client will be redirected to the URL configured in the parameter redirect_url; default_action, the rule will execute the action that was set in the ruleset parameter default_action.",
+			"depend_on": "rule_id==defined",
+			"values": [
+				"pass",
+				"allow",
+				"deny",
+				"redirect",
+				"default_action"
+			]
+		},
+		"execute": {
+			"description": "It is the path to an LUA script. This script will be executed when the rule matches. The script must exist before configuring this parameter.",
+			"depend_on": "rule_id==defined"
+		},
+		"log": {
+			"description": "If this parameter has the value true, the rule will log in a successful match. To not log, the parameter has to be set with the value false. If the value is set to blank the ruleset parameter default_log will be executed.",
+			"depend_on": "rule_id==defined",
+			"regex": "$waf_log"
+		},
+		"audit": {
+			"description": "$desc_waf_audit",
+			"depend_on": "rule_id==defined",
+			"regex": "$waf_audit_log"
+		},
+		"skip": {
+			"description": "",
+			"depend_on": "rule_id==defined",
+			"regex": "$waf_skip"
+		},
+		"skip_after": {
+			"description": "",
+			"depend_on": "rule_id==defined",
+			"regex": "$waf_skip_after"
+		},
+		"tag": {
+			"ref": "array",
+			"depend_on": "rule_id==defined"
+		},
+		"redirect_url": {
+			"description": "$desc_waf_redirect_url",
+			"depend_on": "rule_id==defined"
+		}
+	}
+}

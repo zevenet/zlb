@@ -1,0 +1,15 @@
+{
+	"method": "POST",
+	"url": "/farms/<farmname>/services",
+	"action": "add",
+	"description": "Create a service in a given HTTP profile Farm.",
+	"params": {
+		"id": {
+			"regex": "$http_service",
+			"non_blank": "true",
+			"exceptions": [
+				"0"
+			]
+		}
+	}
+}

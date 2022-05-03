@@ -1,0 +1,56 @@
+{
+	"description": "Modify the Zevenet global Settings.",
+	"method": "POST",
+	"url": "/system/global",
+	"action": "set",
+	"params": {
+		"ssyncd": {
+			"description": "Session synchronization daemon is which replies the client sessions between master and backup nodes for a cluster. This feature is enabled with the value true and disabled with false.",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		},
+		"duplicated_network": {
+			"description": "If this parameter is enabled true, the system will able to manage networks duplicated in different interfaces, a process will ensure that an interface does not route through another with the same netwoking. This can be disabled with the value false.",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		},
+		"arp_announce": {
+			"description": "If this parameter is enabled true, the master node of the cluster will send a ARP packet to the network per minute and when the system boots. If the value is false the packet will be sent only when cluster switches to master or when a interface will be configurated.",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		},
+		"proxy_new_generation": {
+			"description": "It sets the HTTP load balancer core. If it has the value true, the new core zproxy will be used, it is more efficient (It is available since Zevenet 6.1). The value false will use the old HTTP load balancer core. Modifying this value will restart the HTTP farms.",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		},
+		"waf_assistant": {
+			"description": "If this parameter is enabled true, the system will assist the user with WAF settings of the farms.",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		},
+		"force": {
+			"description": "This parameter is used to force the settings when these require a service restart. This parameter accepts the value true.",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		}
+	}
+}

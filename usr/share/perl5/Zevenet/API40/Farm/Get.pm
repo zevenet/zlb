@@ -244,6 +244,33 @@ sub farms_name    # ( $farmname )
 	}
 }
 
+#GET /farms/<name>/status
+sub farms_name_status    # ( $farmname )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $farmname = shift;
+
+	my $desc = "Show farm $farmname status";
+
+	# Check if the farm exists
+	if ( !&getFarmExists( $farmname ) )
+	{
+		my $msg = "Farm not found.";
+		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+	}
+
+	my $status = &getFarmVipStatus( $farmname );
+
+	# Output
+	my $body = {
+				 description => $desc,
+				 params      => { status => $status },
+	};
+
+	&httpResponse( { code => 200, body => $body } );
+}
+
 # function to standarizate the backend output
 sub getAPIFarmBackends
 {
@@ -263,16 +290,30 @@ sub getAPIFarmBackends
 	# filters:
 	if ( $type eq 'l4xnat' )
 	{
-		push @api_keys, qw(id weight port ip priority status);
-		push ( @api_keys, 'max_conns' ) if $eload;
+		push @api_keys, qw(id weight port ip priority status max_conns);
 	}
 	elsif ( $type eq 'datalink' )
 	{
 		push @api_keys, qw(id weight ip priority status interface);
 	}
+	elsif ( $type =~ /http/ )
+	{
+		if ( &getGlobalConfiguration( 'proxy_ng' ) eq 'true' )
+		{
+			push @api_keys, qw(id ip port priority status timeout weight connection_limit);
+		}
+		else
+		{
+			push @api_keys, qw(id ip port weight status timeout);
+		}
+	}
+	elsif ( $type eq 'gslb' )
+	{
+		push @api_keys, qw(id ip );
+	}
 
 	# add static translations
-	$translate->{ status } = { "opt" => "fgdown", "rep" => "down" };
+	$translate->{ status } = { "fgdown" => "down", "undefined" => "up" };
 
 	&buildAPIParams( $out_b, \@api_keys, $translate );
 

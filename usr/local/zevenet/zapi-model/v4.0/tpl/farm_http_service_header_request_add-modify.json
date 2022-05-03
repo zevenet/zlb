@@ -1,0 +1,13 @@
+{
+	"method": "PUT",
+	"url": "/farms/<farmname>/services/<service>/addrequestheader/<id>",
+	"action": "modify",
+	"description": "Add header in the client request.",
+	"params": {
+		"header": {
+			"non_blank": "true",
+			"required": "true",
+			"negated_regex": "$newline"
+		}
+	}
+}

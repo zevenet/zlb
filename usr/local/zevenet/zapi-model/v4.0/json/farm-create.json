@@ -1,0 +1,49 @@
+{
+   "action" : "create",
+   "description" : "It creates a new farm.",
+   "method" : "POST",
+   "params" : {
+      "copy_from" : {
+         "description" : "This parameter expects the name of a farm that exists. If this parameter is sent, the farm is copied from the farm specified in it. The farmname, vip and vport values will be overwritten.",
+         "format_msg" : "The farm name accepts alphabet letters, numbers or hypens (-).",
+         "non_blank" : "true",
+         "regex" : "(?^:[a-zA-Z0-9\\-]+)",
+         "required" : "false"
+      },
+      "farmname" : {
+         "description" : "Farm descriptive name. It is used as a unique identifier.",
+         "exceptions" : [
+            "0"
+         ],
+         "format_msg" : "The farm name accepts alphabet letters, numbers or hypens (-).",
+         "non_blank" : "true",
+         "regex" : "(?^:[a-zA-Z0-9\\-]+)",
+         "required" : "true"
+      },
+      "profile" : {
+         "description" : "The profile of the created Farm. For HTTP farms is http.",
+         "non_blank" : "true",
+         "required" : "true",
+         "values" : [
+            "http",
+            "gslb",
+            "l4xnat",
+            "datalink"
+         ]
+      },
+      "vip" : {
+         "description" : "IP of the farm, where the virtual service is going to run. The indicated IP must be configured in the system and UP",
+         "dyn_values" : "true",
+         "required" : "true"
+      },
+      "vport" : {
+         "depend_on" : "profile != datalink",
+         "depend_on_msg" : "Mandatory if the profile is not datalink, else it is not expected",
+         "description" : "Port of the farm where the virtual service is going to listen. The same virtual port and virtual IP must not be in use by another farm.",
+         "format_msg" : "It expects a port number or multiport value for L4xnat farms",
+         "non_blank" : "true",
+         "regex" : "(?^:(?:\\*|(?:(?^:(?:[1-9]\\d{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))|(?^:(?:[1-9]\\d{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))\\:(?^:(?:[1-9]\\d{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])))(?:,(?^:(?:[1-9]\\d{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))|,(?^:(?:[1-9]\\d{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))\\:(?^:(?:[1-9]\\d{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])))*))"
+      }
+   },
+   "url" : "/farms"
+}

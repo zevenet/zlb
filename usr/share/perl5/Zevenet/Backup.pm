@@ -325,6 +325,14 @@ sub applyBackup
 	# get current version
 	my $version = &getGlobalConfiguration( 'version' );
 
+	&zenlog( "Stopping Zevenet service", "info", "SYSTEM" );
+	$error = &logAndRun( "/etc/init.d/zevenet stop" );
+	if ( $error )
+	{
+		&zenlog( "Problem stopping Zevenet Load Balancer service", "error", "SYSTEM" );
+		return $error;
+	}
+
 	&zenlog( "Restoring backup $file", "info", "SYSTEM" );
 	my $cmd = "$tar -xvzf $file -C /";
 	my $eject = &logAndGet( $cmd, 'array' );
@@ -335,14 +343,21 @@ sub applyBackup
 		return $error;
 	}
 
+	&zenlog( "unpacked files: @{$eject}", "info", "SYSTEM" );
+
 	# it would overwrite version if it was different
 	require Zevenet::System;
 	&setGlobalConfiguration( 'version', $version );
 
 	unlink '/zevenet_version';
 
-	&zenlog( "unpacking files: @{$eject}", "info", "SYSTEM" );
-	$error = &logAndRun( "/etc/init.d/zevenet restart" );
+	# set migration files process
+	my $migration_flag = &getGlobalConfiguration( 'migration_flag' );
+	open ( my $fh, '>', $migration_flag ) or die "$!";
+	close ( $fh );
+	&zenlog( "Migration Flag enabled" ) if ( -e $migration_flag );
+
+	$error = &logAndRun( "/etc/init.d/zevenet start" );
 
 	if ( !$error )
 	{

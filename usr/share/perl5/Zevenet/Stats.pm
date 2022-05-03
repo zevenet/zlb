@@ -316,12 +316,25 @@ sub getNetworkStats
 	while ( <$file> )
 	{
 		chomp $_;
-		if ( $_ =~ /\:/ && $_ !~ /lo/ )
+		if ( $_ =~ /\:/ && $_ !~ /^\s*lo\:/ )
 		{
 			$i++;
 			my @iface = split ( ":", $_ );
 			my $if = $iface[0];
 			$if =~ s/\ //g;
+
+			# not show cluster maintenance interface
+			$i = $i - 1 if $if eq 'cl_maintenance';
+			next if $if eq 'cl_maintenance';
+
+			# ignore fallback device from ip_gre module
+			( $i-- && next ) if $if =~ /^gre0$|^gretap0$|^erspan0$/;
+
+			# ignore fallback device from ip6_gre module
+			( $i-- && next ) if $if =~ /^ip6gre0$|^ip6tnl0$/;
+
+			# ignore fallback device from sit module
+			( $i-- && next ) if $if =~ /^sit0$/;
 
 			if ( $_ =~ /:\ / )
 			{
@@ -341,11 +354,6 @@ sub getNetworkStats
 				$out = sprintf ( '%.2f', $out );
 			}
 
-			$if =~ s/\ //g;
-
-			# not show cluster maintenance interface
-			$i = $i - 1 if $if eq 'cl_maintenance';
-			next if $if eq 'cl_maintenance';
 			push @interface,    $if;
 			push @interfacein,  $in;
 			push @interfaceout, $out;

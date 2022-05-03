@@ -1,0 +1,12 @@
+{
+   "action" : "factory",
+   "description" : "Modify the WebGUI language.",
+   "method" : "POST",
+   "params" : {
+      "language" : {
+         "description" : "string with the language used in webgui.",
+         "required" : "true"
+      }
+   },
+   "url" : "/system/factory"
+}

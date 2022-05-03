@@ -1,0 +1,19 @@
+{
+   "action" : "create",
+   "description" : "Create a monitoring check to evaluate the farm service status.",
+   "method" : "POST",
+   "params" : {
+      "copy_from" : {
+         "regex" : "(?^:[\\w-]+)"
+      },
+      "name" : {
+         "exceptions" : [
+            "0"
+         ],
+         "non_blank" : "true",
+         "regex" : "(?^:[\\w-]+)",
+         "required" : "true"
+      }
+   },
+   "url" : "/monitoring/fg"
+}

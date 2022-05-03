@@ -724,7 +724,7 @@ sub getFarmPlainInfo    # ($farm_name)
 =begin nd
 Function: reloadFarmsSourceAddress
 
-        Reload source address rules of farms (l4 in NAT mode and HTTP)
+        Reload source address rules of farms
 
 Parameters:
         none
@@ -732,8 +732,6 @@ Parameters:
 Returns:
         none
 
-TODO:
-		HTTP farms not yet supported
 
 FIXME:
 		one source address per farm, not for backend
@@ -753,18 +751,46 @@ sub reloadFarmsSourceAddress
 }
 
 =begin nd
-Function: reloadFarmsSourceAddress
+Function: reloadL7FarmsSourceAddress
+
+        Reload source address rules of HTTP/HTTPS farms
+
+Parameters:
+        none
+
+Returns:
+        none
+
+=cut
+
+sub reloadL7FarmsSourceAddress
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	require Zevenet::Farm::Core;
+
+	my @farms = &getFarmsByType( 'http' );
+	push @farms, &getFarmsByType( 'https' );
+
+	for my $farm_name ( @farms )
+	{
+		&reloadFarmsSourceAddressByFarm( $farm_name );
+	}
+}
+
+=begin nd
+Function: reloadFarmsSourceAddressbyFarm
 
         Reload source address rules of a certain farm (l4 in NAT mode and HTTP)
+		HTTP:
+			Add backend only if use a different sourceaddr
 
 Parameters:
         farm_name - name of the farm to apply the source address
 
 Returns:
         none
-
-TODO:
-		HTTP farms not yet supported
 
 FIXME:
 		one source address per farm, not for backend
@@ -781,31 +807,254 @@ sub reloadFarmsSourceAddressByFarm
 	my $farm_name = shift;
 	my $farm_type = &getFarmType( $farm_name );
 
-	return if $farm_type ne 'l4xnat';
 	return if &getFarmStatus( $farm_name ) ne 'up';
 
-	my $farm_ref = &getL4FarmStruct( $farm_name );
-	return if $farm_ref->{ nattype } ne 'nat';
-
-	if ( $eload )
+	if ( $farm_type eq 'l4xnat' )
 	{
-		&eload(
-				module => 'Zevenet::Net::Floating',
-				func   => 'setFloatingSourceAddr',
-				args   => [$farm_ref, undef],
-		);
+		my $farm_ref = &getL4FarmStruct( $farm_name );
+		return if $farm_ref->{ nattype } ne 'nat';
 
-		# reload the backend source address
-		foreach my $bk ( @{ $farm_ref->{ servers } } )
+		if ( $eload )
 		{
 			&eload(
 					module => 'Zevenet::Net::Floating',
 					func   => 'setFloatingSourceAddr',
-					args   => [$farm_ref, $bk],
+					args   => [$farm_ref, undef],
 			);
+
+			# reload the backend source address
+			foreach my $bk ( @{ $farm_ref->{ servers } } )
+			{
+				&eload(
+						module => 'Zevenet::Net::Floating',
+						func   => 'setFloatingSourceAddr',
+						args   => [$farm_ref, $bk],
+				);
+			}
 		}
 	}
+	elsif ( $farm_type eq 'http' || $farm_type eq 'https' )
+	{
+		if ( $eload && &getGlobalConfiguration( "proxy_ng" ) eq 'true' )
+		{
+			return if &getGlobalConfiguration( 'floating_L7' ) ne 'true';
 
+			my $farm_ref;
+			$farm_ref->{ name }  = $farm_name;
+			$farm_ref->{ vip }   = &getHTTPFarmVip( "vip", $farm_name );
+			$farm_ref->{ vport } = &getHTTPFarmVip( "vipp", $farm_name );
+			my $checkLocalFarm;
+			my $floating = &eload(
+								   module => 'Zevenet::Net::Floating',
+								   func   => 'getFloatInterfaceForAddress',
+								   args   => [$farm_ref->{ vip }],
+			);
+
+			if ( !defined $floating->{ float } )
+			{
+				&eload(
+						module => 'Zevenet::Net::Floating',
+						func   => 'setL7FloatingSourceAddr',
+						args   => [$farm_ref, undef],
+				);
+			}
+			else
+			{
+				my $exist = &checkLocalFarmSourceAddress( $farm_name );
+				&eload(
+						module => 'Zevenet::Net::Floating',
+						func   => 'removeL7FloatingSourceAddr',
+						args   => [$farm_name],
+				) if ( !$exist );
+				$checkLocalFarm = $exist == 1 ? "true" : "false";
+			}
+			my $farm_if_name = &getInterfaceByIp( $farm_ref->{ vip } );
+			my $farm_if      = &getInterfaceConfig( $farm_if_name );
+			my $parent =
+			  $farm_if->{ type } eq "virtual" ? $farm_if->{ parent } : $farm_if->{ name };
+
+			require Zevenet::Farm::HTTP::Service;
+			my @services = &getHTTPFarmServices( $farm_name );
+
+			require Zevenet::Farm::HTTP::Backend;
+			foreach my $serv_name ( @services )
+			{
+				my $backends_ref = &getHTTPFarmBackends( $farm_name, $serv_name, "false" );
+				foreach my $bk ( @{ $backends_ref } )
+				{
+					my $float = &eload(
+										module => 'Zevenet::Net::Floating',
+										func   => 'getFloatInterfaceForAddress',
+										args   => [$bk->{ ip }],
+					);
+					my $route_conf = &eload(
+											 module => 'Zevenet::Net::Routing',
+											 func   => 'getRoutingTableCustomByIp',
+											 args   => [$bk->{ ip }, "table_$parent"],
+					);
+
+					if ( defined $float->{ float } && !defined $route_conf->{ source } )
+					{
+						if ( !defined $checkLocalFarm )
+						{
+							my $exist = &checkLocalFarmSourceAddress( $farm_name );
+							$checkLocalFarm = $exist == 1 ? "true" : "false";
+						}
+						&eload(
+								module => 'Zevenet::Net::Floating',
+								func   => 'removeL7FloatingSourceAddr',
+								args   => [$farm_name, { tag => $bk->{ tag } }],
+						) if ( $checkLocalFarm eq "true" );
+					}
+					else
+					{
+						&eload(
+								module => 'Zevenet::Net::Floating',
+								func   => 'setL7FloatingSourceAddr',
+								args   => [$farm_ref, $bk],
+						);
+					}
+
+				}
+			}
+		}
+		return;
+	}
+	return;
+}
+
+=begin nd
+Function: checkLocalFarmSourceAddress
+
+        Check if an HTTP farm should exist as a local farm in nftlb in order to do snat in any of its backends.
+		The function will return 1 in case the farm's vip contains floating ip or any of the farm's backends 
+		are on a network with floating ip or is on an unknown network or custom routes.
+Parameters:
+        farm_name - name of the farm to check
+
+Returns:
+        return 1 if Local farm must be configured for snat or 0 if not.
+		return -1 if error.
+
+=cut
+
+sub checkLocalFarmSourceAddress
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	require Zevenet::Farm::Core;
+	require Zevenet::Farm::Base;
+
+	my $farm_name = shift;
+	my $farm_type = &getFarmType( $farm_name );
+
+	if ( $farm_type eq 'http' || $farm_type eq 'https' )
+	{
+		my $floating = 0;
+		if ( $eload )
+		{
+			$floating = 1 if ( &getGlobalConfiguration( 'floating_L7' ) eq 'true' );
+		}
+		return 0 if !$floating;
+
+		my $farm_vip = &getHTTPFarmVip( "vip", $farm_name );
+		require Zevenet::Farm::HTTP::Service;
+		my @services = &getHTTPFarmServices( $farm_name );
+
+		$floating = &eload(
+							module => 'Zevenet::Net::Floating',
+							func   => 'getFloatInterfaceForAddress',
+							args   => [$farm_vip],
+		);
+
+		my $farm_if_name = &getInterfaceByIp( $farm_vip );
+		my $farm_if      = &getInterfaceConfig( $farm_if_name );
+		my $parent =
+		  $farm_if->{ type } eq "virtual" ? $farm_if->{ parent } : $farm_if->{ name };
+
+		require Zevenet::Farm::HTTP::Backend;
+		foreach my $serv_name ( @services )
+		{
+			my $backends_ref = &getHTTPFarmBackends( $farm_name, $serv_name, "false" );
+			foreach my $bk ( @{ $backends_ref } )
+			{
+				my $float = &eload(
+									module => 'Zevenet::Net::Floating',
+									func   => 'getFloatInterfaceForAddress',
+									args   => [$bk->{ ip }],
+				);
+				my $route_conf = &eload(
+										 module => 'Zevenet::Net::Routing',
+										 func   => 'getRoutingTableCustomByIp',
+										 args   => [$bk->{ ip }, "table_$parent"],
+				);
+				unless ( defined $float->{ float } && !defined $route_conf->{ source } )
+				{
+					next if ( $float->{ addr } eq $floating->{ addr } );
+					return 1;
+				}
+			}
+		}
+
+		if ( !defined $floating->{ float } )
+		{
+			return 1;
+		}
+		else
+		{
+			return 0;
+		}
+	}
+	else
+	{
+		return -1;
+	}
+}
+
+=begin nd
+Function: reloadBackendsSourceAddressByIface
+
+        Reload source address rules of a certain farm (l4 in NAT mode and HTTP) by Iface
+
+Parameters:
+        iface_name - Interface which the the route is appplied in
+
+Returns:
+        none
+
+=cut
+
+sub reloadBackendsSourceAddressByIface
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	require Zevenet::Farm::Core;
+	require Zevenet::Farm::Base;
+
+	foreach my $farm_name ( &getFarmNameList() )
+	{
+		my $farm_type = &getFarmType( $farm_name );
+		next if &getFarmStatus( $farm_name ) ne 'up';
+		if ( $farm_type eq 'http' || $farm_type eq 'https' )
+		{
+			next if ( &getGlobalConfiguration( "proxy_ng" ) ne 'true' );
+			my $floating = 0;
+			if ( $eload )
+			{
+				$floating = 1 if ( &getGlobalConfiguration( 'floating_L7' ) eq 'true' );
+			}
+			next if !$floating;
+			&reloadFarmsSourceAddressByFarm( $farm_name );
+		}
+		elsif ( $farm_type eq 'l4xnat' )
+		{
+			my $farm_ref = &getL4FarmStruct( $farm_name );
+			next if $farm_ref->{ nattype } ne 'nat';
+			&reloadFarmsSourceAddressByFarm( $farm_name );
+		}
+	}
 }
 
 =begin nd

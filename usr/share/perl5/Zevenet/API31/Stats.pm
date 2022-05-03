@@ -85,11 +85,12 @@ sub getAllFarmStats
 }
 
 #Get Farm Stats
-sub farm_stats    # ( $farmname )
+sub farm_stats    # ( $farmname, $servicename )
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $farmname = shift;
+	my $farmname    = shift;
+	my $servicename = shift;
 	if ( $farmname eq 'modules' ) { return; }
 	if ( $farmname eq 'total' )   { return; }
 
@@ -105,11 +106,38 @@ sub farm_stats    # ( $farmname )
 
 	my $type = &getFarmType( $farmname );
 
+	if ( defined $servicename
+		 && ( $type ne 'http' && $type ne 'https' && $type ne 'gslb' ) )
+	{
+		my $msg = "The $type farm profile does not support services.";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+
 	if ( $type eq "http" || $type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Stats;
 
-		my $stats = &getHTTPFarmBackendsStats( $farmname );
+		if ( defined $servicename )
+		{
+			# validate SERVICE
+			require Zevenet::Farm::Service;
+			my @services = &getFarmServices( $farmname );
+			my $found_service = grep { $servicename eq $_ } @services;
+
+			if ( not $found_service )
+			{
+				my $msg = "The service $servicename does not exist for $farmname.";
+				&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+			}
+		}
+
+		my $stats = &getHTTPFarmBackendsStats( $farmname, $servicename );
+
+		# Force not appear new v4.0 params
+		delete $_->{ ttl }          foreach @{ $stats->{ sessions } };
+		delete $_->{ backend_ip }   foreach @{ $stats->{ sessions } };
+		delete $_->{ backend_port } foreach @{ $stats->{ sessions } };
+
 		my $body = {
 					 description => $desc,
 					 backends    => $stats->{ backends },
@@ -134,10 +162,26 @@ sub farm_stats    # ( $farmname )
 
 	if ( $type eq "gslb" && $eload )
 	{
+		if ( defined $servicename )
+		{
+			my @services = &eload(
+								   module => 'Zevenet::Farm::GSLB::Service',
+								   func   => 'getGSLBFarmServices',
+								   args   => [$farmname],
+			);
+
+			# check if the SERVICE exists
+			unless ( grep { $servicename eq $_ } @services )
+			{
+				my $msg = "Could not find the requested service.";
+				return &httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+			}
+		}
+
 		my $gslb_stats = &eload(
 								 module => 'Zevenet::Farm::GSLB::Stats',
 								 func   => 'getGSLBFarmBackendsStats',
-								 args   => [$farmname],
+								 args   => [$farmname, $servicename],
 								 decode => 'true'
 		);
 

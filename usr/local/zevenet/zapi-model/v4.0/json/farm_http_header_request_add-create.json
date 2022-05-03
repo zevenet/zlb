@@ -1,0 +1,13 @@
+{
+   "action" : "add",
+   "description" : "The farm will add the header to the backend request.",
+   "method" : "POST",
+   "params" : {
+      "header" : {
+         "negated_regex" : "(?^:\\n)",
+         "non_blank" : "true",
+         "required" : "true"
+      }
+   },
+   "url" : "/farms/<farmname>/addheader"
+}

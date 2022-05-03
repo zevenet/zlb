@@ -32,7 +32,7 @@ my $action = $ARGV[1];
 my $backupdir = &getGlobalConfiguration( 'backupdir' );
 my $tar       = &getGlobalConfiguration( 'tar' );
 my $exclude_52_60 =
-  "--exclude=hostname --exclude=zlbcertfile.pem --exclude=/etc/cron.d/zevenet --exclude=global.conf --exclude=ssh_brute_force.txt --exclude=cluster.conf";
+  "--exclude=hostname --exclude=zlbcertfile.pem --exclude=/etc/cron.d/zevenet --exclude=global.conf --exclude=ssh_brute_force.txt --exclude=cluster.conf --exclude=zevenet_version";
 
 if ( $action eq "-c" )
 {
@@ -79,15 +79,41 @@ if ( $action eq "-D52to60" )
 	print "@eject\n";
 	print "Configuration files have been moved to local system.\n";
 
-	#migrating config files
-	my $MIG_DIR = "/usr/local/zevenet/migrating/";
-	my @listing = `ls $MIG_DIR`;
-	foreach my $file ( @listing )
+	# Migrating config files
+	print "\nMigrating Configuration files ...";
+	&migrateConfigFiles();
+	print "Done\n\n";
+
+	# check ntp and gw settings
+	my @old_config =
+	  `tar -axf  $backupdir\/backup-$name.tar.gz usr/local/zevenet/config/global.conf -O`;
+
+	foreach my $config_line ( @old_config )
 	{
-		print "Running Migration: ${MIG_DIR}${file}\n";
-		my @run = `${MIG_DIR}${file}`;
+		chomp $config_line;
+		if ( $config_line =~ /^\$ntp = \"(.*)\";$/ )
+		{
+			my $ntp_old = $1;
+			my $ntp_new = &getGlobalConfiguration( 'ntp' );
+			if ( $ntp_old ne $ntp_new )
+			{
+				print "Warning! old global.conf ntp value : $ntp_old , new value : $ntp_new\n";
+			}
+		}
+		if ( $config_line =~ /^\$defaultgw = \"(.*)\";$/ )
+		{
+			my $gw_old = $1;
+			my $gw_new = &getGlobalConfiguration( 'defaultgw' );
+			if ( $gw_old ne $gw_new )
+			{
+				print
+				  "Warning! old global.conf defaultgw value : $gw_old , new value : $gw_new\n";
+			}
+		}
+
 	}
 
+	print "\n";
 	print
 	  "A restart of the load balancer is pending in order to apply the changes...\n";
 }

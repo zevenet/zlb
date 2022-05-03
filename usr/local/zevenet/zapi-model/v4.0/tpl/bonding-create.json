@@ -1,0 +1,30 @@
+{
+	"method": "POST",
+	"url": "/interfaces/bonding",
+	"action": "create",
+	"description": "Create a bonding interface joining NIC interfaces.",
+	"params": {
+		"name": {
+			"regex": "$bond_interface",
+			"required": "true",
+			"non_blank": "true"
+		},
+		"slaves": {
+			"required": "true",
+			"ref": "array"
+		},
+		"mode": {
+			"values": [
+				"balance-rr",
+				"active-backup",
+				"balance-xor",
+				"broadcast",
+				"802.3ad",
+				"balance-tlb",
+				"balance-alb"
+			],
+			"required": "true",
+			"non_blank": "true"
+		}
+	}
+}

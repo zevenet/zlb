@@ -1,0 +1,34 @@
+{
+	"method": "PUT",
+	"url": "/farms/<farmname>/zones/<id>/resources/<id>",
+	"action": "set",
+	"description": "Modify the parameters of a resouce in a zone of a GSLB Farm.",
+	"params": {
+		"rname": {
+			"regex": "$resource_name",
+			"non_blank": "true"
+		},
+		"ttl": {
+			"regex": "$resource_ttl"
+		},
+		"type": {
+			"regex": "$resource_type",
+			"non_blank": "true",
+			"values": [
+				"NS",
+				"A",
+				"AAAA",
+				"CNAME",
+				"DYNA",
+				"MX",
+				"SRV",
+				"TXT",
+				"PTR",
+				"NAPTR"
+			]
+		},
+		"rdata": {
+			"non_blank": "true"
+		}
+	}
+}

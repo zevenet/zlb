@@ -203,9 +203,18 @@ sub getFarmVipStatus    # ($farm_name)
 	# HTTP, optimized for many services
 	if ( $type =~ /http/ )
 	{
-		require Zevenet::Farm::HTTP::Stats;
-		my $stats = &getHTTPFarmBackendsStats( $farm_name );
-		$backends = $stats->{ backends };
+		require Zevenet::Farm::HTTP::Backend;
+		my $status = &getHTTPFarmBackendsStatusInfo( $farm_name );
+		foreach my $service ( keys %{ $status } )
+		{
+			if ( defined $status->{ $service }->{ backends } )
+			{
+				foreach my $backend ( @{ $status->{ $service }->{ backends } } )
+				{
+					push @{ $backends }, $backend;
+				}
+			}
+		}
 	}
 
 	# GSLB
@@ -279,7 +288,7 @@ Parameters:
 	farmname - Farm name
 
 Returns:
-	Integer - return pid of farm, '-' if pid not exist or -1 on failure
+	Integer - return a list of daemon pids. It can contains more than one value
 
 =cut
 
@@ -290,23 +299,31 @@ sub getFarmPid    # ($farm_name)
 	my $farm_name = shift;
 
 	my $farm_type = &getFarmType( $farm_name );
-	my $output    = -1;
+	my @output    = ();
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Config;
-		$output = &getHTTPFarmPid( $farm_name );
+		if ( &getGlobalConfiguration( "proxy_ng" ) eq 'true' )
+		{
+			@output = &getHTTPFarmPid( $farm_name );
+		}
+		else
+		{
+			@output = &getHTTPFarmPidPound( $farm_name );
+		}
 	}
 	elsif ( $farm_type eq "gslb" && $eload )
 	{
-		$output = &eload(
+		my $pid = &eload(
 						  module => 'Zevenet::Farm::GSLB::Config',
 						  func   => 'getGSLBFarmPid',
 						  args   => [$farm_name],
 		);
+		push @output, $pid;
 	}
 
-	return $output;
+	return @output;
 }
 
 =begin nd
@@ -391,11 +408,11 @@ sub getFarmProto    # ($farm_name)
 	}
 	elsif ( $farm_type =~ /http/i )
 	{
-		$output = "TCP";
+		$output = "tcp";
 	}
 	elsif ( $farm_type eq "gslb" )
 	{
-		$output = "UDP";
+		$output = "all";
 	}
 
 	return $output;
@@ -445,6 +462,7 @@ Function: getFarmListByVip
 
 Parameters:
 	ip - ip address
+	port - virtual port. This parameter is optional
 
 Returns:
 	Array - List of farm names
@@ -454,16 +472,24 @@ sub getFarmListByVip
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $ip  = shift;
-	my @out = ();
+	my $ip   = shift;
+	my $port = shift;
+	my @out  = ();
+
+	require Zevenet::Net::Validate;
 
 	foreach my $farm ( &getFarmNameList() )
 	{
 		if ( &getFarmVip( 'vip', $farm ) eq $ip )
 		{
+			next
+			  if ( defined ( $port )
+				and !
+				grep ( /^$port$/, @{ &getMultiporExpanded( &getFarmVip( 'vipp', $farm ) ) } ) );
 			push @out, $farm;
 		}
 	}
+
 	return @out;
 }
 

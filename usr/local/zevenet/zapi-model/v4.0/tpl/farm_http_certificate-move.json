@@ -1,0 +1,13 @@
+{
+	"method": "POST",
+	"url": "/farms/<farmname>/certificates/<file>/actions",
+	"action": "move",
+	"description": "This feature allows moving the certificates to alter the order that they will be checked.",
+	"params": {
+		"position": {
+			"regex": "$integer",
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

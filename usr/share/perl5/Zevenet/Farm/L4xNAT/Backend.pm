@@ -103,6 +103,11 @@ sub setL4FarmServer
 			$msg  .= "port:$port ";
 		}
 	}
+	elsif ( defined $port && $port eq "" )
+	{
+		$json .= qq(, "port" : "$port");
+		$msg  .= "port:$port ";
+	}
 
 	if (   defined $ip
 		&& $ip ne ""
@@ -125,7 +130,9 @@ sub setL4FarmServer
 		{
 			$mark = $exists->{ tag };
 		}
-		&setL4BackendRule( "add", $f_ref, $mark );
+
+		&setBackendRule( "add", $f_ref, $mark ) if ( $f_ref->{ status } eq "up" );
+
 	}
 
 	if (   defined $weight
@@ -234,16 +241,21 @@ sub runL4FarmServerDelete
 							 }
 	);
 
+	my $backend;
 	foreach my $server ( @{ $f_ref->{ servers } } )
 	{
 		if ( $server->{ id } eq $ids )
 		{
-			$mark = $server->{ tag };
+			$mark    = $server->{ tag };
+			$backend = $server;
 			last;
 		}
 	}
 
-	&setL4BackendRule( "del", $f_ref, $mark );
+	### Flush conntrack
+	&resetL4FarmBackendConntrackMark( $backend );
+
+	&setBackendRule( "del", $f_ref, $mark );
 	&delMarks( "", $mark );
 
 	return $output;
@@ -269,10 +281,12 @@ sub setL4FarmBackendsSessionsRemove
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farmname, $backend ) = @_;
-	my $output = 0;
-
+	my $output  = 0;
 	my $nft_bin = &getGlobalConfiguration( 'nft_bin' );
 
+	my $table = "ip";
+	my $ip    = "";
+	my $mac   = "";
 	require Zevenet::Farm::L4xNAT::Config;
 
 	my $farm = &getL4FarmStruct( $farmname );
@@ -282,8 +296,18 @@ sub setL4FarmBackendsSessionsRemove
 	my $be = $farm->{ servers }[$backend];
 	( my $tag = $be->{ tag } ) =~ s/0x//g;
 	my $map_name = "persist-$farmname";
+	if ( $farm->{ mode } eq "dsr" )
+	{
+		$table = "netdev";
+		$ip    = $be->{ ip };
+		my $ip_bin = &getGlobalConfiguration( 'ip_bin' );
+		$mac = `$ip_bin neigh show $ip`;
+		my @mac_split = split ( ' ', $mac );
+		$mac = $mac_split[4];
+	}
+
 	my @persistmap =
-	  @{ &logAndGet( "$nft_bin list map nftlb $map_name", "array" ) };
+	  @{ &logAndGet( "$nft_bin list map $table nftlb $map_name", "array" ) };
 	my $data = 0;
 
 	foreach my $line ( @persistmap )
@@ -292,15 +316,34 @@ sub setL4FarmBackendsSessionsRemove
 		$data = 1 if ( $line =~ /elements = / );
 		next if ( !$data );
 
+		#default table ip
 		my ( $key, $time, $value ) =
 		  ( $line =~ / ([\w\.\s\:]+) expires (\w+) : (\w+)[\s,]/ );
-		&logAndRun( "/usr/local/sbin/nft delete element nftlb $map_name { $key }" )
+		&logAndRun(
+					"/usr/local/sbin/nft delete element $table nftlb $map_name { $key }" )
 		  if ( $value =~ /^0x.0*$tag/ );
 
 		( $key, $time, $value ) =
 		  ( $line =~ /, ([\w\.\s\:]+) expires (\w+) : (\w+)[\s,]/ );
-		&logAndRun( "/usr/local/sbin/nft delete element nftlb $map_name { $key }" )
+		&logAndRun(
+					"/usr/local/sbin/nft delete element $table nftlb $map_name { $key }" )
 		  if ( $value ne "" && $value =~ /^0x.0*$tag/ );
+
+		if ( $table eq "netdev" )
+		{
+
+			( $key, $time, $value ) =
+			  ( $line =~ / ([\w\.\s\:]+) expires (\w+) : ([a-fA-F0-9:]{1,})[\s,]/ );
+			&logAndRun(
+						"/usr/local/sbin/nft delete element $table nftlb $map_name { $key }" )
+			  if ( $value eq $mac );
+
+			( $key, $time, $value ) =
+			  ( $line =~ /, ([\w\.\s\:]+) expires (\w+) : ([a-fA-F0-9:]{1,})[\s,]/ );
+			&logAndRun(
+						"/usr/local/sbin/nft delete element $table nftlb $map_name { $key }" )
+			  if ( $value ne "" && $value eq $mac );
+		}
 
 		last if ( $data && $line =~ /\}/ );
 
@@ -362,16 +405,33 @@ sub setL4FarmBackendStatus
 	if (    ( $status ne "up" && $cutmode eq "cut" )
 		 || ( defined $prio && $prio eq 'true' ) )
 	{
-		#delete backend session
-		&setL4FarmBackendsSessionsRemove( $farm_name, $backend );
+
+		if ( $farm->{ persist } ne '' )
+		{
+			#delete backend session
+			&setL4FarmBackendsSessionsRemove( $farm_name, $backend );
+		}
+
+		my $server;
+
+		# get backend with id $backend
+		foreach my $srv ( @{ $$farm{ servers } } )
+		{
+			if ( $srv->{ 'id' } == $backend )
+			{
+				$server = $srv;
+				last;
+			}
+		}
 
 		# remove conntrack
-		my $server = $$farm{ servers }[$backend];
 		&resetL4FarmBackendConntrackMark( $server );
 
-		# delete backend session again in case new connections are created
-		&setL4FarmBackendsSessionsRemove( $farm_name, $backend );
-
+		if ( $farm->{ persist } ne '' )
+		{
+			# delete backend session again in case new connections are created
+			&setL4FarmBackendsSessionsRemove( $farm_name, $backend );
+		}
 	}
 
 	#~ TODO
@@ -485,7 +545,7 @@ sub _getL4FarmParseServers
 			$server->{ id }        = $index + 0;
 			$server->{ port }      = undef;
 			$server->{ tag }       = "0x0";
-			$server->{ max_conns } = 0 if ( $eload );
+			$server->{ max_conns } = 0;
 		}
 
 		if ( $stage == 3 && $line =~ /\"ip-addr\"/ )
@@ -541,7 +601,7 @@ sub _getL4FarmParseServers
 		if ( $stage == 3 && $line =~ /\"est-connlimit\"/ )
 		{
 			my @l = split /"/, $line;
-			$server->{ max_conns } = $l[3] + 0 if ( $eload );
+			$server->{ max_conns } = $l[3] + 0;
 		}
 
 		if ( $stage == 3 && $line =~ /\"state\"/ )
@@ -703,52 +763,6 @@ sub getL4FarmBackendAvailableID
 	}
 
 	return $nbackends;
-}
-
-=begin nd
-Function: setL4BackendRule
-
-	Add or delete the route rule according to the backend mark.
-
-Parameters:
-	action - "add" to create the mark or "del" to remove it.
-	farm_ref - farm reference.
-	mark - backend mark to apply in the rule.
-
-Returns:
-	integer - 0 if successful, otherwise error.
-
-=cut
-
-sub setL4BackendRule
-{
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
-			 "debug", "PROFILING" );
-	my $action   = shift;
-	my $farm_ref = shift;
-	my $mark     = shift;
-
-	return -1
-	  if (    $action !~ /add|del/
-		   || !defined $farm_ref
-		   || $mark eq ""
-		   || $mark eq "0x0" );
-
-	require Zevenet::Net::Util;
-	require Zevenet::Net::Route;
-
-	my $vip_if_name = &getInterfaceOfIp( $farm_ref->{ vip } );
-	my $vip_if      = &getInterfaceConfig( $vip_if_name );
-	my $table_if =
-	  ( $vip_if->{ type } eq 'virtual' ) ? $vip_if->{ parent } : $vip_if->{ name };
-
-	my $rule = {
-				 table  => "table_$table_if",
-				 type   => 'farm-l4',
-				 from   => 'all',
-				 fwmark => "$mark/0x7fffffff",
-	};
-	return &setRule( $action, $rule );
 }
 
 =begin nd

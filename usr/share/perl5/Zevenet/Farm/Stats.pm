@@ -50,16 +50,12 @@ sub getFarmEstConns    # ($farm_name,$netstat)
 	my ( $farm_name, $netstat ) = @_;
 
 	my $farm_type   = &getFarmType( $farm_name );
-	my $pid         = &getFarmPid( $farm_name );
 	my $connections = 0;
-
-	if ( $pid eq "-" )
-	{
-		return $connections;
-	}
 
 	if ( $farm_type eq "http" || $farm_type eq "https" )
 	{
+		my @pid = &getFarmPid( $farm_name );
+		return $connections if ( !@pid );
 		require Zevenet::Farm::HTTP::Stats;
 		$connections = &getHTTPFarmEstConns( $farm_name );
 	}
@@ -70,6 +66,8 @@ sub getFarmEstConns    # ($farm_name,$netstat)
 	}
 	elsif ( $farm_type eq "gslb" )
 	{
+		my @pid = &getFarmPid( $farm_name );
+		return $connections if ( !@pid );
 		$connections = &eload(
 							   module => 'Zevenet::Farm::GSLB::Stats',
 							   func   => 'getGSLBFarmEstConns',
@@ -147,7 +145,7 @@ sub getFarmSYNConns    # ($farm_name, $netstat)
 	if ( $farm_type eq "http" || $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Stats;
-		$connections = &getHTTPFarmSYNConns( $farm_name, $netstat );
+		$connections = &getHTTPFarmSYNConns( $farm_name );
 	}
 	elsif ( $farm_type eq "l4xnat" )
 	{

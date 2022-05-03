@@ -1,0 +1,44 @@
+{
+   "action" : "action",
+   "description" : "Apply an action in a Letsencrypt certificate by first domain.",
+   "method" : "POST",
+   "params" : {
+      "action" : {
+         "non_blank" : "true",
+         "required" : "true",
+         "values" : [
+            "renew"
+         ]
+      },
+      "farmname" : {
+         "description" : "Farm name which a temporal Service “Letsencryptz” is configured in. Required if param vip is not sent.",
+         "dyn_values" : "true",
+         "non_blank" : "true"
+      },
+      "force_renewal" : {
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "restart" : {
+         "description" : "true, all the farms using the certificate will be restarted. false, no farms using the certificate will be restarted.",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "test" : {
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "vip" : {
+         "description" : "IP of the system, where a temporal Farm “Letsencryptz” is configured. Required true if param vip is not sent.",
+         "dyn_values" : "true",
+         "non_blank" : "true"
+      }
+   },
+   "url" : "/certificates/letsencryptz/<domain>/actions"
+}

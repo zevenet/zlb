@@ -161,8 +161,13 @@ sub getL4FarmEstConns
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $netstat ) = @_;
+	require Zevenet::Net::ConnStats;
 
 	my $farm = &getL4FarmStruct( $farm_name );
+
+# states : NONE | SYN_SENT | SYN_RECV | ESTABLISHED | FIN_WAIT | CLOSE_WAIT | LAST_ACK | TIME_WAIT | CLOSE | LISTEN
+	my $established_filter =
+	  '(?:SYN_RECV|ESTABLISHED|FIN_WAIT|CLOSE_WAIT|LAST_ACK)';
 
 	my @fportlist   = &getFarmPortList( $farm->{ vport } );
 	my $regexp      = "";
@@ -193,7 +198,7 @@ sub getL4FarmEstConns
 						&getNetstatFilter(
 							"tcp",
 							"",
-							"\.* ESTABLISHED src=\.* dst=$farm->{ vip } \.* dport=$regexp .*src=$backend->{ ip } \.*",
+							"\.* $established_filter src=\.* dst=$farm->{ vip } \.* dport=$regexp .*src=$backend->{ ip } \.*",
 							"",
 							$netstat
 						)
@@ -221,7 +226,7 @@ sub getL4FarmEstConns
 						&getNetstatFilter(
 							"tcp",
 							"",
-							"\.* ESTABLISHED src=\.* dst=$farm->{ vip } \.* dport=$regexp .*src=$backend->{ ip } \.*",
+							"\.* $established_filter src=\.* dst=$farm->{ vip } \.* dport=$regexp .*src=$backend->{ ip } \.*",
 							"",
 							$netstat
 						)

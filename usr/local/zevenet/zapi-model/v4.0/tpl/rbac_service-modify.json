@@ -1,0 +1,22 @@
+{
+	"method": "POST",
+	"url": "/rbac/services",
+	"action": "set",
+	"description": "Enable/disable the authentication services.",
+	"params": {
+		"ldap": {
+			"description": "it enables or disables the user authentication using a LDAP server",
+			"values": [
+				"true",
+				"false"
+			]
+		},
+		"local": {
+			"description": "it enables or disables the log in using the system users",
+			"values": [
+				"true",
+				"false"
+			]
+		}
+	}
+}

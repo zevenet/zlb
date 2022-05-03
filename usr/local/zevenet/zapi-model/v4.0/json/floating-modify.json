@@ -1,0 +1,13 @@
+{
+   "action" : "set",
+   "description" : "Configure a floating IP for a NIC, bonding or VLAN interface.",
+   "method" : "PUT",
+   "params" : {
+      "floating_ip" : {
+         "dyn_values" : "true",
+         "non_blank" : "true",
+         "required" : "true"
+      }
+   },
+   "url" : "/interfaces/floating/<name>"
+}

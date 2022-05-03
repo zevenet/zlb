@@ -1,0 +1,14 @@
+{
+	"method": "POST",
+	"url": "/farms/<farmname>/zones",
+	"action": "add",
+	"description": "Create a DNS zone.",
+	"params": {
+		"id": {
+			"regex": "$zone",
+			"non_blank": "true",
+			"required": "true",
+			"format_msg": "Invalid zone name, please insert a valid value like zonename.com, zonename.net, etc."
+		}
+	}
+}

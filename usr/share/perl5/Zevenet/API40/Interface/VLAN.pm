@@ -46,33 +46,7 @@ sub new_vlan    # ( $json_obj )
 	my $nic_re      = &getValidFormat( 'nic_interface' );
 	my $vlan_tag_re = &getValidFormat( 'vlan_tag' );
 
-	my $params = {
-		"name" => {
-			'valid_format' => 'vlan_interface',
-			'required'     => 'true',
-			'non_blank'    => 'true',
-			"format_msg" =>
-			  "is a string formed with the parent interface name, dot ('.') and a VLAN tag. E.g. 'eth1.1'",
-		},
-		"ip" => {
-				  'valid_format' => 'ip_addr',
-		},
-		"netmask" => {
-					   'valid_format' => 'ip_mask',
-		},
-		"gateway" => {
-					   'valid_format' => 'ip_addr',
-		},
-	};
-
-	if ( $eload )
-	{
-		$params->{ "dhcp" } = {
-								'non_blank' => 'true',
-								'values'    => ['true', 'false'],
-		};
-		$params->{ "mac" } = { 'valid_format' => 'mac_addr', };
-	}
+	my $params = &getZAPIModel( "vlan-create.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -172,6 +146,12 @@ sub new_vlan    # ( $json_obj )
 	{
 		$json_obj->{ ip_v } = ipversion( $json_obj->{ ip } );
 
+		if ( !&validateNetmask( $json_obj->{ netmask }, $json_obj->{ ip_v } ) )
+		{
+			my $msg = "The netmask is not valid";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+
 		# check if network exists in other interface
 		if ( $json_obj->{ ip } or $json_obj->{ netmask } )
 		{
@@ -212,7 +192,7 @@ sub new_vlan    # ( $json_obj )
 		if ( $if_ref->{ gateway } )
 		{
 			unless (
-				 &getNetValidate( $if_ref->{ addr }, $if_ref->{ mask }, $if_ref->{ gateway } ) )
+				&validateGateway( $if_ref->{ addr }, $if_ref->{ mask }, $if_ref->{ gateway } ) )
 			{
 				my $msg = "Gateway does not belong to the interface subnet.";
 				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -253,8 +233,9 @@ sub new_vlan    # ( $json_obj )
 	}
 
 	my $body = {
-				 description => $desc,
-				 params      => &get_vlan_struct( $json_obj->{ name } ),
+				description => $desc,
+				params      => &get_vlan_struct( $json_obj->{ name } ),
+				message => "The $json_obj->{ name } VLAN has been created successfully."
 	};
 
 	&httpResponse( { code => 201, body => $body } );
@@ -292,6 +273,19 @@ sub delete_interface_vlan    # ( $vlan )
 			$msg = "The interface cannot be modified. $msg";
 			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
+		my $zcl_conf = &eload( module => 'Zevenet::Cluster',
+							   func   => 'getZClusterConfig', );
+		if ( defined $zcl_conf->{ _ }->{ track_interface } )
+		{
+			my @track_interface = split ( /\s/, $zcl_conf->{ _ }->{ track_interface } );
+			if ( grep { $_ eq $if_ref->{ name } } @track_interface )
+			{
+				$msg =
+				  "The interface $if_ref->{ name } cannot be modified because it is been tracked by the cluster.
+						If you still want to modify it, remove it from the cluster track interface list.";
+				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
 	}
 
 	# check if some farm is using this ip
@@ -302,6 +296,34 @@ sub delete_interface_vlan    # ( $vlan )
 		my $str = join ( ', ', @farms );
 		my $msg = "This interface is being used as vip in the farm(s): $str.";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+
+	if ( $eload )
+	{
+		# check if some VPN is using this ip
+		my $vpns = &eload(
+						   module => 'Zevenet::VPN::Util',
+						   func   => 'getVPNByIp',
+						   args   => [$if_ref->{ addr }],
+		);
+		if ( @{ $vpns } )
+		{
+			my $str = join ( ', ', @{ $vpns } );
+			my $msg = "This interface is being used as Local Gateway in VPN(s): $str";
+			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+		$vpns = &eload(
+						module => 'Zevenet::VPN::Util',
+						func   => 'getVPNByNet',
+						args   => [$if_ref->{ net }],
+		);
+		if ( @{ $vpns } )
+		{
+			my $str = join ( ', ', @{ $vpns } );
+			my $msg = "This interface is being used as Local Network in VPN(s): $str";
+			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+
 	}
 
 	my @child = &getInterfaceChild( $vlan );
@@ -332,7 +354,6 @@ sub delete_interface_vlan    # ( $vlan )
 	my $message = "The VLAN interface $vlan has been deleted.";
 	my $body = {
 				 description => $desc,
-				 success     => "true",
 				 message     => $message,
 	};
 
@@ -393,13 +414,7 @@ sub actions_interface_vlan    # ( $json_obj, $vlan )
 	my $desc = "Action on vlan interface";
 	my $ip_v = 4;
 
-	my $params = {
-				   "action" => {
-								 'non_blank' => 'true',
-								 'required'  => 'true',
-								 'values'    => ['up', 'down'],
-				   },
-	};
+	my $params = &getZAPIModel( "vlan-action.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -483,6 +498,19 @@ sub actions_interface_vlan    # ( $json_obj, $vlan )
 				$msg = "The interface cannot be stopped. $msg";
 				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
+			my $zcl_conf = &eload( module => 'Zevenet::Cluster',
+								   func   => 'getZClusterConfig', );
+			if ( defined $zcl_conf->{ _ }->{ track_interface } )
+			{
+				my @track_interface = split ( /\s/, $zcl_conf->{ _ }->{ track_interface } );
+				if ( grep { $_ eq $if_ref->{ name } } @track_interface )
+				{
+					$msg =
+					  "The interface $if_ref->{ name } cannot be modified because it is been tracked by the cluster.
+							If you still want to modify it, remove it from the cluster track interface list.";
+					return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+				}
+			}
 		}
 
 		require Zevenet::Net::Core;
@@ -498,6 +526,7 @@ sub actions_interface_vlan    # ( $json_obj, $vlan )
 	my $body = {
 				 description => $desc,
 				 params      => { action => $json_obj->{ action } },
+				 message     => "The $vlan VLAN is $json_obj->{ action }."
 	};
 
 	&httpResponse( { code => 200, body => $body } );
@@ -520,6 +549,11 @@ sub modify_interface_vlan    # ( $json_obj, $vlan )
 	my $old_ip = $if_ref->{ addr };
 
 	my @farms;
+	my $vpns_localgw;
+	@{ $vpns_localgw } = ();
+	my $vpns_localnet;
+	@{ $vpns_localnet } = ();
+	my $warning_msg;
 
 	# Check interface errors
 	unless ( $if_ref )
@@ -528,30 +562,7 @@ sub modify_interface_vlan    # ( $json_obj, $vlan )
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
-	my $params = {
-				   "ip" => {
-							 'valid_format' => 'ip_addr',
-				   },
-				   "netmask" => {
-								  'valid_format' => 'ip_mask',
-				   },
-				   "gateway" => {
-								  'valid_format' => 'ip_addr',
-				   },
-				   "force" => {
-								'non_blank' => 'true',
-								'values'    => ['true'],
-				   },
-	};
-
-	if ( $eload )
-	{
-		$params->{ "dhcp" } = {
-								'non_blank' => 'true',
-								'values'    => ['true', 'false'],
-		};
-		$params->{ "mac" } = { 'valid_format' => 'mac_addr', };
-	}
+	my $params = &getZAPIModel( "vlan-modify.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -559,46 +570,6 @@ sub modify_interface_vlan    # ( $json_obj, $vlan )
 	  if ( $error_msg );
 
 	my @child = &getInterfaceChild( $vlan );
-
-	if ( exists $json_obj->{ ip }
-		 or ( exists $json_obj->{ dhcp } ) )
-	{
-		if ( $eload )
-		{
-			my $msg = &eload(
-							  module => 'Zevenet::Net::Ext',
-							  func   => 'isManagementIP',
-							  args   => [$if_ref->{ addr }],
-			);
-			if ( $msg ne "" )
-			{
-				$msg = "The interface cannot be modified. $msg";
-				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-		}
-
-		# check if some farm is using this ip
-		require Zevenet::Farm::Base;
-		@farms = &getFarmListByVip( $if_ref->{ addr } );
-		if ( @farms )
-		{
-			if (    !exists $json_obj->{ ip }
-				 and exists $json_obj->{ dhcp }
-				 and $json_obj->{ dhcp } eq 'false' )
-			{
-				my $msg =
-				  "This interface is been used by some farms, please, set up a new 'ip' in order to be used as farm vip.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-			if ( $json_obj->{ force } ne 'true' )
-			{
-				my $str = join ( ', ', @farms );
-				my $msg =
-				  "The IP is being used as farm vip in the farm(s): $str. If you are sure, repeat with parameter 'force'. All farms using this interface will be restarted.";
-				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-		}
-	}
 
 	my $dhcp_status = $json_obj->{ dhcp } // $if_ref->{ dhcp };
 
@@ -614,6 +585,7 @@ sub modify_interface_vlan    # ( $json_obj, $vlan )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}
+
 	if ( !exists $json_obj->{ ip } and exists $json_obj->{ dhcp } and @child )
 	{
 		my $msg =
@@ -621,22 +593,9 @@ sub modify_interface_vlan    # ( $json_obj, $vlan )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	if ( exists $json_obj->{ dhcp } )
-	{
-		my $func = ( $json_obj->{ dhcp } eq 'true' ) ? "enableDHCP" : "disableDHCP";
-		my $err = &eload(
-						  module => 'Zevenet::Net::DHCP',
-						  func   => $func,
-						  args   => [$if_ref],
-		);
-
-		if ( $err )
-		{
-			my $msg = "Errors found trying to enabling dhcp for the interface $vlan";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-	}
-	else
+	if (    exists $json_obj->{ ip }
+		 or exists $json_obj->{ netmask }
+		 or exists $json_obj->{ gateway } )
 	{
 		my $new_if = {
 					   addr    => $json_obj->{ ip }      // $if_ref->{ addr },
@@ -650,13 +609,13 @@ sub modify_interface_vlan    # ( $json_obj, $vlan )
 			my $ip_v = &ipversion( $new_if->{ addr } );
 			my $gw_v = &ipversion( $new_if->{ gateway } );
 
-			my $mask_v =
-			    ( $ip_v == 4 && &getValidFormat( 'IPv4_mask', $new_if->{ mask } ) ) ? 4
-			  : ( $ip_v == 6 && &getValidFormat( 'IPv6_mask', $new_if->{ mask } ) ) ? 6
-			  :                                                                       '';
+			if ( !&validateNetmask( $json_obj->{ netmask }, $ip_v ) )
+			{
+				my $msg = "The netmask is not valid";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
 
-			if ( $ip_v ne $mask_v
-				 || ( $new_if->{ gateway } && $ip_v ne $gw_v ) )
+			if ( $new_if->{ gateway } && $ip_v ne $gw_v )
 			{
 				my $msg = "Invalid IP stack version match.";
 				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -679,7 +638,7 @@ sub modify_interface_vlan    # ( $json_obj, $vlan )
 			{
 				my $child_if = &getInterfaceConfig( $child_name );
 				unless (
-					  &getNetValidate( $child_if->{ addr }, $new_if->{ mask }, $new_if->{ addr } ) )
+					 &validateGateway( $child_if->{ addr }, $new_if->{ mask }, $new_if->{ addr } ) )
 				{
 					push @wrong_conf, $child_name;
 				}
@@ -710,11 +669,157 @@ sub modify_interface_vlan    # ( $json_obj, $vlan )
 		if ( $new_if->{ gateway } )
 		{
 			unless (
-				 &getNetValidate( $new_if->{ addr }, $new_if->{ mask }, $new_if->{ gateway } ) )
+				&validateGateway( $new_if->{ addr }, $new_if->{ mask }, $new_if->{ gateway } ) )
 			{
 				my $msg = "The gateway is not valid for the network.";
 				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
+		}
+
+		# Check new IP address is not in use
+		if ( $json_obj->{ ip } and ( $new_if->{ addr } ne $if_ref->{ addr } ) )
+		{
+			require Zevenet::Net::Util;
+			my @activeips = &listallips();
+			for my $ip ( @activeips )
+			{
+				if ( $ip eq $json_obj->{ ip } )
+				{
+					my $msg = "IP address $json_obj->{ip} already in use.";
+					&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+				}
+			}
+		}
+	}
+
+	if (    exists $json_obj->{ ip }
+		 or ( exists $json_obj->{ dhcp } )
+		 or ( exists $json_obj->{ netmask } ) )
+	{
+		if ( exists $json_obj->{ ip }
+			 or ( exists $json_obj->{ dhcp } ) )
+		{
+
+			if ( $eload )
+			{
+				my $msg = &eload(
+								  module => 'Zevenet::Net::Ext',
+								  func   => 'isManagementIP',
+								  args   => [$if_ref->{ addr }],
+				);
+				if ( $msg ne "" )
+				{
+					$msg = "The interface cannot be modified. $msg";
+					return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+				}
+			}
+
+			# check if some farm is using this ip
+			require Zevenet::Farm::Base;
+			@farms = &getFarmListByVip( $if_ref->{ addr } );
+			$vpns_localgw = &eload(
+									module => 'Zevenet::VPN::Util',
+									func   => 'getVPNByIp',
+									args   => [$if_ref->{ addr }],
+			) if $eload;
+		}
+
+		# check if its a new network and a vpn using old network
+		if ( exists $json_obj->{ ip } or exists $json_obj->{ netmask } )
+		{
+			# check if network is changed
+			my $mask = $json_obj->{ netmask } // $if_ref->{ mask };
+			if (
+				   !&validateGateway( $if_ref->{ addr }, $if_ref->{ mask }, $json_obj->{ ip } )
+				 or $if_ref->{ mask } ne $mask )
+			{
+				my $net = new NetAddr::IP( $if_ref->{ addr }, $if_ref->{ mask } )->cidr();
+				$vpns_localnet = &eload(
+										 module => 'Zevenet::VPN::Util',
+										 func   => 'getVPNByNet',
+										 args   => [$net],
+				) if $eload;
+			}
+		}
+
+		if ( @farms or @{ $vpns_localgw } or @{ $vpns_localnet } )
+		{
+			if (    !exists $json_obj->{ ip }
+				 and exists $json_obj->{ dhcp }
+				 and $json_obj->{ dhcp } eq 'false' )
+			{
+				my $str_objects;
+				my $str_function;
+				if ( @farms )
+				{
+					$str_objects  = " and farms";
+					$str_function = " and farm VIP";
+				}
+				if ( @{ $vpns_localgw } or @{ $vpns_localnet } )
+				{
+					$str_objects .= " and vpns";
+				}
+				if ( @{ $vpns_localgw } )
+				{
+					$str_function .= " and Local Gateway";
+				}
+				if ( @{ $vpns_localnet } )
+				{
+					$str_function .= " and Local Network";
+				}
+				$str_objects  = substr ( $str_objects,  5 );
+				$str_function = substr ( $str_function, 5 );
+
+				my $msg =
+				  "This interface is been used by some $str_objects, please, set up a new 'ip' in order to be used as $str_function.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+			if ( $json_obj->{ force } ne 'true' )
+			{
+				my $str_objects;
+				my $str_function;
+				if ( @farms )
+				{
+					$str_objects = " and farms";
+					$str_function = " and as farm VIP in the farm(s): " . join ( ', ', @farms );
+				}
+				if ( @{ $vpns_localgw } or @{ $vpns_localnet } )
+				{
+					$str_objects .= " and vpns";
+				}
+				if ( @{ $vpns_localgw } )
+				{
+					$str_function .=
+					  " and as Local Gateway in the VPN(s): " . join ( ', ', @{ $vpns_localgw } );
+				}
+				if ( @{ $vpns_localnet } )
+				{
+					$str_function .=
+					  " and as Local Network in the VPN(s): " . join ( ', ', @{ $vpns_localnet } );
+				}
+				$str_objects  = substr ( $str_objects,  5 );
+				$str_function = substr ( $str_function, 5 );
+
+				my $msg =
+				  "The IP is being used $str_function. If you are sure, repeat with parameter 'force'. All $str_objects using this interface will be restarted.";
+				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
+	}
+
+	if ( exists $json_obj->{ dhcp } )
+	{
+		my $func = ( $json_obj->{ dhcp } eq 'true' ) ? "enableDHCP" : "disableDHCP";
+		my $err = &eload(
+						  module => 'Zevenet::Net::DHCP',
+						  func   => $func,
+						  args   => [$if_ref],
+		);
+
+		if ( $err )
+		{
+			my $msg = "Errors found trying to enabling dhcp for the interface $vlan";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}
 
@@ -777,11 +882,40 @@ sub modify_interface_vlan    # ( $json_obj, $vlan )
 	#Release lock file
 	&lockResource( $vlan_config_file, "ud" ) if ( $dhcp_flag eq "true" );
 
+	if ( @farms )
+	{
+		require Zevenet::Farm::Config;
+		&setAllFarmByVip( $json_obj->{ ip }, \@farms );
+		&reloadFarmsSourceAddress();
+	}
+
+	if ( @{ $vpns_localgw } )
+	{
+		my $error = &eload(
+							module => 'Zevenet::VPN::Config',
+							func   => 'setAllVPNLocalGateway',
+							args   => [$json_obj->{ ip }, $vpns_localgw],
+		);
+		$warning_msg .= $error->{ desc } if ( $error->{ code } );
+	}
+	if ( @{ $vpns_localnet } )
+	{
+		my $net = new NetAddr::IP( $if_ref->{ net }, $if_ref->{ mask } )->cidr();
+		my $error = &eload(
+							module => 'Zevenet::VPN::Config',
+							func   => 'setAllVPNLocalNetwork',
+							args   => [$net, $vpns_localnet],
+		);
+		$warning_msg .= $error->{ desc } if ( $error->{ code } );
+	}
+
 	my $if_out = &get_vlan_struct( $vlan );
 	my $body = {
 				 description => $desc,
 				 params      => $if_out,
+				 message     => "The $vlan VLAN has been updated successfully"
 	};
+	$body->{ warning } = $warning_msg if ( $warning_msg );
 
 	&httpResponse( { code => 200, body => $body } );
 }

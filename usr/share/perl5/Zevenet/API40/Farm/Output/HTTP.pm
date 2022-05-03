@@ -31,6 +31,9 @@ sub getHTTPOutFarm
 	require Zevenet::Farm::Config;
 	my $farmname = shift;
 	my $farm_ref = &getFarmStruct( $farmname );
+
+	# Remove useless fields
+	delete ( $farm_ref->{ name } );
 	return $farm_ref;
 }
 

@@ -25,7 +25,8 @@ use strict;
 
 sub get_gateway
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	require Zevenet::Net::Route;
 
 	my $desc = "Default gateway";
@@ -39,12 +40,13 @@ sub get_gateway
 		},
 	};
 
-	&httpResponse({ code => 200, body => $body });
+	&httpResponse( { code => 200, body => $body } );
 }
 
-sub modify_gateway # ( $json_obj )
+sub modify_gateway    # ( $json_obj )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $json_obj = shift;
 
 	require Zevenet::Net::Route;
@@ -81,7 +83,8 @@ sub modify_gateway # ( $json_obj )
 	# validate ADDRESS
 	if ( exists $json_obj->{ address } )
 	{
-		unless ( defined( $json_obj->{ address } ) && &getValidFormat( 'IPv4_addr', $json_obj->{ address } ) )
+		unless ( defined ( $json_obj->{ address } )
+				 && &getValidFormat( 'IPv4_addr', $json_obj->{ address } ) )
 		{
 			my $msg = "Gateway address is not valid.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -95,7 +98,7 @@ sub modify_gateway # ( $json_obj )
 
 		my @system_interfaces = &getInterfaceList();
 
-		unless ( grep( { $json_obj->{ interface } eq $_ } @system_interfaces ) )
+		unless ( grep ( { $json_obj->{ interface } eq $_ } @system_interfaces ) )
 		{
 			my $msg = "Gateway interface not found.";
 			&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -103,22 +106,23 @@ sub modify_gateway # ( $json_obj )
 	}
 
 	my $ip_version = 4;
-	my $interface = $json_obj->{ interface } // &getIfDefaultGW();
-	my $address = $json_obj->{ address } // $default_gw;
+	my $interface  = $json_obj->{ interface } // &getIfDefaultGW();
+	my $address    = $json_obj->{ address } // $default_gw;
 
 	require Zevenet::Net::Interface;
 	my $if_ref = &getInterfaceConfig( $interface, $ip_version );
 
 	# check if network is correct
 	require Zevenet::Net::Validate;
-	unless (
-		&getNetValidate( $if_ref->{ addr }, $if_ref->{ mask }, $address ) )
+	unless ( &validateGateway( $if_ref->{ addr }, $if_ref->{ mask }, $address ) )
 	{
 		my $msg = "The gateway is not valid for the network.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	&zenlog("applyRoutes interface:$interface address:$address if_ref:$if_ref", "debug", "NETWORK") if &debug();
+	&zenlog( "applyRoutes interface:$interface address:$address if_ref:$if_ref",
+			 "debug", "NETWORK" )
+	  if &debug();
 
 	my $error = &applyRoutes( "global", $if_ref, $address );
 
@@ -135,12 +139,13 @@ sub modify_gateway # ( $json_obj )
 				 message     => $msg,
 	};
 
-	&httpResponse({ code => 200, body => $body });
+	&httpResponse( { code => 200, body => $body } );
 }
 
 sub delete_gateway
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	require Zevenet::Net::Route;
 	require Zevenet::Net::Interface;
 
@@ -167,7 +172,7 @@ sub delete_gateway
 		},
 	};
 
-	&httpResponse({ code => 200, body => $body });
+	&httpResponse( { code => 200, body => $body } );
 }
 
 1;

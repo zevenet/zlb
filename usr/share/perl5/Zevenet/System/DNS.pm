@@ -113,21 +113,27 @@ sub setDns
 	require Tie::File;
 	tie my @dnsArr, 'Tie::File', $dnsFile;
 
-	my $index = 1;
+	my $index      = 1;
+	my $line_index = 0;
 	foreach my $line ( @dnsArr )
 	{
+		$line_index++;
 		if ( $line =~ /\s*nameserver/ )
 		{
 			$line = "nameserver $value"
 			  if ( $index == 1 and $dns eq 'primary' and $value ne '' );
 			$line = "nameserver $value"
 			  if ( $index == 2 and $dns eq 'secondary' and $value ne '' );
-			splice @dnsArr, ( $index - 1 )
+			splice @dnsArr, ( $line_index - 1 )
 			  if ( $index == 2 and $dns eq 'secondary' and $value eq '' );
 			$index++;
 			last if ( $index > 2 );
 		}
 	}
+
+	# if there is not any nameserver, add one
+	push @dnsArr, "nameserver $value"
+	  if ( $index == 1 and $value ne '' );
 
 	# if the secondary nameserver has not been found, add it
 	push @dnsArr, "nameserver $value"

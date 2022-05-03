@@ -1,0 +1,13 @@
+{
+   "action" : "add",
+   "description" : "Apply a DoS rule to the farm.",
+   "method" : "POST",
+   "params" : {
+      "name" : {
+         "description" : "IPDS rule name used as a unique identifier.",
+         "non_blank" : "true",
+         "required" : "true"
+      }
+   },
+   "url" : "/farms/<farmname>/ipds/dos"
+}

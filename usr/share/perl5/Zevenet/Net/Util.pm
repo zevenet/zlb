@@ -153,7 +153,6 @@ sub sendGPing    # ($pif)
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $pif ) = @_;
-
 	my $if_conf = &getInterfaceConfig( $pif );
 	my $gw      = $if_conf->{ gateway };
 
@@ -161,9 +160,10 @@ sub sendGPing    # ($pif)
 	{
 		my $ping_bin = &getGlobalConfiguration( 'ping_bin' );
 		my $pingc    = &getGlobalConfiguration( 'pingc' );
-		my $ping_cmd = "$ping_bin -c $pingc $gw";
+		my $ping_cmd = "$ping_bin -c $pingc -I $if_conf->{addr} $gw";
 
-		&zenlog( "Sending $pingc ping(s) to gateway $gw", "info", "NETWORK" );
+		&zenlog( "Sending $pingc ping(s) to gateway $gw from $if_conf->{addr}",
+				 "info", "NETWORK" );
 		&logAndRunBG( "$ping_cmd" );
 	}
 }
@@ -174,14 +174,10 @@ Function: getRandomPort
 	Get a random available port number from 35060 to 35160.
 
 Parameters:
-	none - .
+	protocol - it is the protocol that will use the port
 
 Returns:
-	scalar - encoded in base 64 if exists file.
-
-Bugs:
-	If no available port is found you will get an infinite loop.
-	FIXME: $check not used.
+	Integer - Port number
 
 See Also:
 	<runGSLBFarmCreate>, <setGSLBControlPort>
@@ -194,19 +190,37 @@ sub getRandomPort    # ()
 			 "debug", "PROFILING" );
 	require Zevenet::Net::Validate;
 
+	my $proto = shift;
+
 	#down limit
 	my $min = "35060";
 
 	#up limit
-	my $max = "35160";
+	my $max = "35460";
+
+	#limit of tries looking for the port
+	my $limit_tries = 40;
 
 	my $random_port;
-	do
+	for ( my $tries = 0 ; $tries < $limit_tries ; $tries++ )
 	{
+		$tries++;
 		$random_port = int ( rand ( $max - $min ) ) + $min;
-	} while ( &checkport( '127.0.0.1', $random_port ) eq 'true' );
+		if ( &validatePort( '127.0.0.1', $random_port, $proto ) )
+		{
+			last;
+		}
+		else
+		{
+			$random_port = -1;
+		}
+	}
 
-	my $check = &checkport( '127.0.0.1', $random_port );
+	if ( $random_port == -1 )
+	{
+		&zenlog( "The limit of tries was reached looking for a port not used",
+				 "error", "networking" );
+	}
 
 	return $random_port;
 }
@@ -314,7 +328,6 @@ Returns:
 
 sub unsetArpAnnounce
 {
-	my $script       = &getGlobalConfiguration( "arp_announce_bin" );
 	my $path         = &getGlobalConfiguration( "arp_announce_cron_path" );
 	my $cron_service = &getGlobalConfiguration( 'cron_service' );
 	my $err          = 0;
@@ -366,8 +379,6 @@ sub iponif    # ($if)
 	require IO::Socket;
 	require Zevenet::Net::Interface;
 
-	my @interfaces = &getInterfaceList();
-
 	my $s = IO::Socket::INET->new( Proto => 'udp' );
 	my $iponif = $s->if_addr( $if );
 
@@ -405,9 +416,8 @@ sub maskonif    # ($if)
 
 	require IO::Socket;
 
-	my $s          = IO::Socket::INET->new( Proto => 'udp' );
-	my @interfaces = &getInterfaceList();
-	my $maskonif   = $s->if_netmask( $if );
+	my $s = IO::Socket::INET->new( Proto => 'udp' );
+	my $maskonif = $s->if_netmask( $if );
 
 	return $maskonif;
 }

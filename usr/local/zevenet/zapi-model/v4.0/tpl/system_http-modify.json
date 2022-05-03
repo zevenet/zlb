@@ -1,0 +1,28 @@
+{
+	"description": "Modify the HTTP service configuration. Multiple ips and ports can be configured.",
+	"method": "POST",
+	"url": "/system/http",
+	"action": "set",
+	"params": {
+		"ip": {
+			"description": "It is the IP where the HTTPS service is listening. The character * is used to listen in all configurated IPs. Enabled to set an array to configure multipe ips.",
+			"non_blank": "true",
+			"regex": "$ssh_listen",
+			"ref": "array|none"
+		},
+		"port": {
+			"description": "Port where HTTPS service is listening. Enabled to set an array to configure multiple ports",
+			"regex": "$port",
+			"non_blank": "true",
+			"ref": "array|none"
+		},
+		"force": {
+			"description": "This option should be set to true to apply the action. It is required because the webserver will be restarted",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		}
+	}
+}

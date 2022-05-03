@@ -1,0 +1,23 @@
+{
+   "action" : "set",
+   "description" : "Configure working mode parameters for the cluster.",
+   "method" : "PUT",
+   "params" : {
+      "check_interval" : {
+         "description" : "It is the waiting time between two checks of master node status.",
+         "non_blank" : "true",
+         "regex" : "(?^:[1-9]\\d*)"
+      },
+      "failback" : {
+         "description" : "Which node has the preference to be master. The values can be a name node, to give preference to a node; or disabled, if any node can be master and are no priority for one.",
+         "dyn_values" : "true",
+         "non_blank" : "true"
+      },
+      "track_interface" : {
+         "description" : "Interfaces to monitor. It is posible to monitor bond, nic or vlan interfaces. When a monitored interface goes down, the owning node switches to the maintenance state. Keep in mind that It is not posible to modify a monitored interface",
+         "dyn_values" : "true",
+         "ref" : "array"
+      }
+   },
+   "url" : "/system/cluster"
+}

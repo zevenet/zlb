@@ -39,17 +39,17 @@ my $ERROR;
 
 my @net = &getNetworkStats( "hash" );
 
-my $net_size= scalar @net;
+my $net_size = scalar @net;
 my $it;
-for ( $it=0; $it < $net_size; $it++ )
+for ( $it = 0 ; $it < $net_size ; $it++ )
 {
 	my $row = shift @net;
 
 	$if_name = $row->{ interface };
-	$in = $row->{ in } * 1000;
-	$out = $row->{ out } * 1000;
+	$in      = $row->{ in } * 1000;
+	$out     = $row->{ out } * 1000;
 
-	if ( $if_name =~ /^lo/ || $if_name =~ /^sit/ || $if_name =~ /\:/ )
+	if ( $if_name eq 'lo' || $if_name =~ /\:/ )
 	{
 		next;
 	}

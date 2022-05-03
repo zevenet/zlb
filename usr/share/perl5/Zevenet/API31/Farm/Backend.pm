@@ -49,7 +49,7 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 	# validate FARM NAME
 	if ( !&getFarmExists( $farmname ) )
 	{
-		my $msg = "The farmname $farmname does not exists.";
+		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
@@ -79,7 +79,7 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		}
 
 		# validate PORT
-		unless (    &isValidPortNumber( $json_obj->{ port } ) eq 'true'
+		unless (    &getValidFormat( 'port', $json_obj->{ port } )
 				 || $json_obj->{ port } eq '' )
 		{
 			my $msg = "Invalid IP address and port for a backend, it can't be blank.";
@@ -198,10 +198,10 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		require Zevenet::Net::Validate;
 		my $iface_ref = &getInterfaceConfig( $json_obj->{ interface } );
 		if (
-			 !&getNetValidate(
-							   $iface_ref->{ addr },
-							   $iface_ref->{ mask },
-							   $json_obj->{ ip }
+			 !&validateGateway(
+								$iface_ref->{ addr },
+								$iface_ref->{ mask },
+								$json_obj->{ ip }
 			 )
 		  )
 		{
@@ -299,7 +299,7 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 	# Check that the farm exists
 	if ( !&getFarmExists( $farmname ) )
 	{
-		my $msg = "The farmname $farmname does not exists.";
+		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
@@ -359,7 +359,7 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 	}
 
 	# validate PORT
-	unless ( &isValidPortNumber( $json_obj->{ port } ) eq 'true' )
+	unless ( &getValidFormat( 'port', $json_obj->{ port } ) )
 	{
 		&zenlog( "Invalid IP address and port for a backend, ir can't be blank.",
 				 "warning", "FARMS" );
@@ -545,6 +545,8 @@ sub service_backends
 	foreach my $be ( @{ $service_ref->{ backends } } )
 	{
 		delete ( $be->{ priority } );
+		delete ( $be->{ tag } );
+		delete ( $be->{ connection_limit } );
 	}
 
 	# check if the requested service exists
@@ -576,7 +578,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 	# Check that the farm exists
 	if ( !&getFarmExists( $farmname ) )
 	{
-		my $msg = "The farmname $farmname does not exists.";
+		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
@@ -620,7 +622,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 
 		if ( exists ( $json_obj->{ port } ) )
 		{
-			unless (    &isValidPortNumber( $json_obj->{ port } ) eq 'true'
+			unless (    &getValidFormat( 'port', $json_obj->{ port } )
 					 || $json_obj->{ port } == undef )
 			{
 				my $msg = "Invalid port number.";
@@ -748,7 +750,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 		require Zevenet::Net::Validate;
 		my $iface_ref = &getInterfaceConfig( $be->{ interface } );
 		if (
-			 !&getNetValidate( $iface_ref->{ addr }, $iface_ref->{ mask }, $be->{ ip } ) )
+			 !&validateGateway( $iface_ref->{ addr }, $iface_ref->{ mask }, $be->{ ip } ) )
 		{
 			my $msg = "The IP must be in the same network than the local interface.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -900,7 +902,7 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 	{
 		require Zevenet::Net::Validate;
 
-		unless ( &isValidPortNumber( $json_obj->{ port } ) eq 'true' )
+		unless ( &getValidFormat( 'port', $json_obj->{ port } ) )
 		{
 			my $msg = "Invalid port.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -998,7 +1000,7 @@ sub delete_backend    # ( $farmname, $id_server )
 	# validate FARM NAME
 	if ( !&getFarmExists( $farmname ) )
 	{
-		my $msg = "The farmname $farmname does not exists.";
+		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
@@ -1069,7 +1071,7 @@ sub delete_service_backend    # ( $farmname, $service, $id_server )
 	# validate FARM NAME
 	if ( !&getFarmExists( $farmname ) )
 	{
-		my $msg = "The farmname $farmname does not exists.";
+		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 

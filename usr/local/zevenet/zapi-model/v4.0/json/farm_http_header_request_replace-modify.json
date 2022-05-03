@@ -1,0 +1,21 @@
+{
+   "action" : "add",
+   "description" : "Add rules to rewrite headers from the request.",
+   "method" : "POST",
+   "params" : {
+      "header" : {
+         "is_regex" : "true",
+         "negated_regex" : "(?^:\\n)",
+         "non_blank" : "true"
+      },
+      "match" : {
+         "is_regex" : "true",
+         "negated_regex" : "(?^:\\n)",
+         "non_blank" : "true"
+      },
+      "replace" : {
+         "negated_regex" : "(?^:\\n)"
+      }
+   },
+   "url" : "/farms/<farmname>/replacerequestheader"
+}

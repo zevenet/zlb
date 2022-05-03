@@ -55,54 +55,38 @@ sub new_farm    # ( $json_obj )
 
 	if ( exists $json_obj->{ copy_from } )
 	{
-		my $type = &getFarmType( $json_obj->{ copy_from } );
-		$json_obj->{ profile } = ( $type eq 'https' ) ? 'http' : $type;
-		if ( $type == 1 )
+		my $ori_type = &getFarmType( $json_obj->{ copy_from } );
+		$ori_type = 'http' if $ori_type eq 'https';
+		if ( $ori_type == 1 )
 		{
 			my $msg = "The farm '$json_obj->{copy_from}' does not exist.";
 			&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+		}
+		if ( exists ( $json_obj->{ profile } )
+			 and ( $ori_type ne $json_obj->{ profile } ) )
+		{
+			my $msg =
+			  "The profile '$json_obj->{ profile }' does not match with the profile '$ori_type' of the farm '$json_obj->{ copy_from }'.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+		else
+		{
+			$json_obj->{ profile } = $ori_type;
 		}
 	}
 
 	require Zevenet::Net::Interface;
 	my $ip_list = &getIpAddressList();
 
-	my $params = {
-		"profile" => {
-					   'required'  => 'true',
-					   'non_blank' => 'true',
-					   'values'    => ['http', 'gslb', 'l4xnat', 'datalink'],
-		},
-		"farmname" => {
-			'required'     => 'true',
-			'non_blank'    => 'true',
-			'valid_format' => 'farm_name',
-			'format_msg' =>
-			  "The farm name is required to have alphabet letters, numbers or hypens (-) only.",
-		},
-		"vip" => {
-				   'values'   => $ip_list,
-				   'required' => 'true',
-		},
-		"copy_from" => {
-						 'valid_format' => 'farm_name',
-						 'non_blank'    => 'true',
-						 'required'     => 'false',
-		},
-	};
-
-	if ( $json_obj->{ profile } ne 'datalink' )
-	{
-		$params->{ "vport" } = {
-
-			# the format is checked before
-			'format_msg' => 'expects a port',
-			'non_blank'  => 'true',
-			'required'   => 'true',
-		};
-	}
-
 	# Check allowed parameters
+	my $params = &getZAPIModel( "farm-create.json" );
+	$params->{ vport }->{ interval } = "1,65535"
+	  if ( exists $json_obj->{ profile }
+		   and $json_obj->{ profile } =~ /(?:http|gslb)/ );
+	$params->{ vport }->{ required } = "true"
+	  if ( exists $json_obj->{ profile } and $json_obj->{ profile } ne 'datalink' );
+	$params->{ vip }->{ values } = $ip_list;
+
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
@@ -133,6 +117,20 @@ sub new_farm    # ( $json_obj )
 	{
 		my $msg = "The virtual port must be an acceptable value and must be available.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+
+	# check ranges
+	my @ranges = split ( /,/, $json_obj->{ vport } );
+	foreach my $range ( @ranges )
+	{
+		if ( $range =~ /^(\d+):(\d+)$/ )
+		{
+			if ( $1 > $2 )
+			{
+				my $msg = "Range $range in virtual port is not a valid value.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
 	}
 
 	$json_obj->{ 'interface' } = &getInterfaceOfIp( $json_obj->{ 'vip' } );
@@ -167,8 +165,9 @@ sub new_farm    # ( $json_obj )
 	$out_p->{ interface } = $json_obj->{ interface };
 
 	my $body = {
-				 description => $desc,
-				 params      => $out_p,
+			description => $desc,
+			params      => $out_p,
+			message => "The farm $json_obj->{ farmname } has been created successfully."
 	};
 
 	if ( $eload )

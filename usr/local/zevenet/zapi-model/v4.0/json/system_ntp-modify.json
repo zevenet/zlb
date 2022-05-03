@@ -1,0 +1,14 @@
+{
+   "action" : "set",
+   "description" : "Modify the NTP service configuration.",
+   "method" : "POST",
+   "params" : {
+      "server" : {
+         "description" : "Server where NTP client does the requests.",
+         "non_blank" : "true",
+         "regex" : "(?^:[\\w\\.\\-]+)",
+         "required" : "true"
+      }
+   },
+   "url" : "/system/ntp"
+}

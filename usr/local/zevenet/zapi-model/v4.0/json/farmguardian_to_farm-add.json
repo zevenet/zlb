@@ -1,0 +1,12 @@
+{
+   "action" : "add",
+   "description" : "Apply a FarmGuardian to a service.",
+   "method" : "POST",
+   "params" : {
+      "name" : {
+         "non_blank" : "true",
+         "required" : "true"
+      }
+   },
+   "url" : "/farms/<farmname>/services/<id>/fg"
+}

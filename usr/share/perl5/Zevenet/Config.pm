@@ -257,6 +257,81 @@ sub getTiny
 }
 
 =begin nd
+Function: getTinyObj
+
+	Get a Config::Tiny object from a file name.
+	This function has 3 behaviors:
+	it can returns all parameters from all groups
+	or it can returns all parameters from a group
+	or it can returns only selected parameters.
+	selected parameters can be ignored,undef or error if they do not exists
+
+Parameters:
+	file_path - Path to file.
+	object - Group to get. Empty means all groups.
+	key_ref - Array of parameters to get. Empty means all parameters
+	key_action - string define the action. Possible values are "ignored|undef|error".Empty means error.
+
+Returns:
+	hash ref - a reference to Config::Tiny object when success, undef on failure.
+
+See Also:
+
+=cut
+
+sub getTinyObj    #( $filepath, $object, $key_ref )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my ( $filepath, $object, $key_ref, $key_action ) = @_;
+	my $tiny_ref_tmp = &getTiny( $filepath );
+	return if ( !defined $tiny_ref_tmp );
+
+	my $tiny_ref;
+
+	if ( !defined $object )
+	{
+		$tiny_ref = $tiny_ref_tmp;
+	}
+	else
+	{
+		if ( !exists $tiny_ref_tmp->{ $object } )
+		{
+			return;
+		}
+		else
+		{
+			if ( !defined $key_ref )
+			{
+				$tiny_ref = $tiny_ref_tmp->{ $object };
+			}
+			else
+			{
+				if ( ref $key_ref eq 'ARRAY' )
+				{
+					foreach my $param ( @{ $key_ref } )
+					{
+						if ( defined $tiny_ref_tmp->{ $object }->{ $param } )
+						{
+							$tiny_ref->{ $param } = $tiny_ref_tmp->{ $object }->{ $param };
+						}
+						else
+						{
+							return if ( !defined $key_action or $key_action eq "error" );
+							$tiny_ref->{ $param } = undef if ( $key_action eq "undef" );
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return $tiny_ref;
+
+}
+
+=begin nd
 Function: setTinyObj
 
 	Save a change in a config file. The file is locker before than applying the changes
@@ -267,10 +342,10 @@ Function: setTinyObj
 Parameters:
 	path - Tiny conguration file where to apply the change
 	object - Group to apply the change
-	key - parameter to change or struct ref to overwrite (do not remove the fields that are not sent and already exist in the object)
-	value - new value for the parameter
+	key - parameter to change or struct ref to overwrite.
+	value - new value for the parameter or action for struct ref. The possible action values are: "update" to update only existing params , "new" to delete old params and set news ones or empty to add all new params. 
 	action - This is a optional parameter. The possible values are: "add" to add
-	a item to a list, or "del" to delete a item from a list
+	a item to a list, or "del" to delete a item from a list, or "remove" to delete the key
 
 Returns:
 	Integer -  Error code: 0 on success or other value on failure
@@ -308,12 +383,20 @@ sub setTinyObj
 	# save all struct
 	if ( ref $key )
 	{
+		if ( $value eq "new" )
+		{
+			$fileHandle->{ $object } = {};
+		}
 		foreach my $param ( keys %{ $key } )
 		{
 			if ( ref $key->{ $param } eq 'ARRAY' )
 			{
 				$key->{ $param } = join ( ' ', @{ $key->{ $param } } );
 			}
+			next
+			  if (     ( !exists $fileHandle->{ $object }->{ $param } )
+				   and ( $value eq "update" ) );
+
 			$fileHandle->{ $object }->{ $param } = $key->{ $param };
 		}
 	}
@@ -328,6 +411,10 @@ sub setTinyObj
 		elsif ( 'del' eq $action )
 		{
 			$fileHandle->{ $object }->{ $key } =~ s/(^| )$value( |$)/ /;
+		}
+		elsif ( 'remove' eq $action )
+		{
+			delete $fileHandle->{ $object }->{ $key };
 		}
 		else
 		{
@@ -378,6 +465,34 @@ sub delTinyObj
 	unlink $lock_file;
 
 	return $error;
+}
+
+=begin nd
+Function: migrateConfigFiles
+
+	Apply all migrating scripts to zevenet
+
+Parameters:
+	none - .
+
+Returns:
+	none - .
+
+=cut
+
+sub migrateConfigFiles
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my $MIG_DIR = &getGlobalConfiguration( 'mig_dir' );
+
+	my @listing = `ls $MIG_DIR`;
+	foreach my $file ( @listing )
+	{
+		my @run = `${MIG_DIR}/${file}`;
+	}
+
 }
 
 1;

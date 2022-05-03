@@ -1,0 +1,36 @@
+{
+	"description": "Modify the SNMP service configuration.",
+	"method": "POST",
+	"url": "/system/snmp",
+	"action": "set",
+	"params": {
+		"port": {
+			"description": "Port where SNMP service is running.",
+			"regex": "$snmp_port",
+			"non_blank": "true"
+		},
+		"status": {
+			"description": "Status of SNMP service. The possible values are: true, the service is running; or false, the service is stopped.",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		},
+		"ip": {
+			"description": "Interface IP where the SNMP service is running. It’s safe to keep the All interfaces enabled using the character *.",
+			"dyn_values": "true",
+			"non_blank": "true"
+		},
+		"community": {
+			"description": "Community name. Read-Only Community used.",
+			"length": 32,
+			"non_blank": "true"
+		},
+		"scope": {
+			"description": "IP or subnet with access (IP/bit). Allowed client IPs to access SNMPD service, in case you want to allow access only one IP please use the bit /32.",
+			"regex": "$snmp_scope",
+			"non_blank": "true"
+		}
+	}
+}

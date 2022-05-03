@@ -1,0 +1,23 @@
+{
+   "action" : "maintenance",
+   "description" : "Set a given action in a backend of an L4xNAT farm.",
+   "method" : "PUT",
+   "params" : {
+      "action" : {
+         "non_blank" : "true",
+         "values" : [
+            "up",
+            "maintenance"
+         ]
+      },
+      "mode" : {
+         "depend_on" : "action==maintenance",
+         "non_blank" : "true",
+         "values" : [
+            "drain",
+            "cut"
+         ]
+      }
+   },
+   "url" : "/farms/<farmname>/backends/<id>/maintenance"
+}

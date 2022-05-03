@@ -1,0 +1,13 @@
+{
+   "action" : "move",
+   "description" : "This action move the given a service Up or Down in the Service List, this option is useful if it is required to change the priority order, note that services are evaluated in the same order that is shown. this action restarts the farm automatically.",
+   "method" : "POST",
+   "params" : {
+      "position" : {
+         "non_blank" : "true",
+         "regex" : "(?^:\\d+)",
+         "required" : "true"
+      }
+   },
+   "url" : "/farms/<farmname>/services/<id>/actions"
+}

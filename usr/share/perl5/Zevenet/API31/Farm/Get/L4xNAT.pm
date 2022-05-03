@@ -91,11 +91,18 @@ sub farms_name_l4    # ( $farmname )
 				 backends    => $out_b,
 	};
 
-	$body->{ ipds } = &eload(
-							  module => 'Zevenet::IPDS::Core',
-							  func   => 'getIPDSfarmsRules',
-							  args   => [$farmname],
-	) if ( $eload );
+	if ( $eload )
+	{
+		$body->{ ipds } = &eload(
+								  module => 'Zevenet::IPDS::Core',
+								  func   => 'getIPDSfarmsRules',
+								  args   => [$farmname],
+		);
+		for my $blacklist ( @{ $body->{ ipds }->{ blacklists } } )
+		{
+			delete $blacklist->{ id };
+		}
+	}
 
 	&httpResponse( { code => 200, body => $body } );
 }

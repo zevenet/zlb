@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    ZEVENET Software License
-#    This file is part of the ZEVENET Load Balancer software package.
+#    Zevenet Software License
+#    This file is part of the Zevenet Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -134,11 +134,11 @@ sub zna_version
 	$zna_version =~ s/-/ /;
 
 	# get version from zevenet_version file
-	my $fh           = &openlock( $file, '<' );
+	my $fh = &openlock( $file, '<' );
 	my $file_version = <$fh>;
 	close ( $fh );
 
-	if ( $zna_version ne $file_version )
+	if ( $zna_version and $zna_version ne $file_version )
 	{
 		# rewriting zna version
 		my $fh = &openlock( $file, '>' );
@@ -167,29 +167,20 @@ if ( $action eq "start" )
 	}
 
 	# ZNA firmware upgrade
-	my $migration_flag = &getGlobalConfiguration( 'migration_flag' );
-	if ( -f $migration_flag )
+	my $migration_flag = &getGlobalConfiguration( 'migration_flag', 1 );
+	if ( -e $migration_flag )
 	{
 		my $rm = &getGlobalConfiguration( 'rm' );
 		&zna_version;
 
 		# Migrating config files
-		my $MIG_DIR = "/usr/local/zevenet/migrating/";
-		opendir ( DIR, $MIG_DIR ) or die "can't opendir $MIG_DIR: $!";
-		while ( my $SCRIPT = readdir ( DIR ) )
-		{
-			next if ( $SCRIPT =~ m/^\./ );
-
-			# do not use 'logAndRun' function, it is necessary to print the stdoutput
-			system ( $MIG_DIR . $SCRIPT );
-		}
+		&migrateConfigFiles();
 		&logAndRun( "$rm $migration_flag" );
-		closedir ( DIR );
 	}
 
 	my $version = &getGlobalConfiguration( 'version' );
 
-	&printAndLog( "Starting ZEVENET Load Balancer v$version" );
+	&printAndLog( "Starting Zevenet Load Balancer v$version" );
 
 	if ( $eload )
 	{
@@ -307,8 +298,9 @@ if ( $action eq "start" )
 
 	print ( "* Starting Interfaces:\n" );
 
-	my $ip_bin     = &getGlobalConfiguration( 'ip_bin' );
-	my @interfaces = @{ &getConfigInterfaceList() };
+	my $ip_bin            = &getGlobalConfiguration( 'ip_bin' );
+	my @interfaces        = @{ &getConfigInterfaceList() };
+	my @system_interfaces = &getInterfaceList();
 
 	&zenlog( "zevenet: Setting up NIC interfaces..." );
 	require Zevenet::Net::Core;
@@ -316,19 +308,73 @@ if ( $action eq "start" )
 	# first real interfaces
 	foreach my $iface ( @interfaces )
 	{
+		if ( $eload )
+		{
+			next if ( defined $iface->{ type } and $iface->{ type } eq 'bond' );
+			next
+			  unless (
+					   &eload(
+							   module => 'Zevenet::VPN::Core',
+							   func   => 'getVPNExists',
+							   args   => ["$$iface{ name }"]
+					   )
+			  );
+		}
+
 		# interfaces as eth0 for example
 		if ( $$iface{ name } eq $$iface{ dev } )
 		{
+			# check if it is an existent device
+			if ( !grep ( /^$$iface{ name }$/, @system_interfaces ) )
+			{
+				&zenlog( "zevenet: Nonexistent NIC interface $$iface{ name } Config found!." );
+
+				# remove interface config
+				my $if_file = &getInterfaceConfigFile( $$iface{ name } );
+				if ( -f $if_file )
+				{
+					&zenlog( "zevenet: Deleting Nonexistent NIC interface Config File $if_file." );
+					unlink $if_file;
+				}
+
+				# remove rt_tables entry
+				require Zevenet::Net::Route;
+				&deleteRoutesTable( $$iface{ name } );
+
+				# remove routing config
+				if ( $eload )
+				{
+					eload(
+						   module => 'Zevenet::Net::Routing',
+						   func   => 'delRoutingDependIface',
+						   args   => ["$$iface{ name }"]
+					);
+				}
+
+				# remove gw entry
+				if ( $$iface{ name } eq &getGlobalConfiguration( 'defaultgwif' ) )
+				{
+					&setGlobalConfiguration( 'defaultgw',   '' );
+					&setGlobalConfiguration( 'defaultgwif', '' );
+				}
+				elsif ( $$iface{ name } eq &getGlobalConfiguration( 'defaultgwif6' ) )
+				{
+					&setGlobalConfiguration( 'defaultgw6',   '' );
+					&setGlobalConfiguration( 'defaultgwif6', '' );
+				}
+				next;
+			}
+
 			use IO::Interface ':flags';
 
 			if ( $$iface{ status } eq "up" )
 			{
-				print ( "  * Starting interface $$iface{name}" );
+				print ( "  * Starting interface $$iface{name}\n" );
 				&upIf( $iface );
 
 				if ( exists $$iface{ addr } && length $$iface{ addr } )
 				{
-					print ( "\n    Ip:$$iface{addr} Netmask:$$iface{mask}" );
+					print ( "    Ip:$$iface{addr} Netmask:$$iface{mask}" );
 
 					if ( defined $$iface{ gateway } && $$iface{ gateway } ne '' )
 					{
@@ -454,6 +500,8 @@ if ( $action eq "start" )
 
 	&zenlog( "zevenet: Setting up virtual interfaces..." );
 
+	@interfaces = @{ &getConfigInterfaceList() };
+
 	# virtual interfaces (ie. eth0:20, eth0.20:2)
 	foreach my $iface ( @interfaces )
 	{
@@ -477,6 +525,12 @@ if ( $action eq "start" )
 
 				&applyRoutes( "local", $iface );
 
+				&eload(
+						module => 'Zevenet::Net::Routing',
+						func   => 'applyRoutingDependIfaceVirt',
+						args   => ['add', $iface]
+				) if $eload;
+
 				if ( $return_code == 0 )
 				{
 					print ( " \033[1;32m OK \033[0m \n" );
@@ -495,9 +549,47 @@ if ( $action eq "start" )
 		}
 	}
 
+	if ( $eload )
+	{
+		print ( "* Starting VPNs:\n" );
+		my $vpns = &eload( module => 'Zevenet::VPN::Core', func => 'getVPNList' );
+
+		&zenlog( "zevenet: Setting up vpns..." );
+		foreach my $vpn_name ( @{ $vpns } )
+		{
+			my $bstatus = &eload(
+								  module => 'Zevenet::VPN::Core',
+								  func   => 'getVPNBootstatus',
+								  args   => ["$vpn_name"]
+			);
+			if ( $bstatus and $bstatus eq "up" )
+			{
+				print ( "  * Starting VPN $vpn_name:" );
+				my $status = &eload(
+									 module => 'Zevenet::VPN::Action',
+									 func   => 'runVPNStart',
+									 args   => ["$vpn_name", "false"]
+				);
+
+				if ( $status == 0 )
+				{
+					print ( " \033[1;32m OK \033[0m \n" );
+				}
+				else
+				{
+					print ( " \033[1;31m ERROR \033[0m \n" );
+				}
+			}
+			else
+			{
+				print ( "  VPN $vpn_name configured DOWN\n" );
+			}
+		}
+	}
 	if ( !$eload or !&eload( module => $mod, func => 'service_start_farms' ) )
 	{
 		print ( "* Starting Farms:\n" );
+		&getGlobalConfiguration( undef, 1 );
 
 		my @farmsf    = &getFarmList();
 		my $enable_fg = 1;
@@ -583,12 +675,23 @@ if ( $action eq "start" )
 
 	&local_http_service( 'start' );
 
+	# Check the failback configuration
+	if ( $eload )
+	{
+		if (
+			 &eload( module => 'Zevenet::Cluster', func => 'checkZClusterLocalIsPrimary' ) )
+		{
+			&zenlog( "Local node detected as primary", "debug", "cluster" );
+			&eload( module => 'Zevenet::Cluster', func => 'enableZCluster' );
+		}
+	}
+
 	&printAndLog( "Start process finished." );
 }
 
 if ( $action eq "stop" )
 {
-	&printAndLog( "Stopping ZEVENET Load Balancer...\n" );
+	&printAndLog( "Stopping Zevenet Load Balancer...\n" );
 
 	if ( $eload )
 	{
@@ -658,6 +761,39 @@ if ( $action eq "stop" )
 		print ( " \033[1;31m ERROR \033[0m \n" );
 	}
 
+	if ( $eload )
+	{
+		print ( "* Stopping VPNs:\n" );
+		my $vpns = &eload( module => 'Zevenet::VPN::Core', func => 'getVPNList' );
+
+		foreach my $vpn_name ( @{ $vpns } )
+		{
+			my $status = &eload(
+								 module => 'Zevenet::VPN::Core',
+								 func   => 'getVPNStatus',
+								 args   => ["$vpn_name"]
+			);
+			if ( $status and $status eq "up" )
+			{
+				print ( "  * Stopping VPN $vpn_name:" );
+				my $status = &eload(
+									 module => 'Zevenet::VPN::Action',
+									 func   => 'runVPNStop',
+									 args   => ["$vpn_name", "false"]
+				);
+
+				if ( $status == 0 )
+				{
+					print ( " \033[1;32m OK \033[0m \n" );
+				}
+				else
+				{
+					print ( " \033[1;31m ERROR \033[0m \n" );
+				}
+			}
+		}
+	}
+
 	print ( "* Stopping Virtual Interfaces:\n" );
 
 	# Virtual Network Interfaces
@@ -696,3 +832,4 @@ if ( $action eq "stop" )
 }
 
 &configureDefaultGW();
+

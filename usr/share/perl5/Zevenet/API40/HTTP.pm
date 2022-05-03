@@ -302,11 +302,19 @@ sub httpResponse    # ( \%hash ) hash_keys->( $code, %headers, $body )
 
 	my $q = &getCGI();
 
+	my $origin = '*';
+
+	if ( !exists $ENV{ HTTP_ZAPI_KEY } )
+	{
+		$origin =
+		  ( &getGlobalConfiguration( 'cors_devel_mode' ) eq "true" )
+		  ? $ENV{ HTTP_ORIGIN }
+		  : "https://$ENV{ HTTP_HOST }";
+	}
+
 	# Headers included in _ALL_ the responses, any method, any URI, sucess or error
 	my @headers = (
-					  'Access-Control-Allow-Origin' => ( exists $ENV{ HTTP_ZAPI_KEY } )
-					? '*'
-					: "https://$ENV{ HTTP_HOST }/",
+					'Access-Control-Allow-Origin'      => $origin,
 					'Access-Control-Allow-Credentials' => 'true',
 					'Cache-Control'                    => 'no-cache',
 					'Expires'                          => '-1',
@@ -332,7 +340,7 @@ sub httpResponse    # ( \%hash ) hash_keys->( $code, %headers, $body )
 			my $session_cookie = $q->cookie( CGISESSID => $session->id );
 
 			push @headers,
-			  'Set-Cookie'                    => $session_cookie,
+			  'Set-Cookie' => $session_cookie . "; SameSite=None; Secure; HttpOnly",
 			  'Access-Control-Expose-Headers' => 'Set-Cookie, Content-Disposition',
 			  ;
 		}
@@ -552,13 +560,19 @@ sub httpDownloadResponse
 	}
 
 	# make headers
+	my $origin = '*';
+	if ( !exists $ENV{ HTTP_ZAPI_KEY } )
+	{
+		$origin =
+		  ( &getGlobalConfiguration( 'cors_devel_mode' ) eq "true" )
+		  ? $ENV{ HTTP_ORIGIN }
+		  : "https://$ENV{ HTTP_HOST }";
+	}
 	my $headers = {
-					-type                         => 'application/x-download',
-					-attachment                   => $args->{ file },
-					'Content-length'              => -s $path,
-					'Access-Control-Allow-Origin' => ( exists $ENV{ HTTP_ZAPI_KEY } )
-					? '*'
-					: "https://$ENV{ HTTP_HOST }/",
+					-type                              => 'application/x-download',
+					-attachment                        => $args->{ file },
+					'Content-length'                   => -s $path,
+					'Access-Control-Allow-Origin'      => $origin,
 					'Access-Control-Allow-Credentials' => 'true'
 	};
 
@@ -606,8 +620,10 @@ sub buildBackendAPIParams
 
 	foreach my $param ( keys %{ $translate } )
 	{
-		$out_b->{ $param } =~
-		  s/$translate->{$param}->{opt}/$translate->{$param}->{rep}/i;
+		foreach my $opt ( keys %{ $translate->{ $param } } )
+		{
+			$out_b->{ $param } =~ s/$opt/$translate->{$param}->{$opt}/i;
+		}
 	}
 
 	foreach my $param ( @bk_keys )

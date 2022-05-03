@@ -237,5 +237,16 @@ sub listZapiVersions
 	return sort @versions;
 }
 
+sub setZapiVersion
+{
+	my $version = shift;
+	$ENV{ ZAPI_VERSION } = $version;
+}
+
+sub getZapiVersion
+{
+	return $ENV{ ZAPI_VERSION } // "";
+}
+
 1;
 

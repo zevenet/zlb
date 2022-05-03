@@ -77,6 +77,8 @@ sub startL4Farm    # ($farm_name)
 
 	&doL4FarmRules( "start", $farm_name );
 
+	&reloadFarmsSourceAddressByFarm( $farm_name );
+
 	# Enable IP forwarding
 	require Zevenet::Net::Util;
 	&setIpForward( 'true' );
@@ -130,6 +132,9 @@ sub stopL4Farm    # ($farm_name)
 
 	my $status = &stopL4FarmNlb( $farm_name, $writeconf );
 
+	# Flush conntrack
+	&resetL4FarmConntrack( $farm_name ) unless ( $status );
+
 	unlink "$pidfile" if ( -e "$pidfile" );
 
 	&unloadL4Modules( $$farm{ vproto } );
@@ -168,13 +173,9 @@ sub setL4NewFarmName    # ($farm_name, $new_farm_name)
 
 	unlink "$configdir\/${farm_name}_l4xnat.cfg";
 
-	if ( !$err and $eload )
+	if ( !$err )
 	{
-		$err = &eload(
-					   module => 'Zevenet::Farm::L4xNAT::Config::Ext',
-					   func   => 'setL4FarmParamExt',
-					   args   => ['log-prefix', undef, $new_farm_name],
-		);
+		$err = &setL4FarmParam( 'log-prefix', undef, $new_farm_name );
 	}
 
 	return $err;
@@ -205,7 +206,6 @@ sub copyL4Farm    # ($farm_name, $new_farm_name)
 	my $del           = shift // '';
 	my $output        = 0;
 
-	require Tie::File;
 	use File::Copy qw(copy);
 
 	my $file_ori = "$configdir/" . &getFarmFile( $farm_name );
@@ -214,8 +214,32 @@ sub copyL4Farm    # ($farm_name, $new_farm_name)
 	copy( $file_ori, $file_new );
 
 	# replace the farm directive
-	tie my @lines, 'Tie::File', $file_new;
-	s/"name": "$farm_name"/"name": "$new_farm_name"/ for @lines;
+	my @lines;
+	&ztielock( \@lines, $file_new );
+	require Zevenet::Netfilter;
+	my $backend_block = 0;
+
+	foreach my $line ( @lines )
+	{
+		if ( $line =~ /(^\s+"name": )"$farm_name",/ )
+		{
+			$line = $1 . "\"$new_farm_name\",";
+		}
+		if ( ( !$backend_block ) and ( $line =~ /^(\s+"state": )"\w+",/ ) )
+		{
+			$line = $1 . "\"down\",";
+		}
+		if ( $line =~ /^\s+"backends": \[/ )
+		{
+			$backend_block = 1;
+		}
+		if ( ( $backend_block ) and ( $line =~ /(^\s+"mark": )"0x\w+",/ ) )
+		{
+			my $new_mark = &getNewMark( $new_farm_name );
+			$line = $1 . "\"$new_mark\",";
+		}
+	}
+
 	untie @lines;
 
 	unlink $file_ori if ( $del eq 'del' );

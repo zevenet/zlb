@@ -1,0 +1,13 @@
+{
+	"method": "POST",
+	"url": "/farms/<farmname>/ipds/blacklists",
+	"action": "add",
+	"description": "Apply a blacklist to a farm.",
+	"params": {
+		"name": {
+			"description": "IPDS rule name used as a unique identifier.",
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

@@ -1,0 +1,24 @@
+{
+   "action" : "apply",
+   "description" : "Restore the configuration from a backup file. Name is the backup unique identifier.",
+   "method" : "POST",
+   "params" : {
+      "action" : {
+         "description" : "To restore the backup configuration, the value must be apply.",
+         "non_blank" : "true",
+         "required" : "true",
+         "values" : [
+            "apply"
+         ]
+      },
+      "force" : {
+         "description" : "This parameter is used get a confirmation before applying the backup.",
+         "non_blank" : "true",
+         "values" : [
+            "true",
+            "false"
+         ]
+      }
+   },
+   "url" : "/system/backup/<name>/actions"
+}

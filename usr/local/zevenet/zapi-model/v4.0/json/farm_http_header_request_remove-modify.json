@@ -1,0 +1,14 @@
+{
+   "action" : "modify",
+   "description" : "Remove certain headers from the incoming requests.",
+   "method" : "PUT",
+   "params" : {
+      "pattern" : {
+         "is_regex" : "true",
+         "negated_regex" : "(?^:\\n)",
+         "non_blank" : "true",
+         "required" : "true"
+      }
+   },
+   "url" : "/farms/<farmname>/headremove"
+}

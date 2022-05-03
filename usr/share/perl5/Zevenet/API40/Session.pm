@@ -64,19 +64,17 @@ sub session_login
 	}
 
 	# check if the user has got permissions
-	if ( $username ne 'root' )
+	my ( undef, undef, undef, $webgui_group ) = getgrnam ( 'webgui' );
+	if ( !grep ( /(^| )$username( |$)/, $webgui_group ) )
 	{
-		my ( undef, undef, undef, $webgui_group ) = getgrnam ( 'webgui' );
-		if ( !grep ( /(^| )$username( |$)/, $webgui_group ) )
-		{
-			my $msg = "The user $username has not web permissions";
-			&httpErrorResponse( code => 401, desc => $desc, msg => $msg );
-		}
+		my $msg = "The user $username has not web permissions";
+		&httpErrorResponse( code => 401, desc => $desc, msg => $msg );
 	}
 
 	$session->param( 'is_logged_in', 1 );
 	$session->param( 'username',     $username );
-	$session->expire( 'is_logged_in', '+30m' );
+	my $session_timeout = &getGlobalConfiguration( 'session_timeout' ) // 30;
+	$session->expire( 'is_logged_in', '+' . $session_timeout . 'm' );
 
 	my ( $header ) = split ( "\r\n", $session->header() );
 	my ( undef, $session_cookie ) = split ( ': ', $header );
@@ -88,11 +86,12 @@ sub session_login
 
 	&zenlog( "Login successful for user: $username", "info", $LOG_TAG );
 	&httpResponse(
-				   {
-					 code    => 200,
-					 body    => $body,
-					 headers => { 'Set-cookie' => $session_cookie },
-				   }
+		 {
+		   code => 200,
+		   body => $body,
+		   headers =>
+			 { 'Set-cookie' => $session_cookie . "; SameSite=None; Secure; HttpOnly" },
+		 }
 	);
 }
 

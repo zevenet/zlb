@@ -1,0 +1,16 @@
+{
+	"method": "POST",
+	"url": "/interfaces/virtual/<name>/actions",
+	"action": "status",
+	"description": "Apply an action to a virtual interface. This call lets enable or disable a network interface.",
+	"params": {
+		"action": {
+			"non_blank": "true",
+			"required": "true",
+			"values": [
+				"up",
+				"down"
+			]
+		}
+	}
+}

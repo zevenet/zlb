@@ -1,0 +1,24 @@
+{
+   "action" : "maintenance",
+   "description" : "Set a given action in a backend of an HTTP farm.",
+   "method" : "PUT",
+   "params" : {
+      "action" : {
+         "depend_on_msg" : "The farm cannot be in need_restart status to set maintenance",
+         "non_blank" : "true",
+         "values" : [
+            "up",
+            "maintenance"
+         ]
+      },
+      "mode" : {
+         "depend_on" : "action==maintenance",
+         "non_blank" : "true",
+         "values" : [
+            "drain",
+            "cut"
+         ]
+      }
+   },
+   "url" : "/farms/<farmname>/services/<id>/backends/<id>/maintenance"
+}

@@ -48,6 +48,7 @@ sub getZapiFG
 				'interval'      => $fg->{ interval } + 0,
 				'cut_conns'     => $fg->{ cut_conns },
 				'template'      => $fg->{ template },
+				'timeout'       => ( $fg->{ timeout } // $fg->{ interval } ) + 0,
 	};
 
 	return $out;
@@ -125,16 +126,7 @@ sub create_farmguardian
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	my $params = {
-				   "name" => {
-							   'non_blank'    => 'true',
-							   'required'     => 'true',
-							   'valid_format' => 'fg_name',
-				   },
-				   "copy_from" => {
-									'valid_format' => 'fg_name',
-				   },
-	};
+	my $params = &getZAPIModel( "farmguardian-create.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -189,29 +181,7 @@ sub modify_farmguardian
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	my $params = {
-				   "description" => {
-									  'non_blank' => 'true',
-				   },
-				   "command" => {
-								  'non_blank' => 'true',
-				   },
-				   "log" => {
-							  'valid_format' => 'boolean',
-				   },
-				   "interval" => {
-								   'valid_format' => 'natural_num',
-				   },
-				   "cut_conns" => {
-									'valid_format' => 'boolean',
-				   },
-				   "backend_alias" => {
-										'valid_format' => 'boolean',
-				   },
-				   "force" => {
-								'valid_format' => 'boolean',
-				   },
-	};
+	my $params = &getZAPIModel( "farmguardian-modify.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -344,12 +314,6 @@ sub add_farmguardian_farm
 	  ( $srv ) ? "service '$srv' in the farm '$farm'" : "farm '$farm'";
 
 	my $desc = "Add the farm guardian '$json_obj->{ name }' to the '$srv_message'";
-	my $params = {
-				   "name" => {
-							   'non_blank' => 'true',
-							   'required'  => 'true',
-				   },
-	};
 
 	require Zevenet::Farm::Service;
 
@@ -359,6 +323,8 @@ sub add_farmguardian_farm
 		my $msg = "The farm '$farm' does not exist";
 		return &httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
+
+	my $params = &getZAPIModel( "farmguardian_to_farm-add.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );

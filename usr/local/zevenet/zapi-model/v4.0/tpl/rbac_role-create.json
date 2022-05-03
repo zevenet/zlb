@@ -1,0 +1,14 @@
+{
+	"method": "POST",
+	"url": "/rbac/roles",
+	"action": "create",
+	"description": "Create a role that will generate a new role from a template with all permissions set as false by default.",
+	"params": {
+		"name": {
+			"description": "Role name, it is used as a unique identifier.",
+			"regex": "$role_name",
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

@@ -1,0 +1,14 @@
+{
+   "action" : "create",
+   "description" : "Create a system configuration backup of the current configuration.",
+   "method" : "POST",
+   "params" : {
+      "name" : {
+         "description" : "It is the file name used as a unique identifier. The file extension is .tar.gz.",
+         "non_blank" : "true",
+         "regex" : "(?^:[\\w-]+)",
+         "required" : "true"
+      }
+   },
+   "url" : "/system/backup"
+}

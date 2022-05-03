@@ -22,6 +22,9 @@
 ###############################################################################
 
 use strict;
+sub include;
+require Zevenet::Netfilter;
+require Zevenet::Farm::Config;
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 my $proxy_ng  = &getGlobalConfiguration( 'proxy_ng' );
@@ -52,18 +55,23 @@ Returns:
 
 =cut
 
-sub setHTTPFarmServer # ($ids,$rip,$port,$weight,$timeout,$farm_name,$service,$priority)
+sub setHTTPFarmServer # ($ids,$rip,$port,$weight,$timeout,$farm_name,$service,$priority,$connlimit)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $ids, $rip, $port, $weight, $timeout, $farm_name, $service, $priority ) =
-	  @_;
+	my (
+		 $ids,       $rip,     $port,     $weight, $timeout,
+		 $farm_name, $service, $priority, $connlimit
+	) = @_;
 
 	if ( $proxy_ng eq 'true' )
 	{
 		return
-		  &setHTTPNGFarmServer( $ids, $rip, $port, $weight, $timeout, $farm_name,
-								$service, $priority );
+		  &setHTTPNGFarmServer(
+								$ids,     $rip,      $port,
+								$weight,  $timeout,  $farm_name,
+								$service, $priority, $connlimit
+		  );
 	}
 	elsif ( $proxy_ng eq 'false' )
 	{
@@ -272,12 +280,15 @@ Returns:
 
 =cut
 
-sub setHTTPNGFarmServer # ($ids,$rip,$port,$weight,$timeout,$farm_name,$service,$priority)
+sub setHTTPNGFarmServer # ($ids,$rip,$port,$weight,$timeout,$farm_name,$service,$priority,$connlimit)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $ids, $rip, $port, $weight, $timeout, $farm_name, $service, $priority ) =
-	  @_;
+
+	my (
+		 $ids,       $rip,     $port,     $weight, $timeout,
+		 $farm_name, $service, $priority, $connlimit
+	) = @_;
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
 
@@ -293,193 +304,109 @@ sub setHTTPNGFarmServer # ($ids,$rip,$port,$weight,$timeout,$farm_name,$service,
 		my $index_count = -1;
 		my $i           = -1;
 		my $sw          = 0;
+		my $bw          = 0;
+		my %data = (
+					 'TimeOut', $timeout, 'Priority',  $priority,
+					 'Weight',  $weight,  'ConnLimit', $connlimit,
+					 'Address', $rip,     'Port',      $port
+		);
+		my %setted = (
+					   'TimeOut',   0, 'Priority', 0, 'Weight', 0,
+					   'ConnLimit', 0, 'Address',  0, 'Port',   0
+		);
+		my $value;
+		my $dec_mark;
 
-		foreach my $line ( @contents )
+		my $line;
+		for ( $i = 0 ; $i < $#contents ; $i++ )
 		{
-			$i++;
+			$line = $contents[$i];
 
 			#search the service to modify
 			if ( $line =~ /Service \"$service\"/ )
 			{
 				$sw = 1;
+				next;
 			}
 			if ( $line =~ /BackEnd/ && $line !~ /#/ && $sw eq 1 )
 			{
 				$index_count++;
 				if ( $index_count == $ids )
 				{
-					#server for modify $ids;
-					#HTTPS
-					my $httpsbe = &getHTTPFarmVS( $farm_name, $service, "httpsbackend" );
-					if ( $httpsbe eq "true" )
+					$output = $?;
+					$bw     = 1;
+				}
+				next;
+			}
+			if ( $bw == 1 )
+			{
+				if ( $line =~ /(TimeOut|Priority|Weight|ConnLimit|Address|Port)/ )
+				{
+					$value = $data{ $1 };
+					$setted{ "$1" } = 1;
+					if ( $value =~ /^$/ )
 					{
-						#add item
-						$i++;
+						splice @contents, $i, 1,;
+						$i--;
+						next;
 					}
-					$output           = $?;
-					$contents[$i + 1] = "\t\t\tAddress $rip";
-					$contents[$i + 2] = "\t\t\tPort $port";
-					my $p_t = 0;
-					my $p_p = 0;
-					my $p_w = 0;
-					my $mod = 0;
-
-					if ( $contents[$i + 3] =~ /TimeOut/ )
+					else
 					{
-						if ( $timeout != ~/^$/ )
-						{
-							$contents[$i + 3] = "\t\t\tTimeOut $timeout";
-							$p_t = 1;
-						}
-						if ( $contents[$i + 4] =~ /Priority/ )
-						{
-							if ( defined ( $priority ) and ( $priority != ~/^$/ ) )
-							{
-								$contents[$i + 4] = "\t\t\tPriority $priority";
-								$p_p = 1;
-							}
-							if ( $contents[$i + 5] =~ /Weight/ )
-							{
-								if ( $weight != ~/^$/ )
-								{
-									$contents[$i + 5] = "\t\t\tWeight $weight";
-									$p_w = 1;
-								}
-							}
-						}
-						if ( $contents[$i + 4] =~ /Weight/ )
-						{
-							if ( $weight != ~/^$/ )
-							{
-								$contents[$i + 4] = "\t\t\tWeight $weight";
-								$p_w = 1;
-							}
-						}
-					}
-					if ( $contents[$i + 3] =~ /Priority/ )
-					{
-						if ( defined ( $priority ) and ( $priority != ~/^$/ ) )
-						{
-							$contents[$i + 3] = "\t\t\tPriority $priority";
-							$p_p = 1;
-						}
-						if ( $contents[$i + 4] =~ /Weight/ )
-						{
-							if ( $weight != ~/^$/ )
-							{
-								$contents[$i + 4] = "\t\t\tWeight $weight";
-								$p_w = 1;
-							}
-						}
-					}
-					if ( $contents[$i + 3] =~ /Weight/ )
-					{
-						if ( $weight != ~/^$/ )
-						{
-							$contents[$i + 3] = "\t\t\tWeight $weight";
-							$p_w = 1;
-						}
-					}
-
-					#delete item
-					if ( $timeout =~ /^$/ )
-					{
-						if ( $contents[$i + 3] =~ /TimeOut/ )
-						{
-							splice @contents, $i + 3, 1,;
-							$mod = 1;
-						}
-					}
-					if ( ( defined ( $priority ) ) and ( $priority =~ /^$/ ) )
-					{
-						if ( $contents[$i + 3] =~ /Priority/ )
-						{
-							splice @contents, $i + 3, 1,;
-							$mod = 1;
-						}
-						if ( $contents[$i + 4] =~ /Priority/ )
-						{
-							splice @contents, $i + 4, 1,;
-							$mod = 1;
-						}
-					}
-					if ( $weight =~ /^$/ )
-					{
-						if ( $contents[$i + 3] =~ /Weight/ )
-						{
-							splice @contents, $i + 3, 1,;
-							$mod = 1;
-						}
-						if ( $contents[$i + 4] =~ /Weight/ )
-						{
-							splice @contents, $i + 4, 1,;
-							$mod = 1;
-						}
-						if ( $contents[$i + 5] =~ /Weight/ )
-						{
-							splice @contents, $i + 5, 1,;
-							$mod = 1;
-						}
-					}
-
-					#new item
-					if ( ( $timeout !~ /^$/ ) and ( $p_t == 0 ) )
-					{
-						if ( $contents[$i + 3] =~ /(Priority|Weight|End)/ )
-						{
-							splice @contents, $i + 3, 0, "\t\t\tTimeOut $timeout";
-							$mod = 1;
-						}
-					}
-					if ( ( $priority !~ /^$/ ) and ( $p_p == 0 ) )
-					{
-						if ( $contents[$i + 3] =~ /(Weight|End)/ )
-						{
-							splice @contents, $i + 3, 0, "\t\t\tPriority $priority";
-							$mod = 1;
-						}
-						elsif ( $contents[$i + 3] =~ /TimeOut/ )
-						{
-							splice @contents, $i + 4, 0, "\t\t\tPriority $priority";
-							$mod = 1;
-						}
-					}
-					if ( ( $weight !~ /^$/ ) and ( $p_w == 0 ) )
-					{
-						if ( $contents[$i + 3] =~ /End/ )
-						{
-							splice @contents, $i + 3, 0, "\t\t\tWeight $weight";
-							$mod = 1;
-						}
-						else
-						{
-							if ( $contents[$i + 3] =~ /TimeOut/ )
-							{
-								if ( $contents[$i + 4] =~ /End/ )
-								{
-									splice @contents, $i + 4, 0, "\t\t\tWeight $weight";
-									$mod = 1;
-								}
-								elsif ( $contents[$i + 4] =~ /Priority/ )
-								{
-									splice @contents, $i + 5, 0, "\t\t\tWeight $weight";
-									$mod = 1;
-								}
-
-							}
-							elsif ( $contents[$i + 3] =~ /Priority/ )
-							{
-								splice @contents, $i + 4, 0, "\t\t\tWeight $weight";
-								$mod = 1;
-							}
-						}
-					}
-					if ( $mod == 1 or $p_t == 1 or $p_p == 1 or $p_w == 1 )
-					{
-						&zenlog( "Backend modified", "info", "LSLB" );
-
+						$contents[$i] = "\t\t\t$1 $value";
+						next;
 					}
 				}
+				if ( $line =~ /\s*NfMark\s*(.*)/ )
+				{
+					$dec_mark = $1;
+					next;
+				}
+				if ( $line =~ /^\s+End/ )
+				{
+					my @keys = keys %data;
+					foreach my $key ( @keys )
+					{
+						$value = $data{ $key };
+						if ( !$setted{ $key } && $value !~ /^$/ )
+						{
+							splice @contents, $i, 0, "\t\t\t$key $data{\"$key\"}";
+							$data{ "$key" } = 1;
+						}
+					}
+					last;
+				}
+			}
+		}
+		if ( $rip ne "" && $dec_mark && $eload )
+		{
+			if ( &getGlobalConfiguration( 'floating_L7' ) eq 'true' )
+			{
+				my $farm_ref = &getHTTPFarmStruct( $farm_name );
+				include 'Zevenet::Net::Floating';
+				my $out_if = &getFloatInterfaceForAddress( $rip );
+
+				if ( !defined $out_if->{ float } )
+				{
+					&eload(
+							module => 'Zevenet::Net::Floating',
+							func   => 'setL7FloatingSourceAddr',
+							args   => [$farm_ref, { ip => $rip, tag => $dec_mark }],
+					);
+				}
+				else
+				{
+					&eload(
+							module => 'Zevenet::Net::Floating',
+							func   => 'removeL7FloatingSourceAddr',
+							args   => [$farm_name, { tag => $dec_mark }],
+					);
+				}
+				my $exist = &checkLocalFarmSourceAddress( $farm_name );
+				&eload(
+						module => 'Zevenet::Net::Floating',
+						func   => 'removeL7FloatingSourceAddr',
+						args   => [$farm_name],
+				) if ( !$exist );
 			}
 		}
 	}
@@ -490,6 +417,7 @@ sub setHTTPNGFarmServer # ($ids,$rip,$port,$weight,$timeout,$farm_name,$service,
 		my $index      = -1;
 		my $backend    = 0;
 		my $be_section = -1;
+		my $farm_ref   = getFarmStruct( $farm_name );
 
 		foreach my $line ( @contents )
 		{
@@ -543,8 +471,41 @@ sub setHTTPNGFarmServer # ($ids,$rip,$port,$weight,$timeout,$farm_name,$service,
 					splice @contents, $index, 0, "\t\t\tWeight $weight";
 					$index++;
 				}
+
+				#ConnLimit?
+				if ( $connlimit )
+				{
+					splice @contents, $index, 0, "\t\t\tConnLimit $connlimit";
+					$index++;
+				}
+
+				#NfMark
+				my $hex_mark = &getNewMark( $farm_name );
+				my $dec_mark = sprintf ( "%D", hex ( $hex_mark ) );
+				splice @contents, $index, 0, "\t\t\tNfMark $dec_mark";
+				if ( &getGlobalConfiguration( 'mark_routing_L7' ) eq 'true' )
+				{
+					my $fstate = &getFarmStatus( $farm_name );
+					&setBackendRule( "add", $farm_ref, $hex_mark ) if ( $fstate eq 'up' );
+				}
+				$index++;
+
 				splice @contents, $index, 0, "\t\tEnd";
 				$be_section++;    # Backend Added
+
+				if ( $eload )
+				{
+					# take care of floating interfaces without masquerading
+					if ( &getGlobalConfiguration( 'floating_L7' ) eq 'true' )
+					{
+						my $farm_ref = &getHTTPFarmStruct( $farm_name );
+						&eload(
+								module => 'Zevenet::Net::Floating',
+								func   => 'setL7FloatingSourceAddr',
+								args   => [$farm_ref, { ip => $rip, tag => $dec_mark }],
+						);
+					}
+				}
 			}
 
 			# if backend added then go out of form
@@ -590,6 +551,8 @@ sub runHTTPFarmServerDelete    # ($ids,$farm_name,$service)
 	my $i             = -1;
 	my $j             = -1;
 	my $sw            = 0;
+	my $dec_mark;
+	my $farm_ref = getFarmStruct( $farm_name );
 
 	require Zevenet::Lock;
 	my $lock_file = &getLockFile( $farm_name );
@@ -597,7 +560,6 @@ sub runHTTPFarmServerDelete    # ($ids,$farm_name,$service)
 
 	require Tie::File;
 	tie my @contents, 'Tie::File', "$configdir\/$farm_filename";
-
 	foreach my $line ( @contents )
 	{
 		$i++;
@@ -614,6 +576,17 @@ sub runHTTPFarmServerDelete    # ($ids,$farm_name,$service)
 				$output = $?;
 				while ( $contents[$i] !~ /End/ )
 				{
+					if ( $contents[$i] =~ /\s*NfMark\s*(.*)/ )
+					{
+						$dec_mark = $1;
+						my $mark = sprintf ( "0x%x", $1 );
+						&delMarks( "", $mark );
+						if ( &getGlobalConfiguration( 'mark_routing_L7' ) eq 'true' )
+						{
+							require Zevenet::Farm::Backend;
+							&setBackendRule( "del", $farm_ref, $mark );
+						}
+					}
 					splice @contents, $i, 1,;
 				}
 				splice @contents, $i, 1,;
@@ -624,6 +597,33 @@ sub runHTTPFarmServerDelete    # ($ids,$farm_name,$service)
 
 	close $lock_fh;
 
+	if ( &getGlobalConfiguration( 'proxy_ng' ) eq 'true' )
+	{
+		require Zevenet::Farm::HTTP::Sessions;
+		&deleteConfL7FarmAllSession( $farm_name, $service, $ids );
+
+		if ( $eload )
+		{
+			if ( ( &getGlobalConfiguration( 'floating_L7' ) eq 'true' )
+				 and $dec_mark )
+			{
+				&eload(
+						module => 'Zevenet::Net::Floating',
+						func   => 'removeL7FloatingSourceAddr',
+						args   => [$farm_name, { tag => $dec_mark }],
+				);
+
+				my $exist = &checkLocalFarmSourceAddress( $farm_name );
+
+				&eload(
+						module => 'Zevenet::Net::Floating',
+						func   => 'removeL7FloatingSourceAddr',
+						args   => [$farm_name],
+				) if ( !$exist );
+			}
+		}
+	}
+
 	if ( $output != -1 )
 	{
 		&runRemoveHTTPBackendStatus( $farm_name, $ids, $service );
@@ -633,9 +633,138 @@ sub runHTTPFarmServerDelete    # ($ids,$farm_name,$service)
 }
 
 =begin nd
+Function: setHTTPFarmBackendsMarks
+
+	Set marks in the backends of an HTTP farm
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	None
+
+=cut
+
+sub setHTTPFarmBackendsMarks    # ($farm_name)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my ( $farm_name ) = @_;
+	require Zevenet::Farm::Core;
+	my $farm_filename = &getFarmFile( $farm_name );
+
+	my $i        = -1;
+	my $farm_ref = getFarmStruct( $farm_name );
+	my $sw       = 0;
+	my $bw       = 0;
+	my $ms       = 0;
+
+	require Tie::File;
+	tie my @contents, 'Tie::File', "$configdir\/$farm_filename";
+	foreach my $line ( @contents )
+	{
+		$i++;
+		if ( $line =~ /^\s+Service\s*\".*\"/ )
+		{
+			$sw = 1;
+		}
+		if ( $line =~ /^\s+BackEnd/ && $sw == 1 )
+		{
+			$bw = 1;
+			$ms = 0;
+		}
+		if ( $line =~ /^\s+NfMark\s*(.*)/ && $bw == 1 )
+		{
+			$ms = 1;
+		}
+		if ( $line =~ /^\s+End/ && $bw == 1 )
+		{
+			$bw = 0;
+			if ( $ms == 0 )
+			{
+				my $hex_mark = &getNewMark( $farm_name );
+				my $dec_mark = sprintf ( "%D", hex ( $hex_mark ) );
+				splice @contents, $i, 0, "\t\t\tNfMark $dec_mark";
+				if ( &getGlobalConfiguration( 'mark_routing_L7' ) eq 'true' )
+				{
+					my $fstate = &getFarmStatus( $farm_name );
+					&setBackendRule( "add", $farm_ref, $hex_mark ) if ( $fstate eq 'up' );
+				}
+				$ms = 1;
+			}
+		}
+	}
+	untie @contents;
+}
+
+=begin nd
+Function: removeHTTPFarmBackendsMarks
+
+	Remove marks from the backends of an HTTP farm
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	None
+
+=cut
+
+sub removeHTTPFarmBackendsMarks    # ($farm_name)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	require Zevenet::Farm::Core;
+	my ( $farm_name ) = @_;
+	my $farm_filename = &getFarmFile( $farm_name );
+
+	my $i        = -1;
+	my $farm_ref = getFarmStruct( $farm_name );
+	my $sw       = 0;
+	my $bw       = 0;
+
+	require Tie::File;
+	tie my @contents, 'Tie::File', "$configdir\/$farm_filename";
+	foreach my $line ( @contents )
+	{
+		$i++;
+		if ( $line =~ /^\tService\s*\".*\"/ )
+		{
+			$sw = 1;
+		}
+		if ( $line =~ /^\tEnd/ && $sw == 1 && $bw == 0 )
+		{
+			$sw = 0;
+		}
+		if ( $line =~ /^\t\tBackEnd/ && $sw == 1 )
+		{
+			$bw = 1;
+		}
+		if ( $line =~ /^\s+NfMark\s*(.*)/ && $bw == 1 )
+		{
+			my $mark = sprintf ( "0x%x", $1 );
+			&delMarks( "", $mark );
+			if ( &getGlobalConfiguration( 'mark_routing_L7' ) eq 'true' )
+			{
+				require Zevenet::Farm::Backend;
+				&setBackendRule( "del", $farm_ref, $mark );
+			}
+			splice @contents, $i, 1,;
+		}
+		if ( $line =~ /^\t\tEnd/ && $bw == 1 )
+		{
+			$bw = 0;
+		}
+	}
+	untie @contents;
+}
+
+=begin nd
 Function: getHTTPFarmBackendStatusCtl
 
-	Get status of a HTTP farm and its backends
+	Get status of a HTTP farm and its backends, sessions not included
 
 Parameters:
 	farmname - Farm name
@@ -653,7 +782,8 @@ sub getHTTPFarmBackendStatusCtl    # ($farm_name)
 
 	my $proxyctl = &getGlobalConfiguration( 'proxyctl' );
 
-	return @{ &logAndGet( "$proxyctl -c /tmp/$farm_name\_proxy.socket", "array" ) };
+	return
+	  @{ &logAndGet( "$proxyctl -C -c /tmp/$farm_name\_proxy.socket", "array" ) };
 }
 
 =begin nd
@@ -664,6 +794,7 @@ Function: getHTTPFarmBackends
 Parameters:
 	farmname - Farm name
 	service - Service name
+	param_status - "true" or "false" to indicate to get backend status.
 
 Returns:
 	array ref - Each element in the array it is a hash ref to a backend.
@@ -671,19 +802,25 @@ Returns:
 
 =cut
 
-sub getHTTPFarmBackends    # ($farm_name,$service)
+sub getHTTPFarmBackends    # ($farm_name,$service,$param_status)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farmname, $service ) = @_;
+	my ( $farmname, $service, $param_status ) = @_;
 
 	require Zevenet::Farm::HTTP::Service;
 
+	my $proxy_ng   = &getGlobalConfiguration( 'proxy_ng' );
 	my $backendsvs = &getHTTPFarmVS( $farmname, $service, "backends" );
-	my @be = split ( "\n", $backendsvs );
-	my @be_status = @{ &getHTTPFarmBackendsStatus( $farmname, $service ) };
+	my @be         = split ( "\n", $backendsvs );
+	my @be_status;
+	if ( !$param_status or $param_status eq "true" )
+	{
+		@be_status = @{ &getHTTPFarmBackendsStatus( $farmname, $service ) };
+	}
 	my @out_ba;
 
+	my $backend_ref;
 	foreach my $subl ( @be )
 	{
 		my @subbe = split ( ' ', $subl );
@@ -694,40 +831,52 @@ sub getHTTPFarmBackends    # ($farm_name,$service)
 		my $tout = $subbe[7];
 		my $prio = $subbe[9];
 		my $weig = $subbe[11];
+		my $conn = $subbe[13];
+		my $tag  = $subbe[15];
 
 		$tout = $tout eq '-' ? undef : $tout + 0;
 		$prio = $prio eq '-' ? undef : $prio + 0;
 		$weig = $weig eq '-' ? undef : $weig + 0;
+		$conn = $conn eq '-' ? undef : $conn + 0;
+		$tag  = $tag eq '-'  ? undef : $tag + 0;
 
 		my $status = "undefined";
-		$status = $be_status[$id] if $be_status[$id];
+		if ( !$param_status or $param_status eq "true" )
+		{
+			$status = $be_status[$id] if $be_status[$id];
+		}
 
 		if ( $proxy_ng eq 'true' )
 		{
-			push @out_ba,
-			  {
-				id       => $id,
-				status   => $status,
-				ip       => $ip,
-				port     => $port + 0,
-				timeout  => $tout,
-				priority => $prio,
-				weight   => $weig
-			  };
+			$backend_ref = {
+							 id               => $id,
+							 ip               => $ip,
+							 port             => $port + 0,
+							 timeout          => $tout,
+							 priority         => $prio,
+							 weight           => $weig,
+							 connection_limit => $conn,
+							 tag              => $tag
+			};
+
 		}
 		elsif ( $proxy_ng )
 		{
-			push @out_ba,
-			  {
-				id      => $id,
-				status  => $status,
-				ip      => $ip,
-				port    => $port + 0,
-				timeout => $tout,
-				weight  => $prio
-			  };
-
+			$backend_ref = {
+							 id      => $id,
+							 ip      => $ip,
+							 port    => $port + 0,
+							 timeout => $tout,
+							 weight  => $prio
+			};
 		}
+		if ( !$param_status or $param_status eq "true" )
+		{
+			$backend_ref->{ status } = $status;
+		}
+		push @out_ba, $backend_ref;
+		$backend_ref = undef;
+
 	}
 
 	return \@out_ba;
@@ -768,8 +917,8 @@ sub getHTTPFarmBackendsStatus    # ($farm_name,@content)
 
 	if ( $farmStatus eq "up" )
 	{
-		require Zevenet::Farm::HTTP::Stats;
-		$stats = &getHTTPFarmBackendsStats( $farm_name );
+		require Zevenet::Farm::HTTP::Backend;
+		$stats = &getHTTPFarmBackendsStatusInfo( $farm_name );
 	}
 
 	require Zevenet::Farm::HTTP::Service;
@@ -786,7 +935,7 @@ sub getHTTPFarmBackendsStatus    # ($farm_name,@content)
 		{
 			if ( $farmStatus eq "up" )
 			{
-				$backendstatus = $stats->{ backends }[$id]->{ status };
+				$backendstatus = $stats->{ $service }->{ backends }[$id]->{ status };
 			}
 			else
 			{
@@ -894,7 +1043,7 @@ sub setHTTPFarmBackendStatusFile    # ($farm_name,$backend,$status,$idsv)
 		open my $fd, '>', "$statusfile";
 		my $proxyctl = &getGlobalConfiguration( 'proxyctl' );
 		my @run =
-		  @{ &logAndGet( "$proxyctl -c /tmp/$farm_name\_proxy.socket", "array" ) };
+		  @{ &logAndGet( "$proxyctl -C -c /tmp/$farm_name\_proxy.socket", "array" ) };
 		my @sw;
 		my @bw;
 
@@ -1084,7 +1233,11 @@ sub setHTTPFarmBackendMaintenance    # ($farm_name,$backend,$service)
 
 	if ( $mode eq "cut" )
 	{
-		&setHTTPFarmBackendsSessionsRemove( $farm_name, $service, $backend );
+		require Zevenet::Farm::HTTP::Service;
+		if ( &getHTTPFarmVS( $farm_name, $service, "sesstype" ) ne "" )
+		{
+			&setHTTPFarmBackendsSessionsRemove( $farm_name, $service, $backend );
+		}
 	}
 
 	#find the service number
@@ -1363,5 +1516,114 @@ sub getHTTPFarmBackendAvailableID
 	return $id;
 }
 
-1;
+=begin nd
+Function: getHTTPFarmBackendsStatusInfo
 
+	This function take data from proxy and it gives hash format
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	hash ref - hash with backends farm status
+
+		services =>
+		[
+			"id" => $service_id,				 # it is the index in the backend array too
+			"name" => $service_name,
+			"backends" =>
+			[
+				{
+					"id" = $backend_id		# it is the index in the backend array too
+					"ip" = $backend_ip
+					"port" = $backend_port
+					"status" = $backend_status
+					"service" = $service_name
+				}
+			]
+		]
+
+=cut
+
+sub getHTTPFarmBackendsStatusInfo    # ($farm_name)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name ) = @_;
+
+	require Zevenet::Farm::Base;
+	require Zevenet::Farm::HTTP::Backend;
+	require Zevenet::Validate;
+	my $status;
+
+	my $serviceName;
+	my $service_re = &getValidFormat( 'service' );
+
+	# Get l7 proxy info
+	#i.e. of proxyctl:
+
+	#Requests in queue: 0
+	#0. http Listener 185.76.64.223:80 a
+	#0. Service "HTTP" active (4)
+	#0. Backend 172.16.110.13:80 active (1 0.780 sec) alive (61)
+	#1. Backend 172.16.110.14:80 active (1 0.878 sec) alive (90)
+	#2. Backend 172.16.110.11:80 active (1 0.852 sec) alive (99)
+	#3. Backend 172.16.110.12:80 active (1 0.826 sec) alive (75)
+	my @proxyctl = &getHTTPFarmBackendStatusCtl( $farm_name );
+
+	# Parse l7 proxy info
+	foreach my $line ( @proxyctl )
+	{
+		# i.e.
+		#     0. Service "HTTP" active (10)
+		if ( $line =~ /(\d+)\. Service "($service_re)"/ )
+		{
+			$serviceName = $2;
+		}
+
+		# Parse backend connections
+		# i.e.
+		#      0. Backend 192.168.100.254:80 active (5 0.000 sec) alive (0)
+		if ( $line =~
+			/(\d+)\. Backend (\d+\.\d+\.\d+\.\d+|[a-fA-F0-9:]+):(\d+) (\w+) .+ (\w+)(?: \((\d+)\))?/
+		  )
+		{
+			my $backendHash = {
+								id     => $1 + 0,
+								ip     => $2,
+								port   => $3 + 0,
+								status => $5,
+			};
+
+			# Getting real status
+			my $backend_disabled = $4;
+			if ( $backend_disabled eq "DISABLED" )
+			{
+				require Zevenet::Farm::HTTP::Backend;
+
+				#Checkstatusfile
+				$backendHash->{ "status" } =
+				  &getHTTPBackendStatusFromFile( $farm_name, $backendHash->{ id },
+												 $serviceName );
+
+				# not show fgDOWN status
+				$backendHash->{ "status" } = "down"
+				  if ( $backendHash->{ "status" } ne "maintenance" );
+			}
+			elsif ( $backendHash->{ "status" } eq "alive" )
+			{
+				$backendHash->{ "status" } = "up";
+			}
+			elsif ( $backendHash->{ "status" } eq "DEAD" )
+			{
+				$backendHash->{ "status" } = "down";
+			}
+
+			push ( @{ $status->{ $serviceName }->{ backends } }, $backendHash );
+		}
+	}
+
+	return $status;
+}
+
+1;

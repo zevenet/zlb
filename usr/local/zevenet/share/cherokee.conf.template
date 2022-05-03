@@ -12,6 +12,7 @@ server!timeout = 60
 server!tls = libssl
 server!tls!protocol!SSLv2 = 0
 server!user = root
+vserver!1!ssl_dh_length = 2048
 vserver!1!directory_index = index.html
 vserver!1!document_root = /usr/local/zevenet/www
 vserver!1!error_writer!filename = /var/log/cherokee-error.log

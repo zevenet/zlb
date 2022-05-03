@@ -69,6 +69,7 @@ sub runL4FarmCreate
 	my $proto = ( $vip_port eq "*" ) ? 'all' : 'tcp';
 	$vip_port = "80" if not defined $vip_port;
 	$vip_port = ""   if ( $vip_port eq "*" );
+	$vip_port =~ s/\:/\-/g;
 
 	$output = &sendL4NlbCmd(
 		{

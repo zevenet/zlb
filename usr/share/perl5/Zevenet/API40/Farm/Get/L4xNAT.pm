@@ -44,6 +44,7 @@ sub farms_name_l4    # ( $farmname )
 	my $farm   = &getL4FarmStruct( $farmname );
 	my $status = &getFarmVipStatus( $farmname );
 
+	require Zevenet::Farm::L4xNAT::Sessions;
 	$out_p = {
 		status      => $status,
 		vip         => $farm->{ vip },
@@ -56,6 +57,7 @@ sub farms_name_l4    # ( $farmname )
 
 		farmguardian => &getFGFarm( $farmname ),
 		listener     => 'l4xnat',
+		sessions     => &listL4FarmSessions( $farmname )
 	};
 
 	if ( $eload )

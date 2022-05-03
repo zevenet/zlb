@@ -81,7 +81,7 @@ sub _runFarmStart    # ($farm_name, $writeconf)
 	if ( $farm_type ne "datalink" )
 	{
 		my $port = &getFarmVip( "vipp", $farm_name );
-		if ( &checkport( $ip, $port, $farm_name ) eq 'true' )
+		if ( !&validatePort( $ip, $port, undef, $farm_name ) )
 		{
 			&zenlog( "The networking '$ip:$port' is being used." );
 			return 2;
@@ -237,15 +237,10 @@ sub _runFarmStop    # ($farm_name, $writeconf)
 			 "debug", "PROFILING" );
 	my ( $farm_name, $writeconf ) = @_;
 
-	# The parameter expect "undef" to not write it
+	# The parameter expects "undef" to not write it
 	$writeconf = undef if ( $writeconf eq 'false' );
 
 	require Zevenet::Farm::Base;
-	my $status = &getFarmStatus( $farm_name );
-	if ( $status eq "down" )
-	{
-		return 0;
-	}
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	if ( $farm_filename eq '-1' )
@@ -254,7 +249,7 @@ sub _runFarmStop    # ($farm_name, $writeconf)
 	}
 
 	my $farm_type = &getFarmType( $farm_name );
-	$status = $farm_type;
+	my $status    = $farm_type;
 
 	&zenlog( "Stopping farm $farm_name with type $farm_type", "info", "FARMS" );
 
@@ -350,9 +345,6 @@ sub runFarmDelete    # ($farm_name)
 	}
 	else
 	{
-		$status = 0
-		  if unlink glob ( "$configdir/$farm_name\_*\.cfg" );
-
 		if ( $farm_type eq "http" || $farm_type eq "https" )
 		{
 			unlink glob ( "$configdir/$farm_name\_*\.html" );
@@ -360,6 +352,24 @@ sub runFarmDelete    # ($farm_name)
 			# For HTTPS farms only
 			my $dhfile = "$configdir\/$farm_name\_dh2048.pem";
 			unlink ( "$dhfile" ) if -e "$dhfile";
+			&delMarks( $farm_name, "" );
+
+			# Check if local farm exists and delete it
+			require Zevenet::Nft;
+			my $output = &httpNlbRequest(
+										  {
+											method => "GET",
+											uri    => "/farms/" . $farm_name,
+											check  => 1,
+										  }
+			);
+			$output = &httpNlbRequest(
+									   {
+										 farm   => $farm_name,
+										 method => "DELETE",
+										 uri    => "/farms/" . $farm_name,
+									   }
+			) if ( !$output );
 		}
 		elsif ( $farm_type eq "datalink" )
 		{
@@ -376,7 +386,9 @@ sub runFarmDelete    # ($farm_name)
 		}
 	}
 
-	unlink glob ( "$configdir/$farm_name\_*\.conf" );
+	unlink glob ( "$configdir/$farm_name\_*\.cfg" );
+	$status = 0
+	  if ( !-f "$configdir/$farm_name\_*\.cfg" );
 
 	require Zevenet::RRD;
 

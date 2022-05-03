@@ -1,0 +1,13 @@
+{
+	"method": "POST",
+	"url": "/farms/<farmname>/addresponseheader",
+	"action": "add",
+	"description": "Add a header in the backend response.",
+	"params": {
+		"header": {
+			"non_blank": "true",
+			"required": "true",
+			"negated_regex": "$newline"
+		}
+	}
+}

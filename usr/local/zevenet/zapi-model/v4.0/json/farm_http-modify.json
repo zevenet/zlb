@@ -1,0 +1,189 @@
+{
+   "action" : "set",
+   "description" : "Modify the configuration of a http farm.",
+   "method" : "PUT",
+   "params" : {
+      "certname" : {
+         "depend_on" : "listener==https",
+         "description" : "",
+         "non_blank" : "true",
+         "regex" : "(?^:(?^:(?:\\*[_|\\.])?\\w[\\w\\.\\(\\)\\@ \\-]*)\\.(?:pem|csr))"
+      },
+      "cipherc" : {
+         "depend_on" : "listener==https, ciphers==customsecurity",
+         "description" : "This is the allowed customized list of ciphers that will be accepted by the SSL connection, which it’s a string in the same format as in OpenSSL ciphers.",
+         "non_blank" : "true"
+      },
+      "ciphers" : {
+         "depend_on" : "listener==https",
+         "description" : "It is used to build a list of ciphers accepted by SSL connections in order to harden the SSL connection.",
+         "non_blank" : "true",
+         "values" : [
+            "all",
+            "highsecurity",
+            "customsecurity",
+            "ssloffloading"
+         ]
+      },
+      "contimeout" : {
+         "description" : "How long the farm is going to wait for a connection to the backend in seconds.",
+         "format_msg" : "expects a natural number",
+         "non_blank" : "true",
+         "regex" : "(?^:[1-9]\\d*)"
+      },
+      "disable_sslv2" : {
+         "depend_on" : "listener==https",
+         "description" : "Only in https listener. If this field has the value true the connections using an SSL security protocol with version 2 is not allowed; or false if the protocol SSLv2 is allowed.",
+         "non_blank" : "true",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "disable_sslv3" : {
+         "depend_on" : "listener==https",
+         "description" : "Only in https listener. If this field has the value true the connections using an SSL security protocol with version 3 is not allowed; or false if the protocol SSLv3 is allowed.",
+         "non_blank" : "true",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "disable_tlsv1" : {
+         "depend_on" : "listener==https",
+         "description" : "Only in https listener. If this field has the value true the connections using TLS security protocol with version 1 is not allowed; or false if the protocol TLSv1 is allowed.",
+         "non_blank" : "true",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "disable_tlsv1_1" : {
+         "depend_on" : "listener==https",
+         "description" : "Only in https listener. If this field has the value true the connections using TLS security protocol with version 1.1 is not allowed; or false if the protocol TLSv1.1 is allowed.",
+         "non_blank" : "true",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "disable_tlsv1_2" : {
+         "depend_on" : "listener==https",
+         "description" : "Only in https listener. If this field has the value true the connections using TLS security protocol with version 1.2 is not allowed; or false if the",
+         "non_blank" : "true",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "error414" : {
+         "description" : "",
+         "required" : "false"
+      },
+      "error500" : {
+         "description" : "Personalized message error 500.",
+         "required" : "false"
+      },
+      "error501" : {
+         "description" : "Personalized message error 501.",
+         "required" : "false"
+      },
+      "error503" : {
+         "description" : "Personalized message error 503.",
+         "required" : "false"
+      },
+      "errorWAF" : {
+         "description" : "Personalized message error 414.",
+         "edition" : "ee"
+      },
+      "httpverb" : {
+         "description" : "This field indicates the operations that will be permitted to the HTTP client requests. available values are: standardHTTP, accepted HTTP requests GET, POST, HEAD. extendedHTTP, accepted previous HTTP requests plus PUT,DELETE. optionsHTTP (from 4.0.1), add the OPTIONS verb to the previous ones. standardWebDAV, accepted previous HTTP requests plus LOCK, UNLOCK, PROPFIND, PROPPATCH, SEARCH, MKCOL, MOVE, COPY, OPTIONS, TRACE, MKACTIVITY, CHECKOUT, MERGE, REPORT, MSextWebDAV accepted previous HTTP requests plus SUBSCRIBE, UNSUBSCRIBE, NOTIFY, BPROPFIND, BPROPPATCH, POLL, BMOVE, BCOPY, BDELETE, CONNECT, or MSRPCext, accepted previous HTTP requests plus RPC_IN_DATA, RPC_OUT_DATA. Note that those values are case-sensitive.",
+         "non_blank" : "true",
+         "values" : [
+            "standardHTTP",
+            "extendedHTTP",
+            "standardWebDAV",
+            "MSextWebDAV",
+            "MSRPCext",
+            "optionsHTTP"
+         ]
+      },
+      "ignore_100_continue" : {
+         "description" : "If this field has the value true the 100 continue HTTP header will be ignored; if the value is false, the 100 continue header will be processed.",
+         "edition" : "ee",
+         "non_blank" : "true",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "listener" : {
+         "description" : "A listener defines how the farm is going to play with the requests from the clients. The options are: http for not secured protocol or https for secured protocol.",
+         "non_blank" : "true",
+         "values" : [
+            "http",
+            "https"
+         ]
+      },
+      "logs" : {
+         "description" : "The farm Logs the trace of the HTTP connections. If this parameter has the value true, the logs are enabled; if it has the value false, logs are disabled.",
+         "edition" : "ee",
+         "non_blank" : "true",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "newfarmname" : {
+         "depend_on" : "status==down",
+         "depend_on_msg" : "The farm must be stopped.",
+         "description" : "The ne farm name",
+         "exceptions" : [
+            "0"
+         ],
+         "non_blank" : "true",
+         "regex" : "(?^:[a-zA-Z0-9\\-]+)"
+      },
+      "reqtimeout" : {
+         "description" : "How long the farm is going to wait for a client request in seconds.",
+         "format_msg" : "expects a natural number",
+         "non_blank" : "true",
+         "regex" : "(?^:[1-9]\\d*)"
+      },
+      "restimeout" : {
+         "description" : "How long the farm is going to wait for a response from the backends in seconds.",
+         "format_msg" : "expects a natural number",
+         "non_blank" : "true",
+         "regex" : "(?^:[1-9]\\d*)"
+      },
+      "resurrectime" : {
+         "description" : "This value in seconds is the period to get out a blacklisted backend and checks if it is alive.",
+         "format_msg" : "expects a natural number",
+         "non_blank" : "true",
+         "regex" : "(?^:[1-9]\\d*)"
+      },
+      "rewritelocation" : {
+         "description" : "If it is enabled, the farm is forced to modify the Location: and Content-location: headers in responses to clients with the virtual host. The options are: enabled activated; disabled inactivated; or enabled-backends only the backend address is compared.",
+         "non_blank" : "true",
+         "values" : [
+            "disabled",
+            "enabled",
+            "enabled-backends",
+            "enabled-path",
+            "enabled-backends-path"
+         ]
+      },
+      "vip" : {
+         "description" : "IP of the farm, where the virtual service is listening, this IP must be configured and up in the system.",
+         "format_msg" : "expects an IP",
+         "non_blank" : "true",
+         "regex" : "(?^:(?:(?^:(?:(?:25[0-5]|2[0-4]\\d|(?!0)[1]?\\d\\d?|0)\\.){3}(?:25[0-5]|2[0-4]\\d|(?!0)[1]?\\d\\d?|0))|(?^::(?::[0-9a-fA-F]{1,4}){0,5}(?:(?::[0-9a-fA-F]{1,4}){1,2}|:(?:(?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})))|[0-9a-fA-F]{1,4}:(?:[0-9a-fA-F]{1,4}:(?:[0-9a-fA-F]{1,4}:(?:[0-9a-fA-F]{1,4}:(?:[0-9a-fA-F]{1,4}:(?:[0-9a-fA-F]{1,4}:(?:[0-9a-fA-F]{1,4}:(?:[0-9a-fA-F]{1,4}|:)|(?::(?:[0-9a-fA-F]{1,4})?|(?:(?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))))|:(?:(?:(?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))|[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4})?|))|(?::(?:(?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))|:[0-9a-fA-F]{1,4}(?::(?:(?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))|(?::[0-9a-fA-F]{1,4}){0,2})|:))|(?:(?::[0-9a-fA-F]{1,4}){0,2}(?::(?:(?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))|(?::[0-9a-fA-F]{1,4}){1,2})|:))|(?:(?::[0-9a-fA-F]{1,4}){0,3}(?::(?:(?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))|(?::[0-9a-fA-F]{1,4}){1,2})|:))|(?:(?::[0-9a-fA-F]{1,4}){0,4}(?::(?:(?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))|(?::[0-9a-fA-F]{1,4}){1,2})|:)))))"
+      },
+      "vport" : {
+         "description" : "Port of the farm, where the virtual service is listening.",
+         "interval" : "1,65535",
+         "non_blank" : "true"
+      }
+   },
+   "url" : "/farm/<farmname>"
+}

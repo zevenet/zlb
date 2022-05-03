@@ -46,13 +46,7 @@ sub create_backup
 
 	my $desc = "Create a backups";
 
-	my $params = {
-				   "name" => {
-							   'valid_format' => 'backup',
-							   'non_blank'    => 'true',
-							   'required'     => 'true',
-				   },
-	};
+	my $params = &getZAPIModel( "system_backup-create.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -192,17 +186,7 @@ sub apply_backup
 
 	my $desc = "Apply a backup to the system";
 
-	my $params = {
-				   "action" => {
-								 'non_blank' => 'true',
-								 'required'  => 'true',
-								 'values'    => ['apply'],
-				   },
-				   "force" => {
-								'non_blank' => 'true',
-								'values'    => ['true', 'false'],
-				   },
-	};
+	my $params = &getZAPIModel( "system_backup-apply.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -244,7 +228,8 @@ sub apply_backup
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	&httpResponse( { code => 200, body => { description => $desc, msg => $msg } } );
+	&httpResponse(
+				   { code => 200, body => { description => $desc, message => $msg } } );
 }
 
 1;

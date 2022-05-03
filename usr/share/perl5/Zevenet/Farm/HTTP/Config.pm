@@ -582,11 +582,11 @@ Returns:
 
 =cut
 
-sub setFarmRewriteL    # ($farm_name,$rewritelocation)
+sub setFarmRewriteL    # ($farm_name,$rewritelocation,$path)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $farm_name, $rewritelocation ) = @_;
+	my ( $farm_name, $rewritelocation, $path ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
@@ -608,7 +608,9 @@ sub setFarmRewriteL    # ($farm_name,$rewritelocation)
 		$i_f++;
 		if ( $filefarmhttp[$i_f] =~ /RewriteLocation\ .*/ )
 		{
-			$filefarmhttp[$i_f] = "\tRewriteLocation $rewritelocation";
+			my $directive = "\tRewriteLocation $rewritelocation";
+			$directive .= " path" if ( $path );
+			$filefarmhttp[$i_f] = $directive;
 			$output             = $?;
 			$found              = "true";
 		}
@@ -627,7 +629,8 @@ Parameters:
 	farmname - Farm name
 
 Returns:
-	scalar - The possible values are: disabled, enabled, enabled-backends or -1 on failure
+	string - The possible values are: disabled, enabled, enabled-backends, enabled-path, enabled-backends-path.
+	diabled by default.
 
 =cut
 
@@ -638,7 +641,7 @@ sub getFarmRewriteL    # ($farm_name)
 	my ( $farm_name ) = @_;
 
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $output        = -1;
+	my $output        = "disabled";
 
 	open my $fd, '<', "$configdir\/$farm_filename";
 	my @file = <$fd>;
@@ -646,13 +649,16 @@ sub getFarmRewriteL    # ($farm_name)
 
 	foreach my $line ( @file )
 	{
-		if ( $line =~ /RewriteLocation\ .*/ )
+		if ( $line =~ /RewriteLocation\s+(\d)\s*(path)?/ )
 		{
-			my @line_aux = split ( "\ ", $line );
-			$output = $line_aux[1];
+			if ( $1 eq 0 ) { $output = "disabled"; last; }
+			elsif ( $1 eq 1 ) { $output = "enabled"; }
+			elsif ( $1 eq 2 ) { $output = "enabled-backends"; }
+
+			if ( $2 eq 'path' ) { $output .= "-path"; }
+			last;
 		}
 	}
-
 	return $output;
 }
 
@@ -926,7 +932,7 @@ sub getHTTPFarmMaxClientTime    # ($farm_name)
 =begin nd
 Function: getHTTPFarmGlobalStatus
 
-	Get the status of a farm and its backends through l7 proxy command.
+	Get the status of a farm, sessions and its backends through l7 proxy command.
 
 Parameters:
 	farmname - Farm name
@@ -951,12 +957,12 @@ sub getHTTPFarmGlobalStatus    # ($farm_name)
 =begin nd
 Function: setFarmErr
 
-	Configure a error message for http error: 414, 500, 501 or 503
+	Configure a error message for http error: WAF, 414, 500, 501 or 503
 
 Parameters:
 	farmname - Farm name
 	message - Message body for the error
-	error_number - Number of error to set, the options are 414, 500, 501 or 503
+	error_number - Number of error to set, the options are WAF, 414, 500, 501 or 503
 
 Returns:
 	Integer - Error code: 0 on success, or -1 on failure.
@@ -973,7 +979,7 @@ sub setFarmErr    # ($farm_name,$content,$nerr)
 
 	&zenlog( "Setting 'Err $nerr' for $farm_name farm http", "info", "LSLB" );
 
-	if ( -e "$configdir\/$farm_name\_Err$nerr.html" && $nerr != "" )
+	if ( -e "$configdir\/$farm_name\_Err$nerr.html" && $nerr ne "" )
 	{
 		$output = 0;
 		my @err = split ( "\n", "$content" );
@@ -995,11 +1001,11 @@ sub setFarmErr    # ($farm_name,$content,$nerr)
 =begin nd
 Function: getFarmErr
 
-	Return the error message for a http error: 414, 500, 501 or 503
+	Return the error message for a http error: WAF, 414, 500, 501 or 503
 
 Parameters:
 	farmname - Farm name
-	error_number - Number of error to set, the options are 414, 500, 501 or 503
+	error_number - Number of error to set, the options are WAF, 414, 500, 501 or 503
 
 Returns:
 	Array - Message body for the error
@@ -1042,6 +1048,94 @@ sub getFarmErr    # ($farm_name,$nerr)
 	}
 
 	return $output;
+}
+
+=begin nd
+Function: setHTTPFarmConfErrFile
+
+	Comment or uncomment an error config file line from the proxy config file.
+
+Parameters:
+	enabled - true to uncomment the line ( or to add if it doesn't exist)
+		or false to comment the line.
+	farmname - Farm name
+	err - error file: WAF, 414, 500 ...
+
+Returns:
+	None
+
+=cut
+
+sub setHTTPFarmConfErrFile    # ($enabled, $farm_name, $err)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $enabled, $farm_name, $err ) = @_;
+	require Zevenet::Farm::Core;
+	my $farm_filename = &getFarmFile( $farm_name );
+	my $i             = -1;
+	my $found         = 0;                            # Error line was found
+
+	require Tie::File;
+	tie my @filefarmhttp, 'Tie::File', "$configdir/$farm_filename";
+	foreach my $line ( @filefarmhttp )
+	{
+		$i++;
+		if ( $enabled eq "true" )
+		{
+			if ( $line =~ /^.*Err$err/ )
+			{
+				$line =~ s/#//;
+				splice @filefarmhttp, $i, 1, $line;
+				$found = 1;
+				last;
+			}
+		}
+		else
+		{
+			if ( $line =~ /^\s*Err$err/ )
+			{
+				splice @filefarmhttp, $i, 1;
+				last;
+			}
+		}
+	}
+	if ( !$found && $enabled eq "true" )
+	{
+		$i = -1;
+		foreach my $line ( @filefarmhttp )
+		{
+			$i++;
+			if ( $line =~ /^ListenHTTP/ )
+			{
+				my $directive = "\tErr$err \"$configdir" . "/" . $farm_name . "_Err$err.html\"";
+				splice @filefarmhttp, $i + 1, 0, $directive;
+				last;
+			}
+		}
+	}
+	untie @filefarmhttp;
+
+	if ( $eload )
+	{
+		if ( $enabled eq "true" )
+		{
+			if ( !-f "$configdir\/$farm_name\_ErrWAF.html" )
+			{
+				my $f_err;
+				open $f_err, '>', "$configdir\/$farm_name\_ErrWAF.html";
+				print $f_err "The request was rejected by the server.\n";
+				close $f_err;
+			}
+		}
+		else
+		{
+			if ( -f "$configdir\/$farm_name\_ErrWAF.html" )
+			{
+				unlink "$configdir\/$farm_name\_ErrWAF.html";
+			}
+		}
+	}
 }
 
 =begin nd
@@ -1139,18 +1233,17 @@ sub getHTTPFarmStatus    # ($farm_name)
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
-	my $pid    = &getHTTPFarmPid( $farm_name );
-	my $output = -1;
-	my $running_pid;
-	$running_pid = kill ( 0, $pid ) if $pid ne "-";
+	my @pid         = &getHTTPFarmPid( $farm_name );
+	my $output      = -1;
+	my $running_pid = kill ( 0, @pid ) if @pid;
 
-	if ( $pid ne "-" && $running_pid )
+	if ( @pid && $running_pid )
 	{
 		$output = "up";
 	}
 	else
 	{
-		unlink &getHTTPFarmPidFile( $farm_name ) if ( $pid ne "-" && !$running_pid );
+		#~ unlink &getHTTPFarmPidFile( $farm_name ) if ( !@pid && !$running_pid );
 		$output = "down";
 	}
 
@@ -1189,7 +1282,7 @@ Parameters:
 	farmname - Farm name
 
 Returns:
-	Integer - return pid of farm, '-' if pid not exist or -1 on failure
+	Integer - return a list with the PIDs of the farm
 
 =cut
 
@@ -1199,41 +1292,53 @@ sub getHTTPFarmPid    # ($farm_name)
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
-	my $output  = -1;
 	my $piddir  = &getGlobalConfiguration( 'piddir' );
-	my $nproc   = &getGlobalConfiguration( 'nproc_bin' );
 	my $pidfile = "$piddir\/$farm_name\_proxy.pid";
 
-	# Get number of cores
-	my $processors = &logAndGet( $nproc );
-
-	# If the LB has one core, wait 20ms for l7 proxy child process to generate pid.
-	select ( undef, undef, undef, 0.020 ) if ( $processors == 1 );
-
+	my @pid = ();
 	if ( -e $pidfile )
 	{
 		open my $fd, '<', $pidfile;
-		my @pid = <$fd>;
+		@pid = <$fd>;
 		close $fd;
-
-		my $pid_hprof = $pid[0];
-		chomp ( $pid_hprof );
-
-		if ( $pid_hprof =~ /^[1-9].*/ )
-		{
-			$output = "$pid_hprof";
-		}
-		else
-		{
-			$output = "-";
-		}
 	}
-	else
+
+	return @pid;
+}
+
+=begin nd
+Function: getHTTPFarmPidPound
+
+	This function returns all the pids of a process looking for in the ps table.
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	array - list of pids
+
+=cut
+
+sub getHTTPFarmPidPound
+{
+	my $farm_name = shift;
+
+	my $ps        = &getGlobalConfiguration( 'ps' );
+	my $grep      = &getGlobalConfiguration( 'grep_bin' );
+	my @pid       = ();
+	my $farm_file = "$configdir/" . &getFarmFile( $farm_name );
+	my $cmd       = "$ps aux | $grep '\\-f $farm_file' | $grep -v grep";
+
+	my $out = &logAndGet( $cmd, 'array' );
+	foreach my $l ( @{ $out } )
 	{
-		$output = "-";
+		if ( $l =~ /^\s*[^\s]+\s+([^\s]+)\s/ )
+		{
+			push @pid, $1;
+		}
 	}
 
-	return $output;
+	return @pid;
 }
 
 =begin nd
@@ -1284,6 +1389,7 @@ sub getHTTPFarmVip    # ($info,$farm_name)
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $output        = -1;
 	my $i             = 0;
+	my $lw            = 0;
 
 	open my $fi, '<', "$configdir/$farm_filename";
 	my @file = <$fi>;
@@ -1293,17 +1399,15 @@ sub getHTTPFarmVip    # ($info,$farm_name)
 	{
 		if ( $line =~ /^ListenHTTP/ )
 		{
-			my $vip  = $file[$i + 5];
-			my $vipp = $file[$i + 6];
+			$lw = 1;
+		}
+		if ( $lw )
+		{
+			if ( $info eq "vip" && $line =~ /^\s+Address\s+(.*)/ ) { $output = $1 }
 
-			chomp ( $vip );
-			chomp ( $vipp );
+			if ( $info eq "vipp" && $line =~ /^\s+Port\s+(.*)/ ) { $output = $1 }
 
-			my @vip  = split ( "\ ", $vip );
-			my @vipp = split ( "\ ", $vipp );
-
-			if ( $info eq "vip" )  { $output = $vip[1]; }
-			if ( $info eq "vipp" ) { $output = $vipp[1]; }
+			last if ( $output != -1 );
 		}
 		$i++;
 	}
@@ -1335,6 +1439,9 @@ sub setHTTPFarmVirtualConf    # ($vip,$vip_port,$farm_name)
 	my $farm_filename = &getFarmFile( $farm_name );
 	my $stat          = 1;
 	my $enter         = 2;
+	$enter-- if !$vip_port;
+
+	my $prev_config = getFarmStruct( $farm_name );
 
 	my $lock_file = &getLockFile( $farm_name );
 	my $lock_fh = &openlock( $lock_file, 'w' );
@@ -1366,6 +1473,17 @@ sub setHTTPFarmVirtualConf    # ($vip,$vip_port,$farm_name)
 
 	untie @array;
 	close $lock_fh;
+
+	# Finally, reload rules and source address
+	if ( &getGlobalConfiguration( 'proxy_ng' ) eq "true" )
+	{
+		&doL7FarmRules( "reload", $farm_name, $prev_config )
+		  if ( $prev_config->{ status } eq "up" );
+
+		# reload source address maquerade
+		require Zevenet::Farm::Config;
+		&reloadFarmsSourceAddressByFarm( $farm_name );
+	}
 
 	return $stat;
 }
@@ -1516,6 +1634,8 @@ sub getHTTPFarmStruct
 	require Zevenet::Farm::Core;
 	require Zevenet::Farm::Base;
 
+	my $proxy_ng = &getGlobalConfiguration( 'proxy_ng' );
+
 	# Output hash reference or undef if the farm does not exist.
 	my $farm;
 
@@ -1529,12 +1649,8 @@ sub getHTTPFarmStruct
 	my $timeout         = 0 + &getHTTPFarmTimeout( $farmname );
 	my $alive           = 0 + &getHTTPFarmBlacklistTime( $farmname );
 	my $client          = 0 + &getFarmClientTimeout( $farmname );
-	my $rewritelocation = 0 + &getFarmRewriteL( $farmname );
+	my $rewritelocation = &getFarmRewriteL( $farmname );
 	my $httpverb        = 0 + &getFarmHttpVerb( $farmname );
-
-	if    ( $rewritelocation == 0 ) { $rewritelocation = "disabled"; }
-	elsif ( $rewritelocation == 1 ) { $rewritelocation = "enabled"; }
-	elsif ( $rewritelocation == 2 ) { $rewritelocation = "enabled-backends"; }
 
 	if    ( $httpverb == 0 ) { $httpverb = "standardHTTP"; }
 	elsif ( $httpverb == 1 ) { $httpverb = "extendedHTTP"; }
@@ -1543,6 +1659,7 @@ sub getHTTPFarmStruct
 	elsif ( $httpverb == 4 ) { $httpverb = "MSRPCext"; }
 	elsif ( $httpverb == 5 ) { $httpverb = "optionsHTTP"; }
 
+	my $errWAF = &getFarmErr( $farmname, "WAF" );
 	my $err414 = &getFarmErr( $farmname, "414" );
 	my $err500 = &getFarmErr( $farmname, "500" );
 	my $err501 = &getFarmErr( $farmname, "501" );
@@ -1562,8 +1679,14 @@ sub getHTTPFarmStruct
 			  error500        => $err500,
 			  error414        => $err414,
 			  error501        => $err501,
-			  error503        => $err503
+			  error503        => $err503,
+			  name            => $farmname
 	};
+
+	if ( $eload and $proxy_ng eq 'true' )
+	{
+		$farm->{ errorWAF } = $errWAF;
+	}
 
 	# HTTPS parameters
 	if ( $type eq "https" )
@@ -1631,14 +1754,11 @@ sub getHTTPFarmStruct
 		  ( &getHTTPFarmDisableSSL( $farmname, "TLSv1_2" ) ) ? "true" : "false";
 	}
 
-	if ( $eload )
-	{
-		$farm = &eload(
-						module => 'Zevenet::Farm::HTTP::Ext',
-						func   => 'get_http_farm_ee_struct',
-						args   => [$farmname, $farm],
-		);
-	}
+	$farm->{ logs } = &getHTTPFarmLogs( $farmname );
+	require Zevenet::Farm::Config;
+	$farm = &get_http_farm_headers_struct( $farmname, $farm );
+
+	$farm->{ ignore_100_continue } = &getHTTPFarm100Continue( $farmname );
 
 	return $farm;
 }
@@ -1902,6 +2022,8 @@ sub print_backends
 		$single_be_str .= "\t\t\tTimeOut $be->{ TimeOut }\n" if exists $be->{ TimeOut };
 		$single_be_str .= "\t\t\tPriority $be->{ Priority }\n"
 		  if exists $be->{ Priority };
+		$single_be_str .= "\t\t\tConnLimit $be->{ ConnLimit }\n"
+		  if exists $be->{ ConnLimit };
 		$single_be_str .= "\t\tEnd\n";
 
 		$be_list_str .= $single_be_str;
@@ -2060,6 +2182,11 @@ ECDHCurve	"$conf->{ ECDHCurve }"
 	my $listener_str = qq(
 #HTTP(S) LISTENERS
 Listen${listener_type}
+);
+
+	$listener_str .= qq(\tErrWAF "$listener->{ ErrWAF }") if ( &eload );
+	$listener_str .= qq(
+	ErrWAF "$listener->{ ErrWAF }"
 	Err414 "$listener->{ Err414 }"
 	Err500 "$listener->{ Err500 }"
 	Err501 "$listener->{ Err501 }"
@@ -2184,82 +2311,185 @@ sub setFarmProxyNGConf    # ($proxy_mode,$farm_name)
 			 "debug", "PROFILING" );
 	my ( $proxy_mode, $farm_name ) = @_;
 
+	require Zevenet::Farm::HTTP::Backend;
+
 	my $farm_filename = &getFarmFile( $farm_name );
-	my $stat          = 1;
+	my $stat          = 0;
 
 	my $lock_file = &getLockFile( $farm_name );
 	my $lock_fh = &openlock( $lock_file, 'w' );
 
 	require Tie::File;
 	tie my @array, 'Tie::File', "$configdir\/$farm_filename";
-	my $size      = @array;
 	my @array_bak = @array;
+	my @wafs;
+	my $sw = 0;
+	my $bw = 0;
 
-	for ( my $i = 0 ; $i < $size ; $i++ )
+	for ( my $i = 0 ; $i < @array ; $i++ )
 	{
-		if ( $array[$i] =~ /Priority\ (\d+)/ )
+		$sw = 1 if ( $array[$i] =~ /^\s+Service/ );
+		$bw = 1 if ( $array[$i] =~ /^\s+BackEnd/ && $sw == 1 );
+		$sw = 0 if ( $array[$i] =~ /^\tEnd/ && $sw == 1 && $bw == 0 );
+		$bw = 0 if ( $array[$i] =~ /^\t\tEnd/ && $sw == 1 && $bw == 1 );
+
+		if ( $proxy_mode eq "false" )
 		{
-			my $priority = $1;
+
+			if ( $array[$i] =~ /^\s*(#?)RewriteLocation\s+(\d)/ )
+			{
+				if ( $1 ne "#" )
+				{
+					$array[$i] = "\tRewriteLocation $2";
+				}
+			}
+		}
+
+		if ( $bw == 1 )
+		{
 			if ( $proxy_mode eq "true" )
 			{
-				if ( $array[$i] =~ s/.*Priority\ .*/\t\t\tWeight\ $priority/ )
-				{
-					$stat = 0;
-				}
+				$array[$i] =~ s/Priority/Weight/;
 			}
 			elsif ( $proxy_mode eq "false" )
 			{
-				if ( $array[$i + 1] =~ /Weight\ (\d+)/ )
+				if ( $array[$i] =~ /Priority|ConnLimit/ )
 				{
-					my $weight = $1;
-					if ( $array[$i] =~ s/.*Priority\ .*/\t\t\tPriority\ $weight/ )
-					{
-						splice @array, $i + 1, 1;
-						$stat = 0;
-						$size--;
-					}
+					splice @array, $i, 1;
+					$i--;
 				}
 				else
 				{
-					splice @array, $i, 1;
-					$stat = 0;
-					$size--;
+					# Replace Priority value with Weight value
+					$array[$i] =~ s/Weight/Priority/;
 				}
-
 			}
 		}
-		elsif ( $array[$i] =~ /Weight\ (\d+)/ )
+
+		# Service level all directives
+		if (   $sw == 1
+			&& $array[$i] =~
+			/^\s*(#?)(PinnedConnection|RoutingPolicy|RewriteLocation|AddHeader|AddResponseHeader|HeadRemove|RemoveResponseHeader|RewriteUrl|ReplaceHeader)/
+		  )
 		{
-			my $weight = $1;
 			if ( $proxy_mode eq "false" )
 			{
-				if ( $array[$i] =~ s/.*Weight\ .*/\t\t\tPriority\ $weight/ )
+				if ( $1 ne "#" )
 				{
-					$stat = 0;
+					$array[$i] =~ s/$1/\t\t#$2/;
 				}
 			}
 			elsif ( $proxy_mode eq "true" )
 			{
-				#This directive should not be here
-				splice @array, $i, 1;
-				$size--;
+				$array[$i] =~ s/#//;
+			}
+		}
+
+		# Farm level ReplaceHeader directives
+		elsif ( $sw == 0 && $array[$i] =~ /^\s*(#?)(ReplaceHeader)/ )
+		{
+			if ( $proxy_mode eq "false" )
+			{
+				if ( $1 ne "#" )
+				{
+					$array[$i] =~ s/$1/\t#$2/;
+				}
+			}
+			elsif ( $proxy_mode eq "true" )
+			{
+				$array[$i] =~ s/#//;
+			}
+		}
+
+		if ( $array[$i] =~ /^(\s*)(WafRules.*)/ )
+		{
+			push @wafs, "\t" . $2 if ( $proxy_mode eq "true" );
+			push @wafs, $2        if ( $proxy_mode eq "false" );
+			splice @array, $i, 1;
+			$i--;
+		}
+	}
+	for ( my $i = 0 ; $i < @array ; $i++ )
+	{
+		if ( $array[$i] =~ /#HTTP\(S\) LISTENERS/ )
+		{
+			if ( $proxy_mode eq "false" )
+			{
+				my $sizewaf = @wafs;
+				splice @array, $i, 0, @wafs;
+				$i = $i + $sizewaf;
+				next;
+			}
+		}
+		if ( $array[$i] =~ /#ZWACL-INI/ )
+		{
+			if ( $proxy_mode eq "true" )
+			{
+				my $sizewaf = @wafs;
+				splice @array, $i + 1, 0, @wafs;
+				$i = $i + $sizewaf;
+				next;
 			}
 		}
 	}
 
+	untie @array;
+
+	&migrateHTTPFarmLogs( $farm_name, $proxy_mode );
 	if ( $eload )
 	{
+		my $func =
+		  ( $proxy_mode eq 'false' )
+		  ? 'addHTTPFarmWafBodySize'
+		  : 'delHTTPFarmWafBodySize';
 		&eload(
 				module => 'Zevenet::Farm::HTTP::Ext',
-				func   => 'migrateHTTPFarmLogs',
-				args   => [$farm_name, $proxy_mode],
+				func   => $func,
+				args   => [$farm_name],
 		);
+	}
+
+	require Zevenet::Farm::HTTP::Sessions;
+	my $farm_sessions_filename = &getSessionsFileName( $farm_name );
+	if ( $proxy_mode eq "true" )
+	{
+		&setHTTPFarmConfErrFile( "true", $farm_name, "WAF" );
+		&setHTTPFarmBackendsMarks( $farm_name );
+
+		if ( !-f "$farm_sessions_filename" )
+		{
+			my $f_err;
+			open $f_err, '>', "$farm_sessions_filename";
+			close $f_err;
+		}
+
+		require Zevenet::Farm::Config;
+		&reloadFarmsSourceAddressByFarm( $farm_name );
+
+	}
+	else
+	{
+		&setHTTPFarmConfErrFile( "false", $farm_name, "WAF" );
+		&removeHTTPFarmBackendsMarks( $farm_name );
+
+		if ( -f "$farm_sessions_filename" )
+		{
+			unlink "$farm_sessions_filename";
+		}
+
+		&eload(
+				module => 'Zevenet::Net::Floating',
+				func   => 'removeL7FloatingSourceAddr',
+				args   => [$farm_name],
+		) if ( $eload );
 	}
 
 	if ( &getHTTPFarmConfigIsOK( $farm_name ) )
 	{
+		tie my @array, 'Tie::File', "$configdir\/$farm_filename";
 		@array = @array_bak;
-		$stat  = 1;
+		untie @array;
+		$stat = 1;
 		&zenlog( "Error in $farm_name config file!", "error", "SYSTEM" );
 	}
 	else
@@ -2267,11 +2497,1435 @@ sub setFarmProxyNGConf    # ($proxy_mode,$farm_name)
 		$stat = 0;
 	}
 
-	untie @array;
 	close $lock_fh;
 
 	return $stat;
 }
 
-1;
+=begin nd
+Function: doL7FarmRules
 
+	Created to operate with setBackendRule in order to start, stop or reload ip rules
+
+Parameters:
+	action - stop (delete all ip rules), start (create ip rules) or reload (delete old one stored in prev_farm_ref and create new)
+	farm_name - the farm name.
+	prev_farm_ref - farm ref of the old configuration
+
+Returns:
+	none - .
+
+=cut
+
+sub doL7FarmRules
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $action        = shift;
+	my $farm_name     = shift;
+	my $prev_farm_ref = shift;
+
+	return if &getGlobalConfiguration( 'mark_routing_L7' ) ne 'true';
+	require Zevenet::Farm::HTTP::Config;
+	my $farm_ref;
+	$farm_ref->{ name } = $farm_name;
+	$farm_ref->{ vip } = &getHTTPFarmVip( "vip", $farm_name );
+
+	require Zevenet::Farm::Backend;
+	require Zevenet::Farm::HTTP::Backend;
+	require Zevenet::Farm::HTTP::Service;
+
+	my @backends;
+	foreach my $service ( &getHTTPFarmServices( $farm_name ) )
+	{
+		my $bckds = &getHTTPFarmBackends( $farm_name, $service, "false" );
+		push @backends, @{ $bckds };
+	}
+
+	foreach my $backend ( @backends )
+	{
+		my $mark = sprintf ( "0x%x", $backend->{ tag } );
+		&setBackendRule( "del", $farm_ref, $mark )
+		  if ( $action eq "stop" );
+		&setBackendRule( "del", $prev_farm_ref, $mark )
+		  if ( $action eq "reload" );
+		&setBackendRule( "add", $farm_ref, $mark )
+		  if ( $action eq "start" || $action eq "reload" );
+	}
+}
+
+# Add request headers
+
+=begin nd
+Function: getHTTPAddReqHeader
+
+	Get a list with all the http headers are added by the farm
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	Array ref - headers list
+
+=cut
+
+sub getHTTPAddReqHeader    # ($farm_name,$service)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name ) = @_;
+	return &get_http_farm_headers_struct( $farm_name )->{ addheader };
+}
+
+=begin nd
+Function: addHTTPHeadremove
+
+	The HTTP farm will add the header to the http communication
+
+Parameters:
+	farmname - Farm name
+	header - Header to add
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub addHTTPAddheader    # ($farm_name, $header, $header_ind)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $header ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index        = 0;
+	my $rewrite_flag = 0;    # it is used to add HeadRemove before than AddHeader
+	foreach my $line ( @fileconf )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $line =~ /[#\s]*RewriteLocation/ )
+		{
+			$rewrite_flag = 1;
+		}
+		elsif ( $rewrite_flag )
+		{
+			# put new headremove before than last one
+			if ( $line !~
+				 /^[#\s]*(?:AddHeader|HeadRemove|AddResponseHeader|RemoveResponseHead)\s+"/
+				 and $rewrite_flag )
+
+			{
+				# example: AddHeader "header: to add"
+				splice @fileconf, $index, 0, "\tAddHeader \"$header\"";
+				$errno = 0;
+				last;
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not add AddHeader" ) if $errno;
+
+	return $errno;
+}
+
+=begin nd
+Function: modifyHTTPAddheader
+
+	Modify an AddHeader directive from the given farm
+
+Parameters:
+	farmname - Farm name
+	header - Header to add
+	header_ind - directive index
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub modifyHTTPAddheader    # ($farm_name, $header, $header_ind)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $header, $header_ind ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index = 0;
+	my $ind   = 0;
+	foreach my $line ( @fileconf )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $line =~ /^\s*AddHeader\s+"/ )
+		{
+			# put new headremove before than last one
+			if ( $header_ind == $ind )
+			{
+				splice @fileconf, $index, 1, "\tAddHeader \"$header\"";
+				$errno = 0;
+				last;
+			}
+			else
+			{
+				$ind++;
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not modify AddHeader" ) if $errno;
+
+	return $errno;
+}
+
+=begin nd
+Function: delHTTPAddheader
+
+	Delete a directive "AddHeader".
+
+Parameters:
+	farmname - Farm name
+	index - Header index
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub delHTTPAddheader    # ($farm_name, $header_ind)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $header_ind ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index = 0;
+	my $ind   = 0;
+	foreach my $line ( @fileconf )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $line =~ /^\s*AddHeader\s+"/ )
+		{
+			if ( $header_ind == $ind )
+			{
+				$errno = 0;
+				splice @fileconf, $index, 1;
+				last;
+			}
+			else
+			{
+				$ind++;
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not remove HeadRemove" ) if $errno;
+
+	return $errno;
+}
+
+# remove request header
+
+=begin nd
+Function: getHTTPRemReqHeader
+
+	Get a list with all the http headers are added by the farm
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	Array ref - headers list
+
+=cut
+
+sub getHTTPRemReqHeader    # ($farm_name,$service)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name ) = @_;
+	return &get_http_farm_headers_struct( $farm_name )->{ headremove };
+}
+
+=begin nd
+Function: addHTTPHeadremove
+
+	Add a directive "HeadRemove". The HTTP farm will remove the header that match with the sentence
+
+Parameters:
+	farmname - Farm name
+	header - Header to add
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub addHTTPHeadremove    # ($farm_name, $header)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $header ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index        = 0;
+	my $rewrite_flag = 0;    # it is used to add HeadRemove before than AddHeader
+	foreach my $line ( @fileconf )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $line =~ /[#\s]*RewriteLocation/ )
+		{
+			$rewrite_flag = 1;
+		}
+		elsif ( $rewrite_flag )
+		{
+			# put new headremove after than last one
+			if ( $line !~
+				 /^[#\s]*(?:AddHeader|HeadRemove|AddResponseHeader|RemoveResponseHead)\s+"/
+				 and $rewrite_flag )
+			{
+				# example: AddHeader "header: to add"
+				splice @fileconf, $index, 0, "\tHeadRemove \"$header\"";
+				$errno = 0;
+				last;
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not add HeadRemove" ) if $errno;
+
+	return $errno;
+}
+
+=begin nd
+Function: modifyHTTPHeadremove
+
+	Modify an Headremove directive from the given farm
+
+Parameters:
+	farmname    - Farm name
+	header      - Header to add
+	header_ind - directive index
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub modifyHTTPHeadremove    # ($farm_name, $header, $header_ind)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $header, $header_ind ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index = 0;
+	my $ind   = 0;
+	foreach my $line ( @fileconf )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $line =~ /^\s*HeadRemove\s+"/ )
+		{
+			# put new headremove before than last one
+			if ( $header_ind == $ind )
+			{
+				splice @fileconf, $index, 1, "\tHeadRemove \"$header\"";
+				$errno = 0;
+				last;
+			}
+			else
+			{
+				$ind++;
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not modify HeadRemove" ) if $errno;
+
+	return $errno;
+}
+
+=begin nd
+Function: delHTTPHeadremove
+
+	Delete a directive "HeadRemove".
+
+Parameters:
+	farmname - Farm name
+	index - Header index
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub delHTTPHeadremove    # ($farm_name,$service,$code)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $header_ind ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index = 0;
+	my $ind   = 0;
+	foreach my $line ( @fileconf )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $line =~ /^\s*HeadRemove\s+"/ )
+		{
+			if ( $header_ind == $ind )
+			{
+				$errno = 0;
+				splice @fileconf, $index, 1;
+				last;
+			}
+			else
+			{
+				$ind++;
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not remove HeadRemove" ) if $errno;
+
+	return $errno;
+}
+
+# Add response headers
+
+=begin nd
+Function: getHTTPAddRespHeader
+
+	Get a list with all the http headers that load balancer will add to the backend repsonse
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	Array ref - headers list
+
+=cut
+
+sub getHTTPAddRespHeader    # ($farm_name,$service)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name ) = @_;
+	return &get_http_farm_headers_struct( $farm_name )->{ addresponseheader };
+}
+
+=begin nd
+Function: addHTTPAddRespheader
+
+	The HTTP farm will add the header to the http response from the backend to the client
+
+Parameters:
+	farmname - Farm name
+	header - Header to add
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub addHTTPAddRespheader    # ($farm_name,$service,$code)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $header ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index        = 0;
+	my $rewrite_flag = 0;    # it is used to add HeadRemove before than AddHeader
+	foreach my $line ( @fileconf )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $line =~ /[#\s]*RewriteLocation/ )
+		{
+			$rewrite_flag = 1;
+		}
+		elsif ( $rewrite_flag )
+		{
+			# put new headremove before than last one
+			if ( $line !~
+				 /^[#\s]*(?:AddHeader|HeadRemove|AddResponseHeader|RemoveResponseHead)\s+"/
+				 and $rewrite_flag )
+			{
+				# example: AddHeader "header: to add"
+				splice @fileconf, $index, 0, "\tAddResponseHeader \"$header\"";
+				$errno = 0;
+				last;
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not add AddResponseHeader" ) if $errno;
+
+	return $errno;
+}
+
+=begin nd
+Function: modifyHTTPAddRespheader
+
+	Modify an AddResponseHeader directive from the given farm
+
+Parameters:
+	farmname    - Farm name
+	header      - Header to add
+	header_ind - directive index
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub modifyHTTPAddRespheader    # ($farm_name, $header, $header_ind)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $header, $header_ind ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index = 0;
+	my $ind   = 0;
+	foreach my $line ( @fileconf )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $line =~ /^\s*AddResponseHeader\s+"/ )
+		{
+			# put new headremove before than last one
+			if ( $header_ind == $ind )
+			{
+				splice @fileconf, $index, 1, "\tAddResponseHeader \"$header\"";
+				$errno = 0;
+				last;
+			}
+			else
+			{
+				$ind++;
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not modify AddResponseHeader" ) if $errno;
+
+	return $errno;
+}
+
+=begin nd
+Function: delHTTPAddRespheader
+
+	Delete a directive "AddResponseHeader from the farm config file".
+
+Parameters:
+	farmname - Farm name
+	index - Header index
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub delHTTPAddRespheader    # ($farm_name,$service,$code)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $header_ind ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index = 0;
+	my $ind   = 0;
+	foreach my $line ( @fileconf )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $line =~ /^\s*AddResponseHeader\s+"/ )
+		{
+			if ( $header_ind == $ind )
+			{
+				$errno = 0;
+				splice @fileconf, $index, 1;
+				last;
+			}
+			else
+			{
+				$ind++;
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not remove AddResponseHeader" ) if $errno;
+
+	return $errno;
+}
+
+# remove response header
+
+=begin nd
+Function: getHTTPRemRespHeader
+
+	Get a list with all the http headers that the load balancer will add to the
+	response to the client
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	Array ref - headers list
+
+=cut
+
+sub getHTTPRemRespHeader    # ($farm_name,$service)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name ) = @_;
+	return &get_http_farm_headers_struct( $farm_name )->{ removeresponseheader };
+}
+
+=begin nd
+Function: addHTTPRemRespHeader
+
+	Add a directive "HeadResponseRemove". The HTTP farm will remove a reponse
+	header from the backend that matches with this expression
+
+Parameters:
+	farmname - Farm name
+	header - Header to add
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub addHTTPRemRespHeader
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $header ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index        = 0;
+	my $rewrite_flag = 0;    # it is used to add HeadRemove before than AddHeader
+	foreach my $line ( @fileconf )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $line =~ /[#\s]*RewriteLocation/ )
+		{
+			$rewrite_flag = 1;
+		}
+		elsif ( $rewrite_flag )
+		{
+			# put new headremove after than last one
+			if ( $line !~
+				 /^[#\s]*(?:AddHeader|HeadRemove|AddResponseHeader|RemoveResponseHead)\s+"/
+				 and $rewrite_flag )
+			{
+				# example: AddHeader "header: to add"
+				splice @fileconf, $index, 0, "\tRemoveResponseHead \"$header\"";
+				$errno = 0;
+				last;
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not add RemoveResponseHead" ) if $errno;
+
+	return $errno;
+}
+
+=begin nd
+Function: modifyHTTPRemRespHeader
+
+	Modify an RemoveResponseHead directive from the given farm
+
+Parameters:
+	farm_name     - Farm name
+	header        - Header to add
+	header_ind    - directive index
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub modifyHTTPRemRespHeader    # ($farm_name, $header, $header_ind)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $header, $header_ind ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index = 0;
+	my $ind   = 0;
+	foreach my $line ( @fileconf )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $line =~ /^\s*RemoveResponseHead\s+"/ )
+		{
+			# put new headremove before than last one
+			if ( $header_ind == $ind )
+			{
+				splice @fileconf, $index, 1, "\tRemoveResponseHead \"$header\"";
+				$errno = 0;
+				last;
+			}
+			else
+			{
+				$ind++;
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not modify RemoveResponseHead" ) if $errno;
+
+	return $errno;
+}
+
+=begin nd
+Function: delHTTPRemRespHeader
+
+	Delete a directive "HeadResponseRemove".
+
+Parameters:
+	farmname - Farm name
+	index - Header index
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub delHTTPRemRespHeader    # ($farm_name,$service,$code)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $header_ind ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index = 0;
+	my $ind   = 0;
+	foreach my $line ( @fileconf )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $line =~ /^\s*RemoveResponseHead\s+"/ )
+		{
+			if ( $header_ind == $ind )
+			{
+				$errno = 0;
+				splice @fileconf, $index, 1;
+				last;
+			}
+			else
+			{
+				$ind++;
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not remove RemoveResponseHead" ) if $errno;
+
+	return $errno;
+}
+
+=begin nd
+Function: addHTTPReplaceHeaders
+
+	Add a directive ReplaceHeader to a zproxy farm.
+
+Parameters:
+	farmname - Farm name
+	type     - Request | Response
+	header
+	match
+	replace
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub addHTTPReplaceHeaders    # ( $farm_name, $type, $header, $match, $replace )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $type, $header, $match, $replace ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index        = 0;
+	my $rewrite_flag = 0;    # it is used to add HeadRemove before than AddHeader
+	my $rewritelocation_ind = 0;
+	my $replace_found       = 0;
+	foreach my $line ( @fileconf )
+	{
+		if ( $replace_found )
+		{
+			if ( $line =~ /^[#\s]*ReplaceHeader\s+$type\s+"/ ) { $index++; next; }
+
+			# example: ReplaceHeader Request "header" "match" "replace"
+			splice @fileconf, $index, 0,
+			  "\tReplaceHeader $type \"$header\" \"$match\" \"$replace\"";
+			$errno = 0;
+			last;
+		}
+		if ( $line =~ /^[#\s]*Service \"/ )
+		{
+			if ( $rewrite_flag == 1 )
+			{
+				splice @fileconf, $rewritelocation_ind + 1, 0,
+				  "\tReplaceHeader $type \"$header\" \"$match\" \"$replace\"";
+				$errno = 0;
+			}
+			last;
+		}
+		if ( $line =~ /[#\s]*RewriteLocation/ )
+		{
+			$rewrite_flag        = 1;
+			$rewritelocation_ind = $index;
+		}
+		elsif ( $rewrite_flag )
+		{
+			# put new ReplaceHeader after the last one
+			if ( $line =~ /^[#\s]*ReplaceHeader\s+$type\s+"/ )
+			{
+				$replace_found = 1;
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not add ReplaceHeader" ) if $errno;
+
+	return $errno;
+}
+
+=begin nd
+Function: modifyHTTPReplaceHeaders
+
+	Modify an ReplaceHeader directive from the given farm
+
+Parameters:
+	farm_name   - Farm name
+	header      - Header to add
+	$header_ind - directive index
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub modifyHTTPReplaceHeaders # ( $farm_name, $type, $header, $match, $replace, $header_ind )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $type, $header, $match, $replace, $header_ind ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index = 0;
+	my $ind   = 0;
+	foreach my $line ( @fileconf )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $line =~ /^\s*ReplaceHeader\s+$type\s+(.+)/ )
+		{
+			# put new headremove before than last one
+			if ( $header_ind == $ind )
+			{
+				splice @fileconf, $index, 1,
+				  "\tReplaceHeader $type \"$header\" \"$match\" \"$replace\"";
+				$errno = 0;
+				last;
+			}
+			else
+			{
+				$ind++;
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not modify ReplaceHeader" ) if $errno;
+
+	return $errno;
+}
+
+=begin nd
+Function: getHTTPReplaceHeaders
+
+	Return 
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	list
+
+=cut
+
+sub getHTTPReplaceHeaders    # ( $farm_name, $type)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $type ) = @_;
+	return &get_http_farm_headers_struct( $farm_name )->{ replacerequestheader }
+	  if ( $type eq "Request" );
+	return &get_http_farm_headers_struct( $farm_name )->{ replaceresponseheader }
+	  if ( $type eq "Response" );
+}
+
+=begin nd
+Function: delHTTPReplaceHeaders
+
+	Delete a directive "ReplaceHeader".
+
+Parameters:
+	farmname - Farm name
+	index - Header index
+
+Returns:
+	Integer - Error code: 0 on success or 1 on failure
+
+=cut
+
+sub delHTTPReplaceHeaders    # ($farm_name, $header_ind, $type)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $header_ind, $deltype ) = @_;
+
+	require Zevenet::Farm::Core;
+	my $ffile = &getFarmFile( $farm_name );
+	my $errno = 1;
+
+	require Zevenet::Lock;
+	&ztielock( \my @fileconf, "$configdir/$ffile" );
+
+	my $index = 0;
+	my $ind   = 0;
+	foreach my $line ( @fileconf )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $line =~ /^\s*ReplaceHeader\s+(.+)/ )
+		{
+			( my $type, my $header, my $match, my $replace ) = split ( /\s+/, $1 );
+			if ( $deltype eq $type )
+			{
+				if ( $header_ind == $ind )
+				{
+					$errno = 0;
+					splice @fileconf, $index, 1;
+					last;
+				}
+				else
+				{
+					$ind++;
+				}
+			}
+		}
+		$index++;
+	}
+	untie @fileconf;
+
+	&zenlog( "Could not remove ReplaceHeader" ) if $errno;
+
+	return $errno;
+}
+
+=begin nd
+Function: get_http_farm_headers_struct
+
+	It extends farm struct with the parameters exclusives of the EE.
+	It no farm struct was passed to the function. The function will returns a new
+	farm struct with the enterprise fields
+
+Parameters:
+	farmname - Farm name
+	farm struct - Struct with the farm configuration parameters
+
+Returns:
+	Hash ref - Farm struct updated with EE parameters
+=cut
+
+sub get_http_farm_headers_struct
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $farmname = shift;
+	my $farm_st  = shift // {};
+	my $proxy_ng = shift // &getGlobalConfiguration( 'proxy_ng' );
+
+	$farm_st->{ addheader }             = [];
+	$farm_st->{ headremove }            = [];
+	$farm_st->{ addresponseheader }     = [];
+	$farm_st->{ removeresponseheader }  = [];
+	$farm_st->{ replacerequestheader }  = [];
+	$farm_st->{ replaceresponseheader } = [];
+
+	my $farm_filename = &getFarmFile( $farmname );
+	open my $fileconf, '<', "$configdir/$farm_filename";
+
+	my $add_req_head_index  = 0;
+	my $rem_req_head_index  = 0;
+	my $add_resp_head_index = 0;
+	my $rem_resp_head_index = 0;
+	my $rep_req_head_index  = 0;
+	my $rep_res_head_index  = 0;
+	foreach my $line ( <$fileconf> )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		elsif ( $line =~ /^[#\s]*AddHeader\s+"(.+)"/ )
+		{
+			push @{ $farm_st->{ addheader } },
+			  {
+				"id"     => $add_req_head_index++,
+				"header" => $1
+			  };
+		}
+		elsif ( $line =~ /^[#\s]*HeadRemove\s+"(.+)"/ )
+		{
+			push @{ $farm_st->{ headremove } },
+			  {
+				"id"      => $rem_req_head_index++,
+				"pattern" => $1
+			  };
+		}
+		elsif ( $line =~ /^[#\s]*AddResponseHeader\s+"(.+)"/ )
+		{
+			push @{ $farm_st->{ addresponseheader } },
+			  {
+				"id"     => $add_resp_head_index++,
+				"header" => $1
+			  };
+		}
+		elsif ( $line =~ /^[#\s]*RemoveResponseHead\s+"(.+)"/ )
+		{
+			push @{ $farm_st->{ removeresponseheader } },
+			  {
+				"id"      => $rem_resp_head_index++,
+				"pattern" => $1
+			  };
+		}
+		elsif (    $proxy_ng eq 'true'
+				&& $line =~ /^[#\s]*ReplaceHeader\s+(.+)\s+"(.+)"\s+"(.+)"\s+"(.*)"/ )
+		{
+			#( my $type, my $header, my $match, my $replace ) = split ( /\s+/, $1 );
+			push @{ $farm_st->{ replacerequestheader } },
+			  {
+				"id"      => $rep_req_head_index++,
+				"header"  => $2,
+				"match"   => $3,
+				"replace" => $4
+			  }
+			  if $1 eq "Request";
+			push @{ $farm_st->{ replaceresponseheader } },
+			  {
+				"id"      => $rep_res_head_index++,
+				"header"  => $2,
+				"match"   => $3,
+				"replace" => $4
+			  }
+			  if $1 eq "Response";
+		}
+		elsif ( $line =~ /Ignore100Continue (\d).*/ )
+		{
+			$farm_st->{ ignore_100_continue } = ( $1 eq '0' ) ? 'false' : 'true';
+		}
+		elsif ( $line =~ /LogLevel\s+(\d).*/ )
+		{
+			my $lvl = $1 + 0;
+			if ( $proxy_ng eq 'true' )
+			{
+				$farm_st->{ logs } = 'true' if ( $lvl >= 6 );
+			}
+			else
+			{
+				$farm_st->{ logs } = 'true' if ( $lvl >= 5 );
+			}
+		}
+
+	}
+	close $fileconf;
+
+	if ( $proxy_ng ne 'true' )
+	{
+		delete $farm_st->{ replacerequestheader };
+		delete $farm_st->{ replaceresponseheader };
+	}
+
+	return $farm_st;
+}
+
+=begin nd
+Function: moveHeader
+
+	Changes the position of a farm header directive.
+
+Parameters:
+	farmname - Farm name
+	regex    - Regex to match the directive
+	pos      - It is the required position for the rule.
+	index    - It is index of the rule in the set
+
+Returns:
+	
+
+=cut
+
+sub moveHeader
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my $farm_name = shift;
+	my $regex     = shift;
+	my $pos       = shift;
+	my $index     = shift;
+
+	require Zevenet::Arrays;
+
+	my $err = 0;
+
+	my $farm_filename = &getFarmFile( $farm_name );
+	require Tie::File;
+	tie my @file, 'Tie::File', "$configdir/$farm_filename";
+
+	my $file_index   = 0;
+	my $header_index = 0;
+	my @headers      = ();
+	foreach my $l ( @file )
+	{
+		if ( $l =~ /^[#\s]*Service \"/ ) { last; }
+		if ( $l =~ /^$regex/ )
+		{
+			$header_index = $file_index unless ( $header_index != 0 );
+			push @headers, $l;
+		}
+		$file_index++;
+	}
+
+	&moveByIndex( \@headers, $index, $pos );
+
+	my $size = scalar @headers;
+
+	splice ( @file, $header_index, $size, @headers );
+
+	untie @file;
+
+	return $err;
+}
+
+=begin nd
+Function: getHTTPFarmLogs
+
+	Return the log connection tracking status
+
+Parameters:
+	farmname - Farm name
+	ng_proxy - It is used to set the log parameter depending on the zproxy or pound. It is termporary, it should disappear when pound will be removed from Zevenet
+
+Returns:
+	scalar - The possible values are: 0 on disabled, possitive value on enabled or -1 on failure
+
+=cut
+
+sub getHTTPFarmLogs    # ($farm_name)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my $farm_name = shift;
+	my $proxy_ng = shift // &getGlobalConfiguration( 'proxy_ng' );
+
+	my $output = 'false';
+
+	my $farm_filename = &getFarmFile( $farm_name );
+	open my $fileconf, '<', "$configdir/$farm_filename";
+
+	foreach my $line ( <$fileconf> )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		elsif ( $line =~ /LogLevel\s+(\d).*/ )
+		{
+			my $lvl = $1 + 0;
+			if ( $proxy_ng eq 'true' )
+			{
+				$output = 'true' if ( $lvl >= 6 );
+			}
+			else
+			{
+				$output = 'true' if ( $lvl >= 5 );
+			}
+			last;
+		}
+	}
+
+	return $output;
+}
+
+=begin nd
+Function: migrateHTTPFarmLogs
+
+	This function is temporary. It is used while zproxy and pound are available in zevenet.
+	This should disappear when pound will be removed
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	scalar - The possible values are: 0 on disabled, possitive value on enabled or -1 on failure
+
+=cut
+
+sub migrateHTTPFarmLogs
+{
+	my ( $farm_name, $proxy_mode ) = @_;
+
+	# invert the log
+	my $read_log = ( $proxy_mode eq 'true' ) ? 'false' : 'true';
+	my $log = &getHTTPFarmLogs( $farm_name, $read_log );
+	&setHTTPFarmLogs( $farm_name, $log, $proxy_mode );
+}
+
+=begin nd
+Function: setHTTPFarmLogs
+
+	Enable or disable the log connection tracking for a http farm
+
+Parameters:
+	farmname - Farm name
+	action - The available actions are: "true" to enable or "false" to disable
+	ng_proxy - It is used to set the log parameter depending on the zproxy or pound. It is termporary, it should disappear when pound will be removed from Zevenet
+
+Returns:
+	scalar - The possible values are: 0 on success or -1 on failure
+
+=cut
+
+sub setHTTPFarmLogs    # ($farm_name, $action)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $farm_name = shift;
+	my $action    = shift;
+	my $proxy_ng  = shift // &getGlobalConfiguration( 'proxy_ng' );
+
+	my $farm_filename = &getFarmFile( $farm_name );
+	my $output        = -1;
+
+	my $loglvl;
+	if ( $proxy_ng eq 'true' )
+	{
+		$loglvl = ( $action eq "true" ) ? 6 : 5;
+	}
+	else
+	{
+		$loglvl = ( $action eq "true" ) ? 5 : 0;
+	}
+
+	require Tie::File;
+	tie my @file, 'Tie::File', "$configdir/$farm_filename";
+
+	# check if 100 continue directive exists
+	if ( !grep ( s/^LogLevel\s+(\d).*$/LogLevel\t$loglvl/, @file ) )
+	{
+		&zenlog( "Error modifying http logs", "error", "HTTP" );
+	}
+	else
+	{
+		$output = 0;
+	}
+	untie @file;
+
+	return $output;
+}
+
+=begin nd
+Function: getHTTPFarm100Continue
+
+	Return 100 continue Header configuration HTTP and HTTPS farms
+
+Parameters:
+	farmname - Farm name
+
+Returns:
+	scalar - The possible values are: 0 on disabled, 1 on enabled
+
+=cut
+
+sub getHTTPFarm100Continue    # ($farm_name)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $farm_name = shift;
+
+	my $output = 'true';
+
+	my $farm_filename = &getFarmFile( $farm_name );
+	open my $fileconf, '<', "$configdir/$farm_filename";
+
+	foreach my $line ( <$fileconf> )
+	{
+		if ( $line =~ /^[#\s]*Service \"/ ) { last; }
+		elsif ( $line =~ /Ignore100Continue (\d).*/ )
+		{
+			$output = ( $1 eq '0' ) ? 'false' : 'true';
+			last;
+		}
+	}
+
+	return $output;
+}
+
+=begin nd
+Function: setHTTPFarm100Continue
+
+	Enable or disable the HTTP 100 continue header
+
+Parameters:
+	farmname - Farm name
+	action - The available actions are: 1 to enable or 0 to disable
+
+Returns:
+	scalar - The possible values are: 0 on success or -1 on failure
+
+=cut
+
+sub setHTTPFarm100Continue    # ($farm_name, $action)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $action ) = @_;
+
+	my $farm_filename = &getFarmFile( $farm_name );
+	my $output        = -1;
+
+	require Tie::File;
+	tie my @file, 'Tie::File', "$configdir/$farm_filename";
+
+	# check if 100 continue directive exists
+	if ( !grep ( s/^Ignore100Continue\ .*/Ignore100Continue $action/, @file ) )
+	{
+		foreach my $line ( @file )
+		{
+			# put ignore below than rewritelocation
+			if ( $line =~ /^Control\s/ )
+			{
+				$line = "$line\nIgnore100Continue $action";
+				last;
+			}
+		}
+	}
+	$output = 0;
+	untie @file;
+
+	return $output;
+}
+
+1;

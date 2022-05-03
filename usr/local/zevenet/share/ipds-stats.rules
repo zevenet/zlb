@@ -1,0 +1,11 @@
+type=Single
+ptype=RegExp
+pattern	=^\w+\s+\d+\s+\d+:\d+:\d+\s+[\w-]+\s+zproxy: \[f:([\w-]+)\]\[th:([\w-]+)\] \[st:\d+]\[svc:([\w-]+)\]\[bk:(?:((\d+\.\d+\.\d+\.\d+)(:\d+)?)|-)\]\[client (\d+\.\d+\.\d+\.\d+)(:\d+)?\] (?!ModSecurity: Warning\.)
+desc=IPDSStatsCollector
+action=eval %logipds ( sub { my $log = qq($0); $log =~ s/`/'/g; $log =~ s/'/\\'/g; $log =~ s/\"/\\\"/g; return $log; } ); call %logparsed %logipds; shellcmd /usr/local/zevenet/bin/ipdsStatsCollector "%logparsed"
+
+type=Single
+ptype=RegExp
+pattern	=^\w+\s+\d+\s+\d+:\d+:\d+\s+[\w-]+\s+(?:kernel|packetbl|zproxy|pound).+ (?:\[BL,|\[DOS,|\[WAF,|\[WAF\] (?!ModSecurity: Warning\.)|\[(?:Found in cache|(?:(?:reject|accept) (?:dnsbl|blacklist|whitelist))) )
+desc=IPDSStatsCollector
+action=eval %logipds ( sub { my $log = qq($0); $log =~ s/`/'/g; $log =~ s/'/\\'/g; $log =~ s/\"/\\\"/g; return $log; } ); call %logparsed %logipds; shellcmd /usr/local/zevenet/bin/ipdsStatsCollector "%logparsed"

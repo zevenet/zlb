@@ -1,0 +1,22 @@
+{
+	"method": "POST",
+	"url": "/aliases/<backends|interfaces>",
+	"action": "create",
+	"description": "The backend or interfaces kind of object which will receive the alias.",
+	"params": {
+		"alias": {
+			"description": "",
+			"regex": "$alias_name",
+			"non_blank": "true",
+			"required": "true",
+			"exceptions": [
+				"0"
+			]
+		},
+		"id": {
+			"regex": "$alias_id_re",
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

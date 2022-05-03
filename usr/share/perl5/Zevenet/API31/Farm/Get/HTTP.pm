@@ -41,12 +41,8 @@ sub get_farm_struct
 	my $timeout         = 0 + &getHTTPFarmTimeout( $farmname );
 	my $alive           = 0 + &getHTTPFarmBlacklistTime( $farmname );
 	my $client          = 0 + &getFarmClientTimeout( $farmname );
-	my $rewritelocation = 0 + &getFarmRewriteL( $farmname );
+	my $rewritelocation = &getFarmRewriteL( $farmname );
 	my $httpverb        = 0 + &getFarmHttpVerb( $farmname );
-
-	if    ( $rewritelocation == 0 ) { $rewritelocation = "disabled"; }
-	elsif ( $rewritelocation == 1 ) { $rewritelocation = "enabled"; }
-	elsif ( $rewritelocation == 2 ) { $rewritelocation = "enabled-backends"; }
 
 	if    ( $httpverb == 0 ) { $httpverb = "standardHTTP"; }
 	elsif ( $httpverb == 1 ) { $httpverb = "extendedHTTP"; }
@@ -176,6 +172,10 @@ sub farms_name_http    # ( $farmname )
 	my $farm_st = &get_farm_struct( $farmname );
 	my @out_s;
 
+	delete $farm_st->{ replacerequestheader };
+	delete $farm_st->{ replaceresponseheader };
+	delete $farm_st->{ errorWAF };
+
 	# Services
 	my @serv = &getHTTPFarmServices( $farmname );
 
@@ -183,10 +183,23 @@ sub farms_name_http    # ( $farmname )
 	{
 		my $serviceStruct = &getZapiHTTPServiceStruct( $farmname, $s );
 
+		delete $serviceStruct->{ addrequestheader };
+		delete $serviceStruct->{ addresponseheader };
+		delete $serviceStruct->{ removerequestheader };
+		delete $serviceStruct->{ removeresponseheader };
+		delete $serviceStruct->{ replacerequestheader };
+		delete $serviceStruct->{ replaceresponseheader };
+		delete $serviceStruct->{ rewriteurl };
+		delete $serviceStruct->{ rewritelocation };
+		delete $serviceStruct->{ pinnedconnection };
+		delete $serviceStruct->{ routingpolicy };
+
 		# Remove backend status 'undefined', it is for news api versions
 		foreach my $be ( @{ $serviceStruct->{ 'backends' } } )
 		{
 			$be->{ 'status' } = 'up' if ( $be->{ 'status' } eq 'undefined' );
+			delete $be->{ tag };
+			delete $be->{ connection_limit };
 		}
 		push @out_s, $serviceStruct;
 	}
@@ -197,11 +210,19 @@ sub farms_name_http    # ( $farmname )
 				 services    => \@out_s,
 	};
 
-	$body->{ ipds } = &eload(
-							  module => 'Zevenet::IPDS::Core',
-							  func   => 'getIPDSfarmsRules',
-							  args   => [$farmname],
-	) if ( $eload );
+	if ( $eload )
+	{
+
+		$body->{ ipds } = &eload(
+								  module => 'Zevenet::IPDS::Core',
+								  func   => 'getIPDSfarmsRules',
+								  args   => [$farmname],
+		);
+		for my $blacklist ( @{ $body->{ ipds }->{ blacklists } } )
+		{
+			delete $blacklist->{ id };
+		}
+	}
 
 	&httpResponse( { code => 200, body => $body } );
 }
@@ -232,11 +253,18 @@ sub farms_name_http_summary
 				 services    => \@out_s,
 	};
 
-	$body->{ ipds } = &eload(
-							  module => 'Zevenet::IPDS::Core',
-							  func   => 'getIPDSfarmsRules',
-							  args   => [$farmname],
-	) if ( $eload );
+	if ( $eload )
+	{
+		$body->{ ipds } = &eload(
+								  module => 'Zevenet::IPDS::Core',
+								  func   => 'getIPDSfarmsRules',
+								  args   => [$farmname],
+		);
+		for my $blacklist ( @{ $body->{ ipds }->{ blacklists } } )
+		{
+			delete $blacklist->{ id };
+		}
+	}
 
 	&httpResponse( { code => 200, body => $body } );
 }

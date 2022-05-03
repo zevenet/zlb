@@ -144,10 +144,19 @@ sub listL4FarmSessions
 	return [] if ( $err or !defined $nftlb_resp );
 
 	my $client_id = 0;
+	my $backend_info;
+	foreach my $bck ( @{ $farm->{ servers } } )
+	{
+		$backend_info->{ $bck->{ id } }->{ ip }   = $bck->{ ip };
+		$backend_info->{ $bck->{ id } }->{ port } = $bck->{ port };
+	}
+
 	foreach my $s ( @{ $nftlb_resp->{ sessions } } )
 	{
-		$it = &parseL4FarmSessions( $s );
-		$it->{ client } = $client_id++;
+		$it                   = &parseL4FarmSessions( $s );
+		$it->{ client }       = $client_id++;
+		$it->{ backend_ip }   = $backend_info->{ $it->{ id } }->{ ip };
+		$it->{ backend_port } = $backend_info->{ $it->{ id } }->{ port };
 		push @sessions, $it;
 	}
 

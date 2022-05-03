@@ -1,0 +1,13 @@
+{
+	"description": "It modifies the cluster alerts.",
+	"method": "POST",
+	"url": "/system/notifications/alerts/cluster",
+	"action": "set",
+	"params": {
+		"prefix": {
+			"description": "It is a prefix for the email subject, that are sent by the system for this kind of alert.",
+			"regex": "$word_prefix",
+			"depend_on": "alert==cluster || alert==backends"
+		}
+	}
+}

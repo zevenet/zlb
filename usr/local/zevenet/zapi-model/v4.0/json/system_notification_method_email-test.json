@@ -1,0 +1,16 @@
+{
+   "action" : "test",
+   "description" : "Send a test mail with the email configuration, to test it.",
+   "method" : "POST",
+   "params" : {
+      "action" : {
+         "description" : "The value to send a test mail is test.",
+         "non_blank" : "true",
+         "required" : "true",
+         "values" : [
+            "test"
+         ]
+      }
+   },
+   "url" : "/system/notifications/methods/email/actions"
+}

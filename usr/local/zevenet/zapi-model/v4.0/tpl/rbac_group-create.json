@@ -1,0 +1,13 @@
+{
+	"method": "POST",
+	"url": "/rbac/groups",
+	"action": "set",
+	"description": "Create a new group where users, resources and roles are related.",
+	"params": {
+		"name": {
+			"regex": "$group_name",
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

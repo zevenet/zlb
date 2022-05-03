@@ -376,5 +376,53 @@ sub applyFactoryReset
 	return $err;
 }
 
+=begin nd
+Function: checkPidRunning
+
+	Check if Pid is running on the system.
+
+Parameters:
+	pid - pid to check.
+
+Returns:
+	scalar - 0 if success, otherwise an error.
+
+=cut
+
+sub checkPidRunning    #( $pid )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $pid = shift;
+	my $ret = 1;
+	$ret = 0 if ( -e "/proc/" . $pid );
+	return $ret;
+}
+
+=begin nd
+Function: checkPidFileRunning
+
+	Check if PidFile contains a Pid is running on the system.
+
+Parameters:
+	pid_file - pid file to check.
+
+Returns:
+	scalar - 0 if success, otherwise an error.
+
+=cut
+
+sub checkPidFileRunning    #( $pid_file )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $pid_file = shift;
+	open my $fileh, $pid_file;
+	my $pid = <$fileh>;
+	chomp $pid;
+	close $fileh;
+	return &checkPidRunning( $pid );
+}
+
 1;
 

@@ -1,0 +1,14 @@
+{
+   "action" : "This call is to change the position of a WAF set inside a farm configuration. The order in which the sets appear is the same in they are executed.",
+   "description" : "move",
+   "method" : "POST",
+   "params" : {
+      "position" : {
+         "description" : "It is the position to put the WAF ruleset.",
+         "non_blank" : "true",
+         "regex" : "(?^:\\d+)",
+         "required" : "true"
+      }
+   },
+   "url" : "/farms/<farm>/ipds/waf/<name>/actions"
+}

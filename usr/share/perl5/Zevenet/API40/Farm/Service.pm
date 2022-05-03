@@ -45,14 +45,14 @@ sub new_farm_service    # ( $json_obj, $farmname )
 	# Check if the farm exists
 	if ( !&getFarmExists( $farmname ) )
 	{
-		my $msg = "The farmname $farmname does not exists.";
+		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
 	# check if the service exists
 	if ( grep ( /^$json_obj->{id}$/, &getFarmServices( $farmname ) ) )
 	{
-		my $msg = "Error, the service $json_obj->{id} already exists.";
+		my $msg = "Error, the service $json_obj->{id} already exist.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -69,16 +69,11 @@ sub new_farm_service    # ( $json_obj, $farmname )
 	}
 	elsif ( $type !~ /^https?$/ )
 	{
-		my $msg = "The farm profile $type does not support services.";
+		my $msg = "The farm profile $type does not support services actions.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	my $params = {
-				   "id" => {
-							 'valid_format' => 'http_service',
-							 'non_blank'    => 'true',
-				   },
-	};
+	my $params = &getZAPIModel( "farm_http_service-create.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -121,8 +116,10 @@ sub new_farm_service    # ( $json_obj, $farmname )
 	);
 
 	my $body = {
-				 description => $desc,
-				 params      => { id => $json_obj->{ id } },
+		   description => $desc,
+		   params      => { id => $json_obj->{ id } },
+		   message =>
+			 "A new service has been created in farm $farmname with id $json_obj->{id}."
 	};
 
 	if ( &getFarmStatus( $farmname ) ne 'down' )
@@ -135,12 +132,21 @@ sub new_farm_service    # ( $json_obj, $farmname )
 		}
 		else
 		{
-			&runFarmReload( $farmname );
-			&eload(
-					module => 'Zevenet::Cluster',
-					func   => 'runZClusterRemoteManager',
-					args   => ['farm', 'reload', $farmname],
-			) if ( $eload );
+			require Zevenet::Farm::HTTP::Config;
+			my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
+			if ( $config_error ne "" )
+			{
+				$body->{ warning } = "Farm '$farmname' config error: $config_error";
+			}
+			else
+			{
+				&runFarmReload( $farmname );
+				&eload(
+						module => 'Zevenet::Cluster',
+						func   => 'runZClusterRemoteManager',
+						args   => ['farm', 'reload', $farmname],
+				) if ( $eload );
+			}
 		}
 	}
 
@@ -190,6 +196,26 @@ sub farm_services
 	# no error found, return successful response
 	my $service = &getHTTPServiceStruct( $farmname, $servicename );
 
+#Fix Me: getHTTPServiceStruct should not return these parameters if 'proxy_ng' ne 'true' .
+	if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+	{
+		delete ( $service->{ replacerequestheader } );
+		delete ( $service->{ replaceresponseheader } );
+		delete ( $service->{ rewritelocation } );
+		delete ( $service->{ rewriteurl } );
+		delete ( $service->{ addrequestheader } );
+		delete ( $service->{ addresponseheader } );
+		delete ( $service->{ removerequestheader } );
+		delete ( $service->{ removeresponseheader } );
+		delete ( $service->{ pinnedconnection } );
+		delete ( $service->{ routingpolicy } );
+	}
+	else
+	{
+		require Zevenet::Farm::HTTP::Sessions;
+		$service->{ sessions } = &listL7FarmSessions( $farmname, $servicename );
+	}
+
 	my $body = {
 				 description => $desc,
 				 params      => $service,
@@ -226,7 +252,7 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 
 	unless ( $type eq 'gslb' || $type eq 'http' || $type eq 'https' )
 	{
-		my $msg = "The $type farm profile does not support services.";
+		my $msg = "The $type farm profile does not support services settings.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -250,48 +276,7 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 		);
 	}
 
-	my $params = {
-		"vhost"    => {},
-		"urlp"     => {},
-		"redirect" => {
-						'non_blank' => 'false',    # it is allowed the string ''
-		},
-		"redirecttype" => {
-							'values' => ['default', 'append'],
-		},
-		"leastresp" => {
-						 'valid_format' => 'boolean',
-						 'non_blank'    => 'true',
-		},
-		"persistence" => {
-			'values' => ["IP", "BASIC", "NONE", "URL", "PARM", "COOKIE", "HEADER"],
-			'non_blank' => 'false',    # it is allowed '' and it is equal to 'NONE'
-		},
-		"sessionid" => {},
-		"ttl"       => {
-				   'non_blank'    => 'true',
-				   'valid_format' => 'natural_num',
-		},
-		"httpsb" => {
-					  'non_blank'    => 'true',
-					  'valid_format' => 'boolean',
-		},
-	};
-
-	if ( $eload )
-	{
-		$params->{ redirect_code } = { 'values'       => [301, 302, 307], };
-		$params->{ sts_timeout }   = { 'valid_format' => 'http_sts_timeout', };
-		$params->{ sts_status }    = { 'values'       => ['true', 'false'], };
-		$params->{ cookieinsert }  = { 'values'       => ['true', 'false'], };
-		$params->{ cookiettl } = {
-								   'valid_format' => 'integer',
-								   'non_blank'    => 'true',
-		};
-		$params->{ cookiename }   = {};
-		$params->{ cookiedomain } = {};
-		$params->{ cookiepath }   = {};
-	}
+	my $params = &getZAPIModel( "farm_http_service-modify.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -358,6 +343,12 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 
 	if ( exists $json_obj->{ persistence } )
 	{
+		my $old_persistence;
+		if ( $eload )
+		{
+			require Zevenet::Farm::Config;
+			$old_persistence = &getPersistence( $farmname );
+		}
 		my $session = $json_obj->{ persistence };
 		$session = 'nothing' if $session eq "";
 
@@ -366,6 +357,26 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 		{
 			my $msg = "It's not possible to change the persistence parameter.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+		if ( $eload )
+		{
+			my $new_persistence = &getPersistence( $farmname );
+			if ( ( $new_persistence == 1 ) and ( $old_persistence == 0 ) )
+			{
+				&eload(
+						module => 'Zevenet::Ssyncd',
+						func   => 'setSsyncdFarmDown',
+						args   => [$farmname],
+				);
+			}
+			elsif ( ( $new_persistence == 0 ) and ( $old_persistence == 1 ) )
+			{
+				&eload(
+						module => 'Zevenet::Ssyncd',
+						func   => 'setSsyncdFarmUp',
+						args   => [$farmname],
+				);
+			}
 		}
 	}
 
@@ -458,6 +469,48 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 		}
 	}
 
+	if ( exists $json_obj->{ pinnedconnection } )
+	{
+		if ( &getGlobalConfiguration( 'proxy_ng' ) eq 'true' )
+		{
+			my $error = &setFarmVS( $farmname, $service, "pinnedConnection",
+									"$json_obj->{pinnedconnection}" );
+			if ( $error )
+			{
+				my $msg = "Could not change the pinned connection parameter.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
+	}
+
+	if ( exists $json_obj->{ routingpolicy } )
+	{
+		if ( &getGlobalConfiguration( 'proxy_ng' ) eq 'true' )
+		{
+			my $error = &setFarmVS( $farmname, $service, "routingPolicy",
+									"$json_obj->{routingpolicy}" );
+			if ( $error )
+			{
+				my $msg = "Could not change the routing policy parameter.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
+	}
+
+	if ( exists $json_obj->{ rewritelocation } )
+	{
+		if ( &getGlobalConfiguration( 'proxy_ng' ) eq 'true' )
+		{
+			my $error = &setFarmVS( $farmname, $service, "rewriteLocation",
+									"$json_obj->{rewritelocation}" );
+			if ( $error )
+			{
+				my $msg = "Could not change the rewrite location parameter.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
+	}
+
 	if ( $eload )
 	{
 		# sts options
@@ -510,6 +563,18 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	require Zevenet::API40::Farm::Get::HTTP;
 	$output_params = &get_http_service_struct( $farmname, $service );
 
+	if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+	{
+		delete ( $output_params->{ replaceRequestHeader } );
+		delete ( $output_params->{ replaceResponseHeader } );
+		delete ( $output_params->{ rewriteLocation } );
+		delete ( $output_params->{ rewriteUrl } );
+		delete ( $output_params->{ addRequestHeader } );
+		delete ( $output_params->{ addResponseHeader } );
+		delete ( $output_params->{ removeRequestHeader } );
+		delete ( $output_params->{ removeResponseHeader } );
+	}
+
 	&zenlog(
 		"Success, some parameters have been changed in service $service in farm $farmname.",
 		"info", "FARMS"
@@ -520,7 +585,8 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 				 params      => $output_params,
 	};
 
-	$body->{ message } = $bk_msg if ( $bk_msg );
+	$body->{ message } =
+	  $bk_msg ? $bk_msg : "The service $service has been updated successfully.";
 
 	if ( &getFarmStatus( $farmname ) ne 'down' )
 	{
@@ -532,12 +598,21 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 		}
 		else
 		{
-			&runFarmReload( $farmname );
-			&eload(
-					module => 'Zevenet::Cluster',
-					func   => 'runZClusterRemoteManager',
-					args   => ['farm', 'reload', $farmname],
-			) if ( $eload );
+			require Zevenet::Farm::HTTP::Config;
+			my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
+			if ( $config_error ne "" )
+			{
+				$body->{ warning } = "Farm '$farmname' config error: $config_error";
+			}
+			else
+			{
+				&runFarmReload( $farmname );
+				&eload(
+						module => 'Zevenet::Cluster',
+						func   => 'runZClusterRemoteManager',
+						args   => ['farm', 'reload', $farmname],
+				) if ( $eload );
+			}
 		}
 	}
 
@@ -558,7 +633,7 @@ sub delete_service    # ( $farmname, $service )
 	# Check if the farm exists
 	if ( !&getFarmExists( $farmname ) )
 	{
-		my $msg = "The farmname $farmname does not exists.";
+		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
@@ -575,7 +650,7 @@ sub delete_service    # ( $farmname, $service )
 	}
 	elsif ( $type !~ /^https?$/ )
 	{
-		my $msg = "The farm profile $type does not support services.";
+		my $msg = "The farm profile $type does not support services actions.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -639,12 +714,21 @@ sub delete_service    # ( $farmname, $service )
 		}
 		else
 		{
-			&runFarmReload( $farmname );
-			&eload(
-					module => 'Zevenet::Cluster',
-					func   => 'runZClusterRemoteManager',
-					args   => ['farm', 'reload', $farmname],
-			) if ( $eload );
+			require Zevenet::Farm::HTTP::Config;
+			my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
+			if ( $config_error ne "" )
+			{
+				$body->{ warning } = "Farm '$farmname' config error: $config_error";
+			}
+			else
+			{
+				&runFarmReload( $farmname );
+				&eload(
+						module => 'Zevenet::Cluster',
+						func   => 'runZClusterRemoteManager',
+						args   => ['farm', 'reload', $farmname],
+				) if ( $eload );
+			}
 		}
 	}
 

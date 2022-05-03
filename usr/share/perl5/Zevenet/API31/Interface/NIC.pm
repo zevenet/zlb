@@ -391,7 +391,7 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 	{
 		require Zevenet::Net::Validate;
 		unless (
-			 &getNetValidate( $new_if->{ addr }, $new_if->{ mask }, $new_if->{ gateway } ) )
+			&validateGateway( $new_if->{ addr }, $new_if->{ mask }, $new_if->{ gateway } ) )
 		{
 			my $msg = "The gateway is not valid for the network.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -445,6 +445,8 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 		# Writing new parameters in configuration file
 		&writeRoutes( $if_ref->{ name } );
 
+		&setInterfaceConfig( $if_ref ) or die;
+
 		# Put the interface up
 		my $previous_status = $if_ref->{ status };
 		if ( $previous_status eq "up" )
@@ -459,8 +461,6 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 				$if_ref->{ status } = $previous_status;
 			}
 		}
-
-		&setInterfaceConfig( $if_ref ) or die;
 
 		# if the GW is changed, change it in all appending virtual interfaces
 		if ( exists $json_obj->{ gateway } )

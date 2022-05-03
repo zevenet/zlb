@@ -48,13 +48,7 @@ sub set_ntp
 
 	my $desc = "Post ntp";
 
-	my $params = {
-				   "server" => {
-								 'valid_format' => 'ntp',
-								 'non_blank'    => 'true',
-								 'required'     => 'true',
-				   },
-	};
+	my $params = &getZAPIModel( "system_ntp-modify.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -71,7 +65,15 @@ sub set_ntp
 
 	my $ntp = &getGlobalConfiguration( 'ntp' );
 	&httpResponse(
-				   { code => 200, body => { description => $desc, params => $ntp } } );
+				   {
+					 code => 200,
+					 body => {
+							   description => $desc,
+							   params      => $ntp,
+							   message     => "The NTP service has been updated successfully."
+					 }
+				   }
+	);
 }
 
 1;

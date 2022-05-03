@@ -32,6 +32,84 @@ if ( eval { require Zevenet::ELoad; } )
 }
 
 =begin nd
+Function: getFarmServerIds
+
+	It returns a list with the backend servers for a farm and service.
+	The backends are read from the config file.
+	This function is to not use the getFarmservers that does stats checks.
+
+Parameters:
+	farmname - Farm name
+	service - service backends related (optional)
+
+Returns:
+	array ref - list of backends IDs
+
+=cut
+
+sub getFarmServerIds
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $service ) = @_;
+	my @servers   = ();
+	my $farm_type = &getFarmType( $farm_name );
+
+	if ( $farm_type =~ /http/ )
+	{
+		require Zevenet::Farm::HTTP::Service;
+		my $backendsvs = &getHTTPFarmVS( $farm_name, $service, "backends" );
+		@servers = split ( "\n", $backendsvs );
+		@servers = 0 .. $#servers if ( @servers );
+	}
+	elsif ( $farm_type eq "l4xnat" )
+	{
+		require Zevenet::Farm::L4xNAT::Backend;
+		@servers = @{ &getL4FarmServers( $farm_name ) };
+		@servers = 0 .. $#servers if ( @servers );
+	}
+	elsif ( $farm_type eq "datalink" )
+	{
+		my $configdir     = &getGlobalConfiguration( 'configdir' );
+		my $farm_filename = &getFarmFile( $farm_name );
+		open my $fh, '<', "$configdir/$farm_filename";
+		{
+			foreach my $line ( <$fh> )
+			{
+				push @servers, $line if ( $line =~ /^;server;/ );
+			}
+		}
+		close $fh;
+		@servers = 0 .. $#servers if ( @servers );
+	}
+	elsif ( $farm_type eq "gslb" && $eload )
+	{
+		my $backendsvs = &eload(
+								 module => 'Zevenet::Farm::GSLB::Service',
+								 func   => 'getGSLBFarmVS',
+								 args   => [$farm_name, $service, "backends"],
+		);
+		my @be = split ( "\n", $backendsvs );
+		my $id;
+		foreach my $b ( @be )
+		{
+			$b =~ s/^\s+//;
+			next if ( $b =~ /^$/ );
+
+			# ID and IP
+			my @subbe = split ( " => ", $b );
+			$id = $subbe[0];
+			$id =~ s/^primary$/1/;
+			$id =~ s/^secondary$/2/;
+			$id + 0;
+			push @servers, $id;
+		}
+	}
+
+	return \@servers;
+}
+
+=begin nd
 Function: getFarmServers
 
 	List all farm backends and theirs configuration
@@ -95,7 +173,7 @@ Parameters:
 	id - Backend ID to retrieve
 
 Returns:
-	hash ref - bachend hash reference or undef if not exists
+	hash ref - bachend hash reference or undef if there aren't backends
 
 =cut
 
@@ -163,21 +241,26 @@ sub setFarmServer    # $output ($farm_name,$service,$bk_id,$bk_params)
 		$output =
 		  &setL4FarmServer( $farm_name, $ids,
 							$bk->{ ip },
-							$bk->{ port } // "",
-							$bk->{ weight },
-							$bk->{ priority },
-							$bk->{ max_conns } // "" );
+							$bk->{ port }      // "",
+							$bk->{ weight }    // 1,
+							$bk->{ priority }  // 1,
+							$bk->{ max_conns } // 0 );
 	}
 	elsif ( $farm_type eq "http" || $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Backend;
 		$output =
-		  &setHTTPFarmServer( $ids,
+		  &setHTTPFarmServer(
+							  $ids,
 							  $bk->{ ip },
 							  $bk->{ port },
 							  $bk->{ weight },
 							  $bk->{ timeout },
-							  $farm_name, $service, $bk->{ priority } );
+							  $farm_name,
+							  $service,
+							  $bk->{ priority },
+							  $bk->{ connection_limit }
+		  );
 	}
 
 	# FIXME: include setGSLBFarmNewBackend
@@ -271,6 +354,54 @@ sub getFarmBackendAvailableID
 	}
 
 	return $nbackends;
+}
+
+=begin nd
+Function: setBackendRule
+
+	Add or delete the route rule according to the backend mark.
+
+Parameters:
+	action - "add" to create the mark or "del" to remove it.
+	farm_ref - farm reference.
+	mark - backend mark to apply in the rule.
+	farm_type - type of farm (l4xnat, http, https).
+
+Returns:
+	integer - 0 if successful, otherwise error.
+
+=cut
+
+sub setBackendRule
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $action    = shift;
+	my $farm_ref  = shift;
+	my $mark      = shift;
+	my $farm_type = shift // getFarmType( $farm_ref->{ name } );
+
+	return -1
+	  if (    $action !~ /add|del/
+		   || !defined $farm_ref
+		   || $mark eq ""
+		   || $mark eq "0x0" );
+
+	require Zevenet::Net::Util;
+	require Zevenet::Net::Route;
+
+	my $vip_if_name = &getInterfaceOfIp( $farm_ref->{ vip } );
+	my $vip_if      = &getInterfaceConfig( $vip_if_name );
+	my $table_if =
+	  ( $vip_if->{ type } eq 'virtual' ) ? $vip_if->{ parent } : $vip_if->{ name };
+
+	my $rule = {
+				 table  => "table_$table_if",
+				 type   => $farm_type,
+				 from   => 'all',
+				 fwmark => "$mark/0x7fffffff",
+	};
+	return &setRule( $action, $rule );
 }
 
 1;

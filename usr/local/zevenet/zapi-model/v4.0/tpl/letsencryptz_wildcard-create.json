@@ -1,0 +1,20 @@
+{
+	"method": "POST",
+	"url": "/certificates/letsencryptz-wildcard",
+	"action": "renew",
+	"description": "Create a new wildcard Letsencrypt certificate.",
+	"params": {
+		"domains": {
+			"required": "true",
+			"ref": "ARRAY"
+		},
+		"test": {
+			"required": "true",
+			"non_blank": "true",
+			"values": [
+				"true",
+				"false"
+			]
+		}
+	}
+}

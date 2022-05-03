@@ -1,0 +1,22 @@
+{
+	"method": "PUT",
+	"url": "/ipds/waf/files/<name>",
+	"action": "create",
+	"description": "Create (or overwrite if already exists) a file that contains useful data to create WAF rules.",
+	"params": {
+		"content": {
+			"description": "It is a string with the content of the file.",
+			"non_blank": "true",
+			"required": "true"
+		},
+		"type": {
+			"description": "The files can be of: data type, if it contains a list of data; o script if the file a LUA script that can be used with the execute parameter of the WAF rules.",
+			"values": [
+				"script",
+				"data"
+			],
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

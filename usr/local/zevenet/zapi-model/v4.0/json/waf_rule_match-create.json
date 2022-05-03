@@ -1,0 +1,30 @@
+{
+   "action" : "add",
+   "description" : "A matching rule extends a WAF action rule, adding match conditions.",
+   "method" : "POST",
+   "params" : {
+      "capture" : {
+         "regex" : "(?^:(?:true|false))"
+      },
+      "multi_match" : {
+         "regex" : "(?^:(?:true|false))"
+      },
+      "not_match" : {
+         "regex" : "(?^:(?:true|false))"
+      },
+      "operating" : {},
+      "operator" : {
+         "dyn_values" : "true",
+         "non_blank" : "true"
+      },
+      "transformations" : {
+         "ref" : "array"
+      },
+      "variables" : {
+         "non_blank" : "true",
+         "ref" : "array",
+         "required" : "true"
+      }
+   },
+   "url" : "/ipds/waf/<name>/rules/<id>/matches"
+}

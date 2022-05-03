@@ -1,0 +1,189 @@
+{
+	"method": "PUT",
+	"url": "/farm/<farmname>",
+	"action": "set",
+	"description": "Modify the configuration of a http farm.",
+	"params": {
+		"newfarmname": {
+			"description": "The ne farm name",
+			"regex": "$farm_name",
+			"depend_on": "status==down",
+			"depend_on_msg": "The farm must be stopped.",
+			"non_blank": "true",
+			"exceptions": [
+				"0"
+			]
+		},
+		"vport": {
+			"description": "Port of the farm, where the virtual service is listening.",
+			"interval": "1,65535",
+			"non_blank": "true"
+		},
+		"vip": {
+			"description": "IP of the farm, where the virtual service is listening, this IP must be configured and up in the system.",
+			"regex": "$ip_addr",
+			"non_blank": "true",
+			"format_msg": "expects an IP"
+		},
+		"contimeout": {
+			"description": "How long the farm is going to wait for a connection to the backend in seconds.",
+			"regex": "$natural_num",
+			"non_blank": "true",
+			"format_msg": "expects a natural number"
+		},
+		"restimeout": {
+			"description": "How long the farm is going to wait for a response from the backends in seconds.",
+			"regex": "$natural_num",
+			"non_blank": "true",
+			"format_msg": "expects a natural number"
+		},
+		"resurrectime": {
+			"description": "This value in seconds is the period to get out a blacklisted backend and checks if it is alive.",
+			"regex": "$natural_num",
+			"non_blank": "true",
+			"format_msg": "expects a natural number"
+		},
+		"reqtimeout": {
+			"description": "How long the farm is going to wait for a client request in seconds.",
+			"regex": "$natural_num",
+			"non_blank": "true",
+			"format_msg": "expects a natural number"
+		},
+		"rewritelocation": {
+			"description": "If it is enabled, the farm is forced to modify the Location: and Content-location: headers in responses to clients with the virtual host. The options are: enabled activated; disabled inactivated; or enabled-backends only the backend address is compared.",
+			"values": [
+				"disabled",
+				"enabled",
+				"enabled-backends",
+				"enabled-path",
+				"enabled-backends-path"
+			],
+			"non_blank": "true"
+		},
+		"httpverb": {
+			"description": "This field indicates the operations that will be permitted to the HTTP client requests. available values are: standardHTTP, accepted HTTP requests GET, POST, HEAD. extendedHTTP, accepted previous HTTP requests plus PUT,DELETE. optionsHTTP (from 4.0.1), add the OPTIONS verb to the previous ones. standardWebDAV, accepted previous HTTP requests plus LOCK, UNLOCK, PROPFIND, PROPPATCH, SEARCH, MKCOL, MOVE, COPY, OPTIONS, TRACE, MKACTIVITY, CHECKOUT, MERGE, REPORT, MSextWebDAV accepted previous HTTP requests plus SUBSCRIBE, UNSUBSCRIBE, NOTIFY, BPROPFIND, BPROPPATCH, POLL, BMOVE, BCOPY, BDELETE, CONNECT, or MSRPCext, accepted previous HTTP requests plus RPC_IN_DATA, RPC_OUT_DATA. Note that those values are case-sensitive.",
+			"values": [
+				"standardHTTP",
+				"extendedHTTP",
+				"standardWebDAV",
+				"MSextWebDAV",
+				"MSRPCext",
+				"optionsHTTP"
+			],
+			"non_blank": "true"
+		},
+		"errorWAF": {
+			"description": "Personalized message error 414.",
+			"edition": "ee"
+		},
+		"error414": {
+			"description": "",
+			"required": "false"
+		},
+		"error500": {
+			"description": "Personalized message error 500.",
+			"required": "false"
+		},
+		"error501": {
+			"description": "Personalized message error 501.",
+			"required": "false"
+		},
+		"error503": {
+			"description": "Personalized message error 503.",
+			"required": "false"
+		},
+		"listener": {
+			"description": "A listener defines how the farm is going to play with the requests from the clients. The options are: http for not secured protocol or https for secured protocol.",
+			"values": [
+				"http",
+				"https"
+			],
+			"non_blank": "true"
+		},
+		"ciphers": {
+			"description": "It is used to build a list of ciphers accepted by SSL connections in order to harden the SSL connection.",
+			"depend_on": "listener==https",
+			"values": [
+				"all",
+				"highsecurity",
+				"customsecurity",
+				"ssloffloading"
+			],
+			"non_blank": "true"
+		},
+		"cipherc": {
+			"description": "This is the allowed customized list of ciphers that will be accepted by the SSL connection, which it’s a string in the same format as in OpenSSL ciphers.",
+			"depend_on": "listener==https, ciphers==customsecurity",
+			"non_blank": "true"
+		},
+		"certname": {
+			"description": "",
+			"depend_on": "listener==https",
+			"regex": "$certificate",
+			"non_blank": "true"
+		},
+		"disable_sslv2": {
+			"description": "Only in https listener. If this field has the value true the connections using an SSL security protocol with version 2 is not allowed; or false if the protocol SSLv2 is allowed.",
+			"depend_on": "listener==https",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		},
+		"disable_sslv3": {
+			"description": "Only in https listener. If this field has the value true the connections using an SSL security protocol with version 3 is not allowed; or false if the protocol SSLv3 is allowed.",
+			"depend_on": "listener==https",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		},
+		"disable_tlsv1": {
+			"description": "Only in https listener. If this field has the value true the connections using TLS security protocol with version 1 is not allowed; or false if the protocol TLSv1 is allowed.",
+			"depend_on": "listener==https",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		},
+		"disable_tlsv1_1": {
+			"description": "Only in https listener. If this field has the value true the connections using TLS security protocol with version 1.1 is not allowed; or false if the protocol TLSv1.1 is allowed.",
+			"depend_on": "listener==https",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		},
+		"disable_tlsv1_2": {
+			"description": "Only in https listener. If this field has the value true the connections using TLS security protocol with version 1.2 is not allowed; or false if the",
+			"depend_on": "listener==https",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		},
+		"logs": {
+			"description": "The farm Logs the trace of the HTTP connections. If this parameter has the value true, the logs are enabled; if it has the value false, logs are disabled.",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true",
+			"edition": "ee"
+		},
+		"ignore_100_continue": {
+			"description": "If this field has the value true the 100 continue HTTP header will be ignored; if the value is false, the 100 continue header will be processed.",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true",
+			"edition": "ee"
+		}
+	}
+}

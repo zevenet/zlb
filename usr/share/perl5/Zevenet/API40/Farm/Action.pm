@@ -42,14 +42,6 @@ sub farm_actions    # ( $json_obj, $farmname )
 
 	my $desc = "Farm actions";
 
-	my $params = {
-				   "action" => {
-								 'values'    => ['stop', 'start', 'restart'],
-								 'non_blank' => 'true',
-								 'required'  => 'true',
-				   },
-	};
-
 	# validate FARM NAME
 	if ( !&getFarmExists( $farmname ) )
 	{
@@ -67,6 +59,8 @@ sub farm_actions    # ( $json_obj, $farmname )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $err_msg );
 		}
 	}
+
+	my $params = &getZAPIModel( "farm-action.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -108,8 +102,16 @@ sub farm_actions    # ( $json_obj, $farmname )
 		my $farm_type = &getFarmType( $farmname );
 		if ( $farm_type ne "datalink" )
 		{
+			my $if_name = &getInterfaceByIp( $ip );
+			my $if_ref  = &getInterfaceConfig( $if_name );
+			if ( &getInterfaceSystemStatus( $if_ref ) ne "up" )
+			{
+				my $msg = "The virtual IP '$ip' is not UP";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+
 			my $port = &getFarmVip( "vipp", $farmname );
-			if ( &checkport( $ip, $port, $farmname ) eq 'true' )
+			if ( !&validatePort( $ip, $port, undef, $farmname ) )
 			{
 				my $msg = "There is another farm using the ip '$ip' and the port '$port'";
 				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -150,8 +152,16 @@ sub farm_actions    # ( $json_obj, $farmname )
 		my $farm_type = &getFarmType( $farmname );
 		if ( $farm_type ne "datalink" )
 		{
+			my $if_name = &getInterfaceByIp( $ip );
+			my $if_ref  = &getInterfaceConfig( $if_name );
+			if ( &getInterfaceSystemStatus( $if_ref ) ne "up" )
+			{
+				my $msg = "The virtual IP '$ip' is not UP";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+
 			my $port = &getFarmVip( "vipp", $farmname );
-			if ( &checkport( $ip, $port, $farmname ) eq 'true' )
+			if ( !&validatePort( $ip, $port, undef, $farmname ) )
 			{
 				my $msg = "There is another farm using the ip '$ip' and the port '$port'";
 				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -168,10 +178,10 @@ sub farm_actions    # ( $json_obj, $farmname )
 		}
 	}
 
-	&zenlog(
-		"Success, the action $json_obj->{ action } has been performed in farm $farmname.",
-		"info", "FARMS"
-	);
+	my $msg =
+	  "The action $json_obj->{ action } has been performed in farm $farmname.";
+
+	&zenlog( "Success, $msg", "info", "FARMS" );
 
 	&eload(
 			module => 'Zevenet::Cluster',
@@ -185,6 +195,7 @@ sub farm_actions    # ( $json_obj, $farmname )
 							 "action" => $json_obj->{ action },
 							 "status" => &getFarmVipStatus( $farmname ),
 				 },
+				 message => $msg
 	};
 
 	&httpResponse( { code => 200, body => $body } );
@@ -208,30 +219,10 @@ sub service_backend_maintenance # ( $json_obj, $farmname, $service, $backend_id 
 
 	my $desc = "Set service backend status";
 
-	my $params = {
-				   "action" => {
-								 'non_blank' => 'true',
-								 'values'    => ["up", "maintenance"],
-				   },
-	};
-
-	if ( $json_obj->{ action } eq 'maintenance' )
-	{
-		$params->{ "mode" } = {
-								'non_blank' => 'true',
-								'values'    => ["drain", "cut"],
-		};
-	}
-
-	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
-	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
-	  if ( $error_msg );
-
 	# validate FARM NAME
 	if ( !&getFarmExists( $farmname ) )
 	{
-		my $msg = "The farmname $farmname does not exists.";
+		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
@@ -271,6 +262,17 @@ sub service_backend_maintenance # ( $json_obj, $farmname, $service, $backend_id 
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
+	my $params = &getZAPIModel( "farm_http_service_backend-maintenance.json" );
+	if ( $json_obj->{ action } ne 'maintenance' )
+	{
+		delete $params->{ "mode" };
+	}
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
+
    # Do not allow to modify the maintenance status if the farm needs to be restarted
 	require Zevenet::Farm::Action;
 	if ( &getFarmRestartStatus( $farmname ) )
@@ -306,6 +308,9 @@ sub service_backend_maintenance # ( $json_obj, $farmname, $service, $backend_id 
 		}
 	}
 
+	my $msg =
+	  "The action $json_obj->{ action } has been performed in farm $farmname.";
+
 	my $body = {
 				 description => $desc,
 				 params      => {
@@ -313,6 +318,7 @@ sub service_backend_maintenance # ( $json_obj, $farmname, $service, $backend_id 
 							 farm   => {
 									   status => &getFarmVipStatus( $farmname ),
 							 },
+							 message => $msg
 				 },
 	};
 
@@ -341,30 +347,10 @@ sub backend_maintenance    # ( $json_obj, $farmname, $backend_id )
 
 	my $desc = "Set backend status";
 
-	my $params = {
-				   "action" => {
-								 'non_blank' => 'true',
-								 'values'    => ["up", "maintenance"],
-				   },
-	};
-
-	if ( $json_obj->{ action } eq 'maintenance' )
-	{
-		$params->{ "mode" } = {
-								'non_blank' => 'true',
-								'values'    => ["drain", "cut"],
-		};
-	}
-
-	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
-	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
-	  if ( $error_msg );
-
 	# validate FARM NAME
 	if ( !&getFarmExists( $farmname ) )
 	{
-		my $msg = "The farmname $farmname does not exists.";
+		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
@@ -386,6 +372,18 @@ sub backend_maintenance    # ( $json_obj, $farmname, $backend_id )
 		my $msg = "Could not find a backend with such id.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
+
+	my $params = &getZAPIModel( "farm_l4xnat_service_backend-maintenance.json" );
+
+	if ( $json_obj->{ action } ne 'maintenance' )
+	{
+		delete $params->{ "mode" };
+	}
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
+	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
+	  if ( $error_msg );
 
 	# validate STATUS
 	if ( $json_obj->{ action } eq "maintenance" )
@@ -412,6 +410,9 @@ sub backend_maintenance    # ( $json_obj, $farmname, $backend_id )
 		}
 	}
 
+	my $msg =
+	  "The action $json_obj->{ action } has been performed in farm $farmname.";
+
 	# no error found, send successful response
 	my $body = {
 				 description => $desc,
@@ -420,6 +421,7 @@ sub backend_maintenance    # ( $json_obj, $farmname, $backend_id )
 							 farm   => {
 									   status => &getFarmVipStatus( $farmname ),
 							 },
+							 message => $msg
 				 },
 	};
 

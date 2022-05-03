@@ -48,7 +48,7 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 	# Check that the farm exists
 	if ( !&getFarmExists( $farmname ) )
 	{
-		my $msg = "The farmname $farmname does not exists.";
+		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
@@ -62,90 +62,89 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 	require Zevenet::Net::Interface;
 	my $ip_list = &getIpAddressList();
 
-	my $params = {
-		   "newfarmname" => {
-							  'valid_format' => 'farm_name',
-							  'non_blank'    => 'true',
-		   },
-		   "vport" => {
-						'non_blank' => 'true',
-		   },
-		   "vip" => {
-					  'values'     => $ip_list,
-					  'non_blank'  => 'true',
-					  'format_msg' => 'The vip IP must exist in some interface.'
-		   },
-		   "algorithm" => {
-							'values' => [
-										 'weight',             'roundrobin',
-										 'hash_srcip_srcport', 'hash_srcip',
-										 'symhash',            'leastconn'
-							],
-							'non_blank' => 'true',
-		   },
-		   "persistence" => {
-				   'values' =>
-					 ['ip', 'srcip', 'srcport', 'srcmac', 'srcip_srcport', 'srcip_dstport'],
-		   },
-		   "protocol" => {
-						   'values' => [
-										'all',  'tcp', 'udp',        'sctp',
-										'sip',  'ftp', 'tftp',       'amanda',
-										'h323', 'irc', 'netbios-ns', 'pptp',
-										'sane', 'snmp'
-						   ],
-						   'non_blank' => 'true',
-		   },
-		   "nattype" => {
-						  'values'    => ['nat', 'dnat', 'dsr', 'stateless_dnat'],
-						  'non_blank' => 'true',
-		   },
-		   "ttl" => {
-					  'valid_format' => 'natural_num',
-					  'non_blank'    => 'true',
-		   },
-	};
-
-	if ( $eload )
-	{
-		$params->{ "logs" } = {
-								'values'    => ['true', 'false'],
-								'non_blank' => 'true',
-		};
-	}
-
 	# Modify the vport if protocol is set to 'all'
 	if (    ( exists $json_obj->{ protocol } and $json_obj->{ protocol } eq 'all' )
 		 or ( exists $json_obj->{ vport } and $json_obj->{ vport } eq '*' ) )
 	{
-		$json_obj->{ vport }    = "*";
-		$json_obj->{ protocol } = "all";
+		$json_obj->{ vport }    = "*";      # fixme
+		$json_obj->{ protocol } = "all";    # fixme
+	}
+	if ( exists $json_obj->{ persistence }
+		 and $json_obj->{ persistence } eq 'none' )
+	{
+		$json_obj->{ persistence } = '';
 	}
 
 	# Check allowed parameters
+	my $params = &getZAPIModel( "farm_l4xnat-modify.json" );
+	$params->{ vip }->{ values } = $ip_list;
+
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
-	# Extend parameter checks
-	# Get current vip & vport
+	if ( $json_obj->{ protocol } =~ /^(?:amanda|irc|netbios-ns|sane)$/ )
+	{
+		my $msg = "'$json_obj->{ protocol }' protocol is not supported anymore.";
+		&httpErrorResponse( code => 410, desc => $desc, msg => $msg );
+	}
+
+	# Get current vip & vport & proto
 	my $vip   = $json_obj->{ vip }   // &getFarmVip( 'vip',  $farmname );
 	my $vport = $json_obj->{ vport } // &getFarmVip( 'vipp', $farmname );
+	my $proto = $json_obj->{ protocol } // &getL4FarmParam( 'proto', $farmname );
 
-	# Modify vip and vport
-	if ( exists ( $json_obj->{ vip } ) or exists ( $json_obj->{ vport } ) )
+	# Extend parameter checks
+	if ( exists $json_obj->{ protocol } and $json_obj->{ protocol } ne 'all' )
+	{
+		if ( $vport eq '*' )
+		{
+			my $msg = "Protocol can not be '$json_obj->{ protocol }' with port '$vport'";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+	}
+
+	if ( exists $json_obj->{ vport } and $json_obj->{ vport } ne '*' )
+	{
+		if ( $proto eq 'all' )
+		{
+			my $msg = "Port can not be '$json_obj->{ vport }' with protocol '$proto'";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+	}
+
+	# check ranges
+	if ( exists $json_obj->{ vport } )
+	{
+		my @ranges = split ( /,/, $json_obj->{ vport } );
+		foreach my $range ( @ranges )
+		{
+			if ( $range =~ /^(\d+):(\d+)$/ )
+			{
+				if ( $1 > $2 )
+				{
+					my $msg = "Range $range in virtual port is not a valid value.";
+					&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+				}
+			}
+		}
+	}
+
+	if (    exists ( $json_obj->{ vip } )
+		 or exists ( $json_obj->{ vport } )
+		 or exists ( $json_obj->{ protocol } ) )
 	{
 		require Zevenet::Net::Validate;
-		if ( $status eq 'up' and &checkport( $vip, $vport, $farmname ) eq 'true' )
+		require Zevenet::Farm::L4xNAT::Config;
+		if ( $status eq 'up' and !&validatePort( $vip, $vport, $proto, $farmname ) )
 		{
 			my $msg =
-			  "The '$vip' ip and '$vport' port are being used for another farm. This farm should be sopped before modifying it";
+			  "The '$vip' ip and '$vport' port are being used for another farm. This farm should be stopped before modifying it";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
 		if ( exists ( $json_obj->{ vip } ) )
 		{
-			# the ip must exist in some interface
 			require Zevenet::Farm::L4xNAT::Backend;
 
 			my $backends = &getL4FarmServers( $farmname );
@@ -155,6 +154,20 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 				my $msg =
 				  "Invalid VIP address, VIP and backends can't be from diferent IP version.";
 				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+
+			# the vip must be UP
+			if ( $status ne 'down' )
+			{
+				require Zevenet::Net::Interface;
+				my $if_name = &getInterfaceByIp( $json_obj->{ vip } );
+				my $if_ref  = &getInterfaceConfig( $if_name );
+				if ( &getInterfaceSystemStatus( $if_ref ) ne "up" )
+				{
+					my $msg =
+					  "The '$json_obj->{ vip }' ip is not UP. This farm should be stopped before modifying it";
+					&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+				}
 			}
 		}
 
@@ -308,20 +321,12 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 	}
 
 	# Modify logs
-	if ( $eload )
+	if ( exists ( $json_obj->{ logs } ) )
 	{
-		if ( exists ( $json_obj->{ logs } ) )
+		my $msg = &modifyLogsParam( $farmname, $json_obj->{ logs } );
+		if ( defined $msg && length $msg )
 		{
-			my $msg = &eload(
-							  module   => 'Zevenet::Farm::L4xNAT::Config::Ext',
-							  func     => 'modifyLogsParam',
-							  args     => [$farmname, $json_obj->{ logs }],
-							  just_ret => 1,
-			);
-			if ( defined $msg && length $msg )
-			{
-				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
+			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}
 
@@ -363,7 +368,8 @@ sub modify_l4xnat_farm    # ( $json_obj, $farmname )
 
 	my $body = {
 				 description => $desc,
-				 params      => $json_obj
+				 params      => $json_obj,
+				 message     => "Some parameters have been changed in farm $farmname."
 	};
 
 	&httpResponse( { code => 200, body => $body } );

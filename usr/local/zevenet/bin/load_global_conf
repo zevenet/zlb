@@ -5,14 +5,17 @@ load_global_conf() {
 	local TMP_CONF="/tmp/global.conf.tmp"
 	local GLOBALCONF="/usr/local/zevenet/config/global.conf"
 
-	# remove the characters '$'
-	# remove spaces between variable and value in the assignments
-	sed 's/^\$//;s/\s*=\s*/=/' $GLOBALCONF > $TMP_CONF
+	if [ -f "$GLOBALCONF" ]; then
 
-	if [ -n "$BASH_VARIABLE" ]; then
-		source $TMP_CONF
-	else
-		. $TMP_CONF
+		# remove the characters '$'
+		# remove spaces between variable and value in the assignments
+		sed 's/^\$//;s/\s*=\s*/=/' $GLOBALCONF > $TMP_CONF
+
+		if [ -n "$BASH_VARIABLE" ]; then
+			source $TMP_CONF
+		else
+			. $TMP_CONF
+		fi
+		rm $TMP_CONF
 	fi
-	rm $TMP_CONF
 }

@@ -1,0 +1,48 @@
+{
+   "action" : "set",
+   "description" : "Modify the parameters of the health check",
+   "method" : "PUT",
+   "params" : {
+      "backend_alias" : {
+         "non_blank" : "false",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "command" : {
+         "non_blank" : "true"
+      },
+      "cut_conns" : {
+         "non_blank" : "false",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "description" : {
+         "non_blank" : "true"
+      },
+      "force" : {
+         "non_blank" : "false",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "interval" : {
+         "regex" : "(?^:[1-9]\\d*)"
+      },
+      "log" : {
+         "non_blank" : "false",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "timeout" : {
+         "regex" : "(?^:[1-9]\\d*)"
+      }
+   },
+   "url" : "/monitoring/fg/<name>"
+}

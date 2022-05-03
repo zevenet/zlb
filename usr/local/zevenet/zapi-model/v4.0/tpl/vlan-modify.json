@@ -1,0 +1,35 @@
+{
+	"method": "PUT",
+	"url": "/interfaces/vlan/<name>",
+	"action": "set",
+	"description": "Modify the parameters of a VLAN interface. name is the interface unique identifier.",
+	"params": {
+		"ip": {
+			"regex": "$ip_addr"
+		},
+		"netmask": {
+			"regex": "$ip_mask"
+		},
+		"gateway": {
+			"regex": "$ip_addr"
+		},
+		"force": {
+			"non_blank": "true",
+			"values": [
+				"true"
+			]
+		},
+		"dhcp": {
+			"edition": "ee",
+			"non_blank": "true",
+			"values": [
+				"true",
+				"false"
+			]
+		},
+		"mac": {
+			"edition": "ee",
+			"regex": "$mac_addr"
+		}
+	}
+}

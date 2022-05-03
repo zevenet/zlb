@@ -104,12 +104,13 @@ sub startNlb
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $nftlbd     = &getGlobalConfiguration( 'zbindir' ) . "/nftlbd";
-	my $pidof      = &getGlobalConfiguration( 'pidof' );
-	my $nlbpidfile = &getNlbPidFile();
-	my $nlbpid     = &getNlbPid();
+	my $nftlbd         = &getGlobalConfiguration( 'zbindir' ) . "/nftlbd";
+	my $pidof          = &getGlobalConfiguration( 'pidof' );
+	my $nlbpidfile     = &getNlbPidFile();
+	my $nlbpid         = &getNlbPid();
+	my $nlbpid_current = &logAndGet( "$pidof nftlb" );
 
-	if ( $nlbpid eq "-1" )
+	if ( ( $nlbpid eq "-1" ) or ( $nlbpid_current eq "" ) )
 	{
 		&logAndRun( "$nftlbd start" );
 
@@ -201,9 +202,14 @@ sub httpNlbRequest
 	my $execmd =
 	  qq($curl_cmd -w "%{http_code}" --noproxy "*" -s -H "Key: HoLa" -X "$self->{ method }" $body http://127.0.0.1:27$self->{ uri });
 
-	my $file = "/tmp/nft_$$";
+	my $file_tmp = "/tmp/nft_$$";
+	my $file     = $file_tmp;
 	$file = $self->{ file }
-	  if ( defined $self->{ file } && $self->{ file } =~ /(?:ipds)/ );
+	  if (
+		   defined $self->{ file }
+		   && (    ( $self->{ file } =~ /(?:ipds)/ )
+				or ( $self->{ file } =~ /(?:policy)/ ) )
+	  );
 
 	# Send output to a file to get only the http code by the standard output
 	$execmd = $execmd . " -o $file";
@@ -219,6 +225,7 @@ sub httpNlbRequest
 			my $err = <$fh>;
 			&zenlog( "(code: $output): $err", $tag, 'system' );
 			close $fh;
+			unlink $file_tmp if ( -f $file_tmp );
 		}
 		else
 		{
@@ -231,11 +238,14 @@ sub httpNlbRequest
 	if (    defined $self->{ file }
 		 && $self->{ file } ne ""
 		 && !-z "$file"
-		 && $file !~ /ipds/ )
+		 && $file !~ /ipds/
+		 && $file !~ /policy/ )
+
 	{
 		require Zevenet::Farm::L4xNAT::Config;
 		&writeL4NlbConfigFile( $file, $self->{ file } );
 	}
+	unlink $file_tmp if ( -f $file_tmp );
 
 	return 0;
 }

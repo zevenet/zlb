@@ -1,0 +1,14 @@
+{
+   "action" : "set",
+   "description" : "Modify Letsencrypt Configuration.",
+   "method" : "PUT",
+   "params" : {
+      "email" : {
+         "description" : "Email for use as a contact in Letsencrypt",
+         "non_blank" : "true",
+         "regex" : "(?^:^(?:[a-zA-Z][\\w\\_\\.]+)\\@(?:[a-zA-Z0-9.-]+)\\.(?:[a-zA-Z]{2,4})$)",
+         "required" : "true"
+      }
+   },
+   "url" : "/certificates/letsencryptz/config"
+}

@@ -1,0 +1,13 @@
+{
+   "action" : "add",
+   "description" : "Add a NIC interface as a slave to an existing bonding interface.",
+   "method" : "POST",
+   "params" : {
+      "name" : {
+         "non_blank" : "true",
+         "regex" : "(?^:[a-zA-Z0-9\\-]{1,15})",
+         "required" : "true"
+      }
+   },
+   "url" : "/interfaces/bonding/<name>/slaves"
+}

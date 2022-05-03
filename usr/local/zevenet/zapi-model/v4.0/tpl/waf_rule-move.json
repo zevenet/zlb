@@ -1,0 +1,13 @@
+{
+	"method": "POST",
+	"url": "/ipds/waf/<name>/rules/<id>actions",
+	"action": "move",
+	"description": "This call is to change the position of a WAF rule in a WAF set. The order in which the rules appear is the same in they are executed.",
+	"params": {
+		"position": {
+			"required": "true",
+			"non_blank": "true",
+			"regex": "$integer"
+		}
+	}
+}

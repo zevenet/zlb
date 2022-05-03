@@ -23,6 +23,8 @@
 
 use strict;
 
+require Zevenet::Core;
+
 my $ip_bin = &getGlobalConfiguration( 'ip_bin' );
 my $eload;
 if ( eval { require Zevenet::ELoad; } )
@@ -209,6 +211,12 @@ sub downIf    # ($if_ref, $writeconf)
 		my ( $routed_iface ) = split ( ":", $$if_ref{ name } );
 
 		$ip_cmd = "$ip_bin addr del $$if_ref{addr}/$$if_ref{mask} dev $routed_iface";
+
+		&eload(
+				module => 'Zevenet::Net::Routing',
+				func   => 'applyRoutingDependIfaceVirt',
+				args   => ['del', $if_ref]
+		) if $eload;
 	}
 
 	&setRuleIPtoTable( $$if_ref{ name }, $$if_ref{ addr }, "del" );
@@ -315,10 +323,16 @@ sub stopIf    # ($if_ref)
 		if ( $ip =~ /\./ )
 		{
 			use Net::IPv4Addr qw(ipv4_network);
-			my ( $net, $mask ) = ipv4_network( "$ip / $$if_ref{mask}" );
+			my ( undef, $mask ) = ipv4_network( "$ip / $$if_ref{mask}" );
 			my $cmd = "$ip_bin addr del $ip/$mask brd + dev $ifphysic[0] label $if";
 
 			&logAndRun( "$cmd" );
+
+			&eload(
+					module => 'Zevenet::Net::Routing',
+					func   => 'applyRoutingDependIfaceVirt',
+					args   => ['del', $if_ref]
+			) if $eload;
 		}
 	}
 
@@ -348,7 +362,6 @@ sub delIf    # ($if_ref)
 	my ( $if_ref ) = @_;
 
 	my $status;
-	my $has_more_ips;
 
 	# remove dhcp configuration
 	if ( exists $if_ref->{ dhcp } and $if_ref->{ dhcp } eq 'true' )
@@ -370,23 +383,40 @@ sub delIf    # ($if_ref)
 	&setRuleIPtoTable( $$if_ref{ name }, $$if_ref{ addr }, "del" );
 
 	# If $if is Vini do nothing
-	if ( $$if_ref{ vini } eq '' )
+	if ( $$if_ref{ vini } eq '' or !defined ( $$if_ref{ vini } ) )
 	{
 		my $ip_cmd;
-		if ( $if_ref->{ dhcp } ne 'true' )
-		{
-			# If $if is a Interface, delete that IP
-			$ip_cmd = "$ip_bin addr del $$if_ref{addr}/$$if_ref{mask} dev $$if_ref{name}";
-			$status = &logAndRun( $ip_cmd )
-			  if ( length $if_ref->{ addr } && length $if_ref->{ mask } );
-		}
 
-		# If $if is a Vlan, delete Vlan
-		if ( $$if_ref{ vlan } ne '' )
+		# If $if is a gre Tunnel, delete gre
+		if ( $$if_ref{ type } eq 'gre' )
 		{
-			$ip_cmd = "$ip_bin link delete $$if_ref{name} type vlan";
+			$ip_cmd = "$ip_bin tunnel delete $$if_ref{name} mode gre";
 			$status = &logAndRun( $ip_cmd );
 		}
+		else
+		{
+			if ( $if_ref->{ dhcp } ne 'true' )
+			{
+				# If $if is a Interface, delete that IP
+				$ip_cmd = "$ip_bin addr del $$if_ref{addr}/$$if_ref{mask} dev $$if_ref{name}";
+				$status = &logAndRun( $ip_cmd )
+				  if ( length $if_ref->{ addr } && length $if_ref->{ mask } );
+			}
+
+			# If $if is a Vlan, delete Vlan
+			if ( $$if_ref{ vlan } ne '' )
+			{
+				$ip_cmd = "$ip_bin link delete $$if_ref{name} type vlan";
+				$status = &logAndRun( $ip_cmd );
+			}
+		}
+
+		#delete custom routes
+		&eload(
+				module => 'Zevenet::Net::Routing',
+				func   => 'delRoutingDependIface',
+				args   => [$$if_ref{ name }],
+		) if ( $eload );
 
 		# check if alternative stack is in use
 		my $ip_v_to_check = ( $$if_ref{ ip_v } == 4 ) ? 6 : 4;
@@ -395,18 +425,7 @@ sub delIf    # ($if_ref)
 		if ( !$interface
 			 or ( $interface->{ type } eq "bond" and !exists $interface->{ addr } ) )
 		{
-			my $rttables = &getGlobalConfiguration( 'rttables' );
-
-			# Delete routes table, complementing writeRoutes()
-			open my $rt_fd, '<', $rttables;
-			my @contents = <$rt_fd>;
-			close $rt_fd;
-
-			@contents = grep !/^...\ttable_$$if_ref{name}$/, @contents;
-
-			open $rt_fd, '>', $rttables;
-			print $rt_fd @contents;
-			close $rt_fd;
+			&deleteRoutesTable( $$if_ref{ name } );
 		}
 	}
 
@@ -431,15 +450,12 @@ sub delIf    # ($if_ref)
 		);
 
 		#reload netplug
-		&eload( module => 'Zevenet::Net::Ext',
-				func   => 'reloadNetplug', );
+		if ( !defined ( $$if_ref{ vini } ) or $$if_ref{ vini } eq '' )
+		{
+			&eload( module => 'Zevenet::Net::Ext',
+					func   => 'reloadNetplug', );
+		}
 
-		#delete custom routes
-		&eload(
-				module => 'Zevenet::Net::Routing',
-				func   => 'delRoutingDependIface',
-				args   => [$$if_ref{ name }],
-		);
 	}
 
 	return $status;
@@ -560,8 +576,11 @@ sub addIp    # ($if_ref)
 		return 0;
 	}
 
-	my $extra_params = '';
-	$extra_params = 'nodad' if $$if_ref{ ip_v } == 6;
+	# Do not add automatically route in the main table
+	# The routes are managed by zevenet
+	my $extra_params = "noprefixroute";
+
+	$extra_params .= ' nodad' if $$if_ref{ ip_v } == 6;
 
 	my $ip_cmd;
 
@@ -637,6 +656,9 @@ sub setRuleIPtoTable
 			 "debug", "PROFILING" );
 
 	my ( $iface, $ip, $action ) = @_;
+
+	return 0 if ( $ip eq '' or !defined ( $ip ) );
+
 	my $prio = &getGlobalConfiguration( 'routingRulePrioIfacesDuplicated' );
 
 	if ( &getGlobalConfiguration( 'duplicated_net' ) ne "true" )

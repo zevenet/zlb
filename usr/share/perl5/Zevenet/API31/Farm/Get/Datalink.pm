@@ -24,11 +24,15 @@ use strict;
 use Zevenet::Farm::Datalink::Backend;
 
 my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 sub farms_name_datalink    # ( $farmname )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $farmname = shift;
 
 	require Zevenet::Farm::Config;
@@ -41,7 +45,7 @@ sub farms_name_datalink    # ( $farmname )
 				  status    => $status,
 	};
 
-	### backends	
+	### backends
 	my $out_b = &getDatalinkFarmBackends( $farmname );
 
 	my $body = {
@@ -53,12 +57,16 @@ sub farms_name_datalink    # ( $farmname )
 	if ( $eload )
 	{
 		$body->{ ipds } = &eload(
-			module => 'Zevenet::IPDS::Core',
-			func   => 'getIPDSfarmsRules',
-			args   => [$farmname],
+								  module => 'Zevenet::IPDS::Core',
+								  func   => 'getIPDSfarmsRules',
+								  args   => [$farmname],
 		);
 		delete $body->{ ipds }->{ rbl };
 		delete $body->{ ipds }->{ dos };
+		for my $blacklist ( @{ $body->{ ipds }->{ blacklists } } )
+		{
+			delete $blacklist->{ id };
+		}
 	}
 
 	&httpResponse( { code => 200, body => $body } );

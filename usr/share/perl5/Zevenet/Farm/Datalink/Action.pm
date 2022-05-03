@@ -191,11 +191,8 @@ sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
 	require Zevenet::Farm::Datalink::Config;
 
 	my $status = 0;
-
-	if ( $writeconf )
-	{
-		$status = &setDatalinkFarmBootStatus( $farm_name, "down" );
-	}
+	$status = &setDatalinkFarmBootStatus( $farm_name, "down" ) if ( $writeconf );
+	return 0 if ( &getDatalinkFarmStatus( $farm_name ) eq "down" );
 
 	# delete cron task to check backends
 	my $cron_tag  = "# __${farm_name}__";
@@ -205,16 +202,17 @@ sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
 	@cron_file = grep !/$cron_tag/, @cron_file;
 	untie @cron_file;
 
-	my $iface  = &getDatalinkFarmInterface( $farm_name );
+	my $iface = &getDatalinkFarmInterface( $farm_name );
+
+	require Zevenet::Net::Interface;
+	my $if_cfg = &getInterfaceConfig( $iface );
+
 	my $ip_bin = &getGlobalConfiguration( 'ip_bin' );
 
 	# Disable policies to the local network
-	my $ip = &iponif( $iface );
-
-	if ( $ip && $ip =~ /\./ )
+	if ( defined ( $if_cfg ) && $if_cfg->{ addr } )
 	{
-		my $ipmask = &maskonif( $iface );
-		my ( $net, $mask ) = ipv4_network( "$ip / $ipmask" );
+		my ( $net, $mask ) = ipv4_network( "$if_cfg->{addr} / $if_cfg->{mask}" );
 
 		&zenlog( "removing rules for $farm_name", "debug", "DSLB" );
 

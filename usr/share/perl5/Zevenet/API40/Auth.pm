@@ -47,10 +47,11 @@ sub validCGISession    # ()
 
 	if ( $session && $session->param( 'is_logged_in' ) && !$session->is_expired )
 	{
-		# ignore cluster localhost status to reset session expiration date
-		unless ( $q->path_info eq '/system/cluster/nodes/localhost' )
+		# ignore cluster nodes status to reset session expiration date
+		unless ( $q->path_info eq '/system/cluster/nodes' )
 		{
-			$session->expire( 'is_logged_in', '+30m' );
+			my $session_timeout = &getGlobalConfiguration( 'session_timeout' ) // 30;
+			$session->expire( 'is_logged_in', '+' . $session_timeout . 'm' );
 		}
 
 		$validSession = 1;

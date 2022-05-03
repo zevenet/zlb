@@ -36,7 +36,7 @@ my $ip_bin = &getGlobalConfiguration( 'ip_bin' );
 =begin nd
 Function: writeRoutes
 
-	Sets a routing table id and name pair in rt_tables file.
+	It sets a routing table id and name pair in rt_tables file.
 
 	Only required setting up a routed interface. Complemented in delIf()
 
@@ -55,6 +55,8 @@ sub writeRoutes    # ($if_name)
 	my $if_name = shift;
 
 	my $rttables = &getGlobalConfiguration( 'rttables' );
+
+	&zenlog( "Creating table 'table_$if_name'", "debug" );
 
 	open my $rt_fd, '<', $rttables;
 	my @contents = <$rt_fd>;
@@ -83,9 +85,88 @@ sub writeRoutes    # ($if_name)
 		open ( my $rt_fd, ">>", "$rttables" );
 		print $rt_fd "$rtnumber\ttable_$if_name\n";
 		close $rt_fd;
+
+		&zenlog( "Created the table ID 'table_$if_name'", "info", "network" );
 	}
 
 	return;
+}
+
+=begin nd
+Function: deleteRoutesTable
+
+	It removes the a routing table id and name pair from the rt_tables file.
+
+Parameters:
+	if_name - network interface name.
+
+Returns:
+	none - .
+=cut
+
+sub deleteRoutesTable
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $if_name = shift;
+
+	my $rttables = &getGlobalConfiguration( 'rttables' );
+
+	open my $rt_fd, '<', $rttables;
+	my @contents = <$rt_fd>;
+	close $rt_fd;
+
+	@contents = grep ( !/\ttable_$if_name\n/, @contents );
+
+	open $rt_fd, '>', $rttables;
+	foreach my $table ( @contents )
+	{
+		print $rt_fd $table;
+	}
+	close $rt_fd;
+}
+
+=begin nd
+Function: applyRoutingCmd
+
+	It creates the command to add a routing entry in a table.
+
+	Depend on the passed parameter, it can delete, add or replace the route
+
+Parameters:
+	action - it is the action to apply: add, replace or del
+	if_ref - network interface hash reference
+	table - it is the routing table where the entry will be added
+
+Returns:
+	Integer - Error code, it is 0 on success or another value on
+
+TODO:
+	use the 'buildRouteCmd' function
+
+=cut
+
+sub applyRoutingCmd
+{
+	my $action = shift;
+	my $if_ref = shift;
+	my $table  = shift;
+
+	# Get params
+	my $routeparams = &getGlobalConfiguration( 'routeparams' );
+	use NetAddr::IP;
+	my $ip_local = new NetAddr::IP( $$if_ref{ addr }, $$if_ref{ mask } );
+	my $net_local = $ip_local->network();
+
+	&zenlog( "addlocalnet: $action route for $$if_ref{name} in table $table",
+			 "debug", "NETWORK" )
+	  if &debug();
+
+	my $ip_cmd =
+	  "$ip_bin -$$if_ref{ip_v} route $action $net_local dev $$if_ref{name} src $$if_ref{addr} table $table $routeparams";
+
+	my $err = &logAndRun( $ip_cmd );
+	return $err;
 }
 
 =begin nd
@@ -103,7 +184,6 @@ See Also:
 	Only used here: <applyRoutes>
 =cut
 
-# add local network into routing table
 sub addlocalnet    # ($if_ref)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
@@ -117,11 +197,8 @@ sub addlocalnet    # ($if_ref)
 
 	# Get network
 	use NetAddr::IP;
-	my $ip = new NetAddr::IP( $$if_ref{ addr }, $$if_ref{ mask } );
-	my $net = $ip->network();
-
-	# Get params
-	my $routeparams = &getGlobalConfiguration( 'routeparams' );
+	my $ip_local = new NetAddr::IP( $$if_ref{ addr }, $$if_ref{ mask } );
+	my $net_local = $ip_local->network();
 
 	# Add or replace local net to all tables
 	my @links = ( 'main', &getLinkNameList() );
@@ -143,45 +220,38 @@ sub addlocalnet    # ($if_ref)
 		next if $link eq 'lo';
 		next if $link eq 'cl_maintenance';
 
-		my $table = 'main';
+		my $table = ( $link eq 'main' ) ? 'main' : "table_$link";
 
-		if ( $link ne 'main' )
+		if ( grep ( /^(?:\*|$table)$/, @isolates ) )
 		{
-			$table = "table_$link";
+			$skip_route = 1;
+		}
+		elsif ( $link ne 'main' )
+		{
 			my $iface = &getInterfaceConfig( $link );
 
 			# ignores interfaces down or not configured
 			next if $iface->{ status } ne 'up';
 			next if !defined $iface->{ addr };
 
-			$skip_route = 1 if ( grep ( /^(?:\*|$table)$/, @isolates ) );
-		}
+			#if duplicated network, next
+			my $ip_table =
+			  new NetAddr::IP( $$iface{ addr }, $$iface{ mask } );
+			my $net_local_table = $ip_table->network();
 
-		#if duplicated network, next
-		my $ip_local     = new NetAddr::IP( $$if_ref{ addr }, $$if_ref{ mask } );
-		my $net_local    = $ip_local->network();
-		my $if_ref_table = getInterfaceConfig( $link );
-		my $ip_table =
-		  new NetAddr::IP( $$if_ref_table{ addr }, $$if_ref_table{ mask } );
-		my $net_local_table = $ip_table->network();
-
-		if ( $net_local_table eq $net_local && $$if_ref{ name } ne $link )
-		{
-			&zenlog(
-				"The network $net and $net_local of dev $$if_ref{name} is the same than the network for $link, route is not going to be applied in table $table",
-				"error", "network"
-			);
-			$skip_route = 1;
+			if ( $net_local_table eq $net_local && $$if_ref{ name } ne $link )
+			{
+				&zenlog(
+					"The network $net_local of dev $$if_ref{name} is the same than the network for $link, route is not going to be applied in table $table",
+					"error", "network"
+				);
+				$skip_route = 1;
+			}
 		}
 
 		if ( !$skip_route )
 		{
-			&zenlog( "addlocalnet: setting route in table $table", "debug", "NETWORK" )
-			  if &debug();
-
-			my $ip_cmd =
-			  "$ip_bin -$$if_ref{ip_v} route replace $net dev $$if_ref{name} src $$if_ref{addr} table $table $routeparams";
-			&logAndRun( $ip_cmd );
+			&applyRoutingCmd( 'replace', $if_ref, $table );
 		}
 
 		if ( $eload )
@@ -198,6 +268,7 @@ sub addlocalnet    # ($if_ref)
 	my @ifaces = @{ &getConfigInterfaceList() };
 	foreach my $iface ( @ifaces )
 	{
+		next if $iface->{ name } eq $if_ref->{ name };
 		my $iface_sys = &getSystemInterface( $iface->{ name } );
 
 		next if $iface_sys->{ status } ne 'up';
@@ -207,7 +278,6 @@ sub addlocalnet    # ($if_ref)
 		next
 		  if (   !defined $iface->{ addr }
 			   or length $iface->{ addr } == 0 );    #IP addr doesn't exist
-		next if $iface->{ name } eq $if_ref->{ name };
 		next if ( !&isIp( $iface ) );
 
 		# do not import the iface route if it is isolate
@@ -224,15 +294,12 @@ sub addlocalnet    # ($if_ref)
 
 		&zenlog(
 			   "addlocalnet: into current interface: name $$iface{name} type $$iface{type}",
-			   "debug", "NETWORK" )
-		  if &debug();
+			   "debug", "NETWORK" );
 
 		#if duplicated network, next
-		my $ip        = new NetAddr::IP( $$iface{ addr }, $$iface{ mask } );
-		my $net       = $ip->network();
-		my $table     = "table_$$if_ref{ name }";
-		my $ip_ref    = new NetAddr::IP( $$if_ref{ addr }, $$if_ref{ mask } );
-		my $net_local = $ip_ref->network();
+		my $ip    = new NetAddr::IP( $$iface{ addr }, $$iface{ mask } );
+		my $net   = $ip->network();
+		my $table = "table_$$if_ref{ name }";
 
 		if ( $net eq $net_local && $$iface{ name } ne $$if_ref{ name } )
 		{
@@ -243,10 +310,7 @@ sub addlocalnet    # ($if_ref)
 			next;
 		}
 
-		my $ip_cmd =
-		  "$ip_bin -$$iface{ip_v} route replace $net dev $$iface{name} src $$iface{addr} table $table $routeparams";
-
-		&logAndRun( $ip_cmd );
+		&applyRoutingCmd( 'replace', $iface, $table );
 	}
 
 	if ( $eload )
@@ -267,8 +331,9 @@ sub addlocalnet    # ($if_ref)
 =begin nd
 Function: dellocalnet
 
-	Remove the input interface of the other routing tables. It does not do any
-	action about the main table
+	Remove the input interface of the other routing tables.
+	It removes the interfaces own table too.
+	It removes the custom routes too.
 
 Parameters:
 	if_ref - network interface hash reference.
@@ -278,64 +343,63 @@ Returns:
 
 =cut
 
-# add local network into routing table
 sub dellocalnet    # ($if_ref)
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $if_ref = shift;
 
-	# Get network
-	use NetAddr::IP;
-	my $ip = new NetAddr::IP( $$if_ref{ addr }, $$if_ref{ mask } );
-	my $net = $ip->network();
-
-	# Add or replace local net to all tables
-	my @links = ( 'main', &getLinkNameList() );
-
-	# filling the other tables
-	foreach my $link ( @links )
+	if ( defined $$if_ref{ addr } )
 	{
-		next if $link eq 'lo';
-		next if $link eq 'cl_maintenance';
-		next if $link eq 'main';
 
-		my $table = "table_$link";
+		# Get network
+		use NetAddr::IP;
+		my $ip = new NetAddr::IP( $$if_ref{ addr }, $$if_ref{ mask } );
+		my $net = $ip->network();
 
-		my $cmd_param = "$net dev $$if_ref{name} src $$if_ref{addr} table $table";
-		next if ( !$cmd_param );
+		my @links = ( 'main', &getLinkNameList() );
+		my @rtables_id = &listRoutingTablesNames();
 
-		next if ( !&isRoute( $cmd_param, $$if_ref{ ip_v } ) );
+		foreach my $link ( @links )
+		{
+			next if $link eq 'lo';
+			next if $link eq 'cl_maintenance';
 
-		&zenlog( "dellocal: del $net route from table $table", "debug", "NETWORK" )
-		  if &debug();
+			my $table = ( $link eq 'main' ) ? "main" : "table_$link";
 
-		my $ip_cmd = "$ip_bin -$$if_ref{ip_v} route del $cmd_param";
-		&logAndRun( $ip_cmd );
-	}
+			next if ( !grep ( /^$table$/, @rtables_id ) );
 
-	if ( $eload )
-	{
-		&eload(
-				module => 'Zevenet::Net::Routing',
-				func   => 'applyRoutingCustom',
-				args   => ['del', "table_$$if_ref{name}"],
-		);
+# TODO: use the function 'buildRouteCmd' to create this command and use it here and with 'applyRoutingCmd'
+			my $cmd_param = "$net dev $$if_ref{name} src $$if_ref{addr} table $table";
+
+			next if ( !&isRoute( $cmd_param, $$if_ref{ ip_v } ) );
+
+			&applyRoutingCmd( 'del', $if_ref, $table );
+		}
+
+		if ( $eload )
+		{
+			&eload(
+					module => 'Zevenet::Net::Routing',
+					func   => 'applyRoutingCustom',
+					args   => ['del', "table_$$if_ref{name}"],
+			);
+		}
 	}
 }
 
 =begin nd
 Function: isRoute
 
-	Check if a route is already applied in the system. It receives the ip route command line options
-	and it checks the system. Example. "src 1.1.12.5 dev eth3 table table_eth3"
+	Checks if any of the routes applied to the system matchs according to the input parameters.
+	It receives the ip route command line options and it checks the system. Example. "src 1.1.12.5 dev eth3 table table_eth3".
 
 Parameters:
-	route - command line optiones for the "ip route list" command.
+	route - command line options for the "ip route list" command.
 	ip_version - version used for the ip command. If this parameter is not used, the command will be executed without this flag
 
 Returns:
-	Integer - It returns 1 if the rule is already applied in the system, or 0 if it is not applied
+	Integer - It returns 1 if any applied rule matchs, or 0 if not
 
 =cut
 
@@ -346,11 +410,23 @@ sub isRoute
 
 	my $route = shift;
 	my $ipv = shift // '';
+
 	$ipv = "-$ipv" if ( $ipv ne '' );
+	my $exist = 1;
 
 	my $ip_cmd = "$ip_bin $ipv route list $route";
 	my $out    = &logAndGet( "$ip_cmd" );
-	my $exist  = ( $out eq '' ) ? 0 : 1;
+
+	if ( $out eq '' )
+	{
+		$exist = 0;
+	}
+	else
+	{
+		require Zevenet::Validate;
+		my $ip_re = &getValidFormat( 'ipv4v6' );
+		$exist = 0 if ( $exist && $route !~ /src $ip_re/ && $out =~ /src $ip_re/ );
+	}
 
 	if ( &debug() > 1 )
 	{
@@ -363,17 +439,55 @@ sub isRoute
 }
 
 =begin nd
+Function: existsRoute
+
+	Checks if any of the paths applied to the system has same properties to the input.
+	It receives the ip route command line options and it checks the system. Example. "src 1.1.12.5 dev eth3 table table_eth3".
+
+Parameters:
+	route - command line options for the "ip route list" command.
+	via   - 1 to check via
+	src   - 1 to check via
+
+Returns:
+	Integer - It returns 1 if any applied rule matchs, or 0 if not
+
+=cut
+
+sub existRoute
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my $route = shift;
+	my $via   = shift;
+	my $src   = shift;
+
+	require Zevenet::Validate;
+	my $ip_re = &getValidFormat( 'ipv4v6' );
+	$route =~ s/via ($ip_re)// unless $via;
+	$route =~ s/src ($ip_re)// unless $src;
+
+	my $ip_cmd = "$ip_bin route list $route";
+	my $out    = &logAndGet( "$ip_cmd" );
+	my $exist  = ( $out eq '' ) ? 0 : 1;
+
+	return $exist;
+}
+
+=begin nd
 Function: buildRuleCmd
 
 	It creates the command line for a routing directive.
 
 Parameters:
 	action - it is the action to apply, 'add' to create a new routing entry, 'del' to delete the requested routing entry or 'undef' to create the parameters wihout adding the 'ip route <action>'
-	config - It is a hash referece with the parameters expected to build the command. The options are:
+	conf - It is a hash referece with the parameters expected to build the command. The options are:
 		ip_v : is the ip version for the route
 		priority : is the priority which the route will be execute. Lower priority will be executed before
 		not : is the NOT logical operator
 		from : is the source address or networking segment from is comming the request
+		to : is the destination address or networking segment the request is comming to
 		fwmark : is the traffic mark of the packet
 		lookup : is the routing table where is going to be added the route
 
@@ -393,7 +507,7 @@ sub buildRuleCmd
 
 	my $ipv = ( exists $conf->{ ip_v } ) ? "-$conf->{ip_v}" : "";
 
-	# ip rule { add | del } [ not ] [ from IP/NETMASK ] TABLE_ID
+# ip rule { add | del } [ priority PRIO ] [ not ] from IP/NETMASK [ to IP/NETMASK ] [ fwmark FW_MARK ] lookup TABLE_ID
 	$cmd .= "$ip_bin $ipv rule $action" if ( defined $action );
 	if (     ( defined $action and $action ne 'list' )
 		 and ( exists $conf->{ priority } and $conf->{ priority } =~ /\d/ ) )
@@ -402,6 +516,8 @@ sub buildRuleCmd
 	}
 	$cmd .= " not" if ( exists $conf->{ not } and $conf->{ not } eq 'true' );
 	$cmd .= " from $conf->{from}";
+	$cmd .= " to $conf->{to}"
+	  if ( exists $conf->{ to } && $conf->{ to } ne "" );
 	$cmd .= " fwmark $conf->{fwmark}"
 	  if ( exists $conf->{ fwmark } && $conf->{ fwmark } ne "" );
 	$cmd .= " lookup $conf->{table}";
@@ -415,10 +531,7 @@ Function: isRule
 	Check if routing rule for the given table, from or fwmark exists.
 
 Parameters:
-	table - rule lookup table match, only filters if it's defined and not empty.
-	from - rule from match, only filters if it's defined and not empty.
-	fwmark - rule fwmark match, only filters if it's defined and not empty.
-	iplist - array with the complete system rule listing.
+	conf - Rule hash reference.
 
 Returns:
 	scalar - number of times the rule was found. True if found.
@@ -436,11 +549,21 @@ sub isRule
 
 	my $ipv = ( exists $conf->{ ip_v } ) ? "-$conf->{ip_v}" : "";
 
-	# ip rule { add | del } [ not ] [ from IP/NETMASK ] TABLE_ID
 	my $cmd  = "$ip_bin $ipv rule list";
 	my $rule = "";
 	$rule .= " not" if ( exists $conf->{ not } and $conf->{ not } eq 'true' );
-	$rule .= " from $conf->{from}";
+	my ( $net, $netmask ) = split /\//, $conf->{ from };
+	if ( defined $netmask
+		 and ( $netmask eq "32" or $netmask eq "255.255.255.255" ) )
+	{
+		$rule .= " from $net";
+	}
+	else
+	{
+		$rule .= " from $conf->{from}";
+	}
+	$rule .= " to $conf->{to}"
+	  if ( exists $conf->{ to } && $conf->{ to } ne "" );
 	$rule .= " fwmark $conf->{fwmark}"
 	  if ( exists $conf->{ fwmark } && $conf->{ fwmark } ne "" );
 	$rule .= " lookup $conf->{table}";
@@ -468,11 +591,8 @@ Function: applyRule
 	Add or delete the rule according to the given parameters.
 
 Parameters:
-	ipv - ip version.
 	action - "add" to create a new rule or "del" to remove it.
-	table - rule lookup attribute.
-	from - rule from attribute. This is optional.
-	fwmark - rule fwmark optional attribute. This is optional.
+	rule - Rule hash reference.
 
 Returns:
 	integer - ip command return code.
@@ -510,9 +630,11 @@ Function: genRoutingRulesPrio
 Parameters:
 	Type - type of route, the possible values are:
 		'iface' for the default interface routes,
-		'farm-l4' for the l4xnat backend routes,
+		'l4xnat' for the l4xnat backend routes,
+		'http or https' for the L7 backend routes,
 		'farm-datalink' for the rules applied by datalink farms,
-		'user' for the customized routes created for the user
+		'user' for the customized routes created for the user,
+		'vpn' for the routes applied by vpn connections
 
 Returns:
 	Integer - Priority for the route
@@ -536,7 +658,7 @@ sub genRoutingRulesPrio
 	my $max;
 
 	# l4xnat farm rules
-	if ( $type eq 'farm-l4' )
+	if ( $type eq 'l4xnat' || $type eq 'http' || $type eq 'https' )
 	{
 		$min = $farmL4;
 		$max = $farmDatalink;
@@ -560,6 +682,17 @@ sub genRoutingRulesPrio
 	else
 	{
 		return $ifacesInit;
+	}
+
+	if ( $eload )
+	{
+		# vpn rules
+		my $vpn = &getGlobalConfiguration( 'routingRulePrioVPN' );
+		if ( $type eq 'vpn' )
+		{
+			$min = $vpn;
+			$max = $farmL4;
+		}
 	}
 
 	my $prio;
@@ -624,16 +757,20 @@ sub getRuleFromIface
 			 "debug", "PROFILING" );
 
 	my $if_ref = shift;
-
-	my $from =
-	  ( $if_ref->{ mask } =~ /^\d$/ )
-	  ? "$if_ref->{ net }/$if_ref->{ mask }"
-	  : NetAddr::IP->new( $if_ref->{ net }, $if_ref->{ mask } );
+	my $from   = "";
+	if ( defined ( $if_ref->{ net } ) && $if_ref->{ net } ne '' )
+	{
+		$from =
+		  ( $if_ref->{ mask } =~ /^\d$/ )
+		  ? "$if_ref->{ net }/$if_ref->{ mask }"
+		  : NetAddr::IP->new( $if_ref->{ net }, $if_ref->{ mask } )->cidr();
+	}
 
 	my $rule = {
 				 table => "table_$if_ref->{name}",
 				 type  => 'iface',
 				 from  => $from,
+				 ip_v  => $if_ref->{ ip_v }
 	};
 
 	return $rule;
@@ -646,15 +783,7 @@ Function: setRule
 
 Parameters:
 	action - "add" to create a new rule or "del" to remove it.
-
-	#~ if_ref - interface reference or empty. This will be used if $ifname or $from are undefined.
-	#~ ifname - rule lookup table interface name, undef to refer to the if_ref name or empty to avoid matching.
-	from - rule from attribute, undef to refer to the if_ref network data or empty to avoid matching.
-	fwmark - rule fwmark attribute, undef or empty to avoid matching.
-
-	ip_v - ip version of the 'from' IP
-	priority - priority for the rule
-	type - type of rule: 'farm', related to backends l4; 'user', routing module; 'ifaces', default interfaces routing.
+	rule - Rule hash reference
 
 Returns:
 	integer - ip command return code.
@@ -670,20 +799,26 @@ sub setRule
 
 	my $action = shift;
 	my $rule   = shift;
-
 	my $output = 0;
 
-	return -1 if ( $action != /add|del/ );
+	return 0 if ( !defined ( $rule->{ from } ) || $rule->{ from } eq '' );
+
+	return -1 if ( $action !~ /^add$|^del$/ );
 	return -1 if ( defined $rule->{ fwmark } && $rule->{ fwmark } =~ /^0x0$/ );
 
 	my $isrule = &isRule( $rule );
 
 	&zenlog( "action '$action' and the rule exist=$isrule", "debug", "net" );
 
-	if (    ( $action eq "add" && $isrule == 0 )
-		 || ( $action eq "del" && $isrule != 0 ) )
+	if ( $action eq "add" && $isrule == 0 )
 	{
-		$output = &applyRule( $action, $rule );
+		&applyRule( $action, $rule );
+		$output = &isRule( $rule ) ? 0 : 1;
+	}
+	elsif ( $action eq "del" && $isrule != 0 )
+	{
+		&applyRule( $action, $rule );
+		$output = &isRule( $rule );
 	}
 
 	return $output;
@@ -722,6 +857,9 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 
 	my $status = 0;
 
+	# do not add routes if the inteface is down
+	my $if_sys = &getSystemInterface( $$if_ref{ name } );
+	return 0 if ( $$if_sys{ status } ne 'up' );
 	return 0 if ( $$if_ref{ ip_v } != 4 and $$if_ref{ ip_v } != 6 );
 
 	unless ( $$if_ref{ net } )
@@ -807,7 +945,7 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 		$if_announce = $toif;
 	}
 
-	#if arp_announce is enabled then send garps to network
+	# not send garps to network if node is backup or it is in maintenance
 	eval {
 		if ( $eload )
 		{
@@ -816,9 +954,13 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 									func   => 'getZClusterNodeStatus',
 									args   => [],
 			);
+			my $cl_maintenance = &eload(
+										 module => 'Zevenet::Cluster',
+										 func   => 'getClMaintenanceManual',
+										 args   => [],
+			);
 
-			if (    &getGlobalConfiguration( 'arp_announce' ) eq "true"
-				 && $cl_status ne "backup" )
+			if ( $cl_status ne "backup" and $cl_maintenance ne "true" )
 			{
 				require Zevenet::Net::Util;
 
@@ -896,28 +1038,19 @@ sub delRoutes    # ($table,$if_ref)
 			my $ip_cmd = "$ip_bin -$$if_ref{ip_v} route del default";
 			$status = &logAndRun( "$ip_cmd" );
 
-			require Tie::File;
-			tie my @contents, 'Tie::File', &getGlobalConfiguration( 'globalcfg' );
-			for my $line ( @contents )
+			if ( $status == 0 )
 			{
-				if ( grep /^\$defaultgw/, $line )
+				if ( $$if_ref{ ip_v } == 6 )
 				{
-					if ( $$if_ref{ ip_v } == 6 )
-					{
-						$line =~ s/^\$defaultgw6=.*/\$defaultgw6=\"\"\;/g;
-						$line =~ s/^\$defaultgwif6=.*/\$defaultgwif6=\"\"\;/g;
-					}
-					else
-					{
-						$line =~ s/^\$defaultgw=.*/\$defaultgw=\"\"\;/g;
-						$line =~ s/^\$defaultgwif=.*/\$defaultgwif=\"\"\;/g;
-					}
+					&setGlobalConfiguration( 'defaultgw6',   '' );
+					&setGlobalConfiguration( 'defaultgwif6', '' );
+				}
+				else
+				{
+					&setGlobalConfiguration( 'defaultgw',   '' );
+					&setGlobalConfiguration( 'defaultgwif', '' );
 				}
 			}
-			untie @contents;
-
-			require Zevenet::Farm::Config;
-			&reloadFarmsSourceAddress() if $status == 0;
 
 			return $status;
 		}
@@ -1105,7 +1238,6 @@ sub configureDefaultGW    #()
 		my $if_ref = &getInterfaceConfig( $defaultgwif, 4 );
 		if ( $if_ref )
 		{
-			print "Default Gateway:$defaultgw Device:$defaultgwif\n";
 			&applyRoutes( "global", $if_ref, $defaultgw );
 		}
 	}
@@ -1116,7 +1248,6 @@ sub configureDefaultGW    #()
 		my $if_ref = &getInterfaceConfig( $defaultgwif, 6 );
 		if ( $if_ref )
 		{
-			print "Default Gateway:$defaultgw6 Device:$defaultgwif6\n";
 			&applyRoutes( "global", $if_ref, $defaultgw6 );
 		}
 	}
@@ -1152,7 +1283,7 @@ sub listRoutingTablesNames
 	{
 		next if ( $line =~ /^\s*#/ );
 
-		if ( $line =~ /\d+\s+([\w\.]+)/ )
+		if ( $line =~ /\d+\s+([\w\-\.]+)/ )
 		{
 			my $name = $1;
 			next if grep ( /^$name$/, @exceptions );
@@ -1170,7 +1301,7 @@ Function: listRoutingRulesSys
 	It returns a list of the routing rules from the system.
 
 Parameters:
-	none - .
+	filter - filter hash reference for matching rules. No filter means all rules.
 
 Returns:
 	Array ref - list of routing rules
@@ -1181,6 +1312,15 @@ sub listRoutingRulesSys
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
+	my $filter = shift;
+	my $filter_param;
+	my @rules = ();
+
+	if ( defined $filter )
+	{
+		my @filter_params = keys %{ $filter };
+		$filter_param = $filter_params[0];
+	}
 
 	# get data
 	my $cmd  = "$ip_bin -j -p rule list";
@@ -1197,19 +1337,29 @@ sub listRoutingRulesSys
 	}
 
 	# filter data
-	my @rules = ();
 	foreach my $r ( @{ $dec_data } )
 	{
-		my $type = ( exists $r->{ fwmask } ) ? 'farm' : 'system';
+		if (    ( not defined $filter )
+			 or ( $filter->{ $filter_param } eq $r->{ $filter_param } ) )
+		{
+			my $type = ( exists $r->{ fwmask } ) ? 'farm' : 'system';
 
-		$r->{ from } = $r->{ src };
-		$r->{ from } .= "/$r->{ srclen }" if exists ( $r->{ srclen } );
+			$r->{ from } = $r->{ src };
+			$r->{ from } .= "/$r->{ srclen }" if exists ( $r->{ srclen } );
 
-		delete $r->{ src };
-		delete $r->{ srclen };
-		$r->{ type } = $type;
-		$r->{ not } = 'true' if ( exists $r->{ not } );
-		push @rules, $r;
+			delete $r->{ src };
+			delete $r->{ srclen };
+
+			$r->{ to } = $r->{ dst } if exists ( $r->{ dst } );
+			$r->{ to } .= "/$r->{ dstlen }" if exists ( $r->{ dstlen } );
+
+			delete $r->{ dst };
+			delete $r->{ dstlen };
+
+			$r->{ type } = $type;
+			$r->{ not } = 'true' if ( exists $r->{ not } );
+			push @rules, $r;
+		}
 	}
 
 	return \@rules;
@@ -1278,10 +1428,14 @@ sub getRoutingTableExists
 			 "debug", "PROFILING" );
 
 	my $table = shift;
+	my $rc    = 1;
 
-	my $err = &logAndRunCheck( "$ip_bin route list table $table" );
+	if ( grep ( /^$table$/, &listRoutingTablesNames() ) )
+	{
+		$rc = &logAndRunCheck( "$ip_bin route list table $table" );
+	}
 
-	return ( $err ) ? 0 : 1;
+	return ( $rc ) ? 0 : 1;
 }
 
 1;

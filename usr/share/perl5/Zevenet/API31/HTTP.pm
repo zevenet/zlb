@@ -43,6 +43,7 @@ my %http_status_codes = (
 	403 => 'Forbidden',
 	404 => 'Not Found',
 	406 => 'Not Acceptable',
+	410 => 'Gone',
 	415 => 'Unsupported Media Type',
 	422 => 'Unprocessable Entity',
 );

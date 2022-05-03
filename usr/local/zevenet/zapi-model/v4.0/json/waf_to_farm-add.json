@@ -1,0 +1,14 @@
+{
+   "action" : "add",
+   "description" : "Apply a WAF rule to the farm.",
+   "method" : "POST",
+   "params" : {
+      "name" : {
+         "description" : "IPDS rule name used as a unique identifier.",
+         "non_blank" : "true",
+         "regex" : "(?^:[\\.\\w-]+)",
+         "required" : "true"
+      }
+   },
+   "url" : "/farms/<farmname>/ipds/waf"
+}

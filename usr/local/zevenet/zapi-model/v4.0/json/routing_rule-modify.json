@@ -1,0 +1,33 @@
+{
+   "action" : "set",
+   "description" : "Modify the parameters of a routing rule.",
+   "method" : "PUT",
+   "params" : {
+      "description" : {
+         "format_msg" : "It is a brief description of the rule",
+         "length" : 64
+      },
+      "from" : {
+         "format_msg" : "It is the source address IP or the source networking net that will be routed to the table",
+         "non_blank" : "true"
+      },
+      "not" : {
+         "format_msg" : "It is the not logical operator. It is used with the from parameter to negate its result",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "priority" : {
+         "format_msg" : "It is the priority which the rule will be executed. Minor value of priority is going to be executed before",
+         "interval" : "29000,30999",
+         "non_blank" : "true"
+      },
+      "table" : {
+         "dyn_values" : "true",
+         "format_msg" : "It is the tabled used to route the packet if it matches with the parameter: from",
+         "non_blank" : "true"
+      }
+   },
+   "url" : "/routing/rules/<id>"
+}

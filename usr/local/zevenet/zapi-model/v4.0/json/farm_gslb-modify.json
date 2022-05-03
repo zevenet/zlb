@@ -1,0 +1,24 @@
+{
+   "action" : "set",
+   "description" : "Modify the configuration of a GSLB farm.",
+   "method" : "PUT",
+   "params" : {
+      "newfarmname" : {
+         "exceptions" : [
+            "0"
+         ],
+         "non_blank" : "true",
+         "regex" : "(?^:[a-zA-Z0-9\\-]+)"
+      },
+      "vip" : {
+         "dyn_values" : "true",
+         "format_msg" : "expects an IP",
+         "non_blank" : "true"
+      },
+      "vport" : {
+         "interval" : "1,65535",
+         "non_blank" : "true"
+      }
+   },
+   "url" : "/farm/<farmname>"
+}

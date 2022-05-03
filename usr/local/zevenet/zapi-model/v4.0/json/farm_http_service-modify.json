@@ -1,0 +1,115 @@
+{
+   "action" : "set",
+   "description" : "Modify the parameters of a service in an HTTP profile.",
+   "method" : "PUT",
+   "params" : {
+      "cookiedomain" : {
+         "edition" : "ee"
+      },
+      "cookieinsert" : {
+         "edition" : "ee",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "cookiename" : {
+         "edition" : "ee"
+      },
+      "cookiepath" : {
+         "edition" : "ee"
+      },
+      "cookiettl" : {
+         "edition" : "ee",
+         "non_blank" : "true",
+         "regex" : "(?^:[1-9]\\d*)"
+      },
+      "httpsb" : {
+         "non_blank" : "true",
+         "regex" : "(?^:(?:true|false))"
+      },
+      "leastresp" : {
+         "non_blank" : "true",
+         "regex" : "(?^:(?:true|false))"
+      },
+      "persistence" : {
+         "non_blank" : "false",
+         "values" : [
+            "IP",
+            "BASIC",
+            "NONE",
+            "URL",
+            "PARM",
+            "COOKIE",
+            "HEADER"
+         ]
+      },
+      "pinnedconnection" : {
+         "non_blank" : "true",
+         "values" : [
+            0,
+            1
+         ]
+      },
+      "redirect" : {
+         "non_blank" : "false",
+         "regex" : "(?^:(http|https)://([^/]+)(.*))"
+      },
+      "redirect_code" : {
+         "edition" : "ee",
+         "values" : [
+            301,
+            302,
+            307
+         ]
+      },
+      "redirecttype" : {
+         "values" : [
+            "default",
+            "append"
+         ]
+      },
+      "rewritelocation" : {
+         "non_blank" : "true",
+         "values" : [
+            "disabled",
+            "enabled",
+            "enabled-backends",
+            "enabled-path",
+            "enabled-backends-path"
+         ]
+      },
+      "routingpolicy" : {
+         "non_blank" : "true",
+         "values" : [
+            "ROUND_ROBIN",
+            "LEAST_CONNECTIONS",
+            "RESPONSE_TIME",
+            "PENDING_CONNECTIONS"
+         ]
+      },
+      "sessionid" : {},
+      "sts_status" : {
+         "edition" : "ee",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "sts_timeout" : {
+         "edition" : "ee",
+         "regex" : "(?^:(?:\\d+))"
+      },
+      "ttl" : {
+         "non_blank" : "true",
+         "regex" : "(?^:[1-9]\\d*)"
+      },
+      "urlp" : {
+         "is_regex" : "true"
+      },
+      "vhost" : {
+         "is_regex" : "true"
+      }
+   },
+   "url" : "/farms/<farmname>/services/<id>"
+}

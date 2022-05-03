@@ -1,0 +1,14 @@
+{
+	"method": "POST",
+	"url": "/farms/<farmname>/ipds/rbl",
+	"action": "add",
+	"description": "Apply a RBL rule to the farm.",
+	"params": {
+		"name": {
+			"description": "",
+			"regex": "$rbl_name",
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

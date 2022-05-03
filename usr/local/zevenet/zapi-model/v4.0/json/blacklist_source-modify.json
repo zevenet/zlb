@@ -1,0 +1,14 @@
+{
+   "action" : "ZCLI ACTION",
+   "description" : "Modify a source of a blacklist.",
+   "method" : "PUT",
+   "params" : {
+      "source" : {
+         "description" : "IP address or network segment that the list checks.",
+         "non_blank" : "true",
+         "regex" : "(?^:(?:\\d{1,3}\\.){3}\\d{1,3}(?:\\/\\d{1,2})?)",
+         "required" : "true"
+      }
+   },
+   "url" : "/ipds/blacklists/<name>/sources/<id>"
+}

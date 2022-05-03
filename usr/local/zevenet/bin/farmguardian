@@ -48,6 +48,7 @@ use Zevenet::FarmGuardian;
 my $zcluster_send_action = "/usr/local/zevenet/bin/zcluster-send-action";
 my $configdir            = &getGlobalConfiguration( 'configdir' );
 my $libexec_dir          = &getGlobalConfiguration( 'libexec_dir' );
+my $fgmarkbin            = &getGlobalConfiguration( 'fgmark' );
 
 my $eload;
 if ( eval { require Zevenet::ELoad; } )
@@ -70,6 +71,7 @@ my $logging  = 'disabled';
 my $useAlias = 'false';
 my $fg_conf;
 my $timetocheck;
+my $timeout;
 my $check_cmd_tpl;
 my $cutConns;
 my $pidfile;
@@ -135,6 +137,7 @@ else
 {
 	$fg_conf       = &getFGObject( $fgname );
 	$timetocheck   = $fg_conf->{ interval };
+	$timeout       = $fg_conf->{ timeout };
 	$check_cmd_tpl = $fg_conf->{ command };
 	$cutConns      = $fg_conf->{ cut_conns };
 	$useAlias      = $fg_conf->{ backend_alias } if ( $useAlias ne 'true' );    #
@@ -174,10 +177,12 @@ $type = 'http' if $type eq 'https';
 
 my $proxyctl;
 my $portadmin;
+my $usemark = 0;
 
 if ( $type eq 'l4xnat' )
 {
 	require Zevenet::Farm::L4xNAT::Backend;
+	$usemark = 1;
 }
 elsif ( $type eq 'http' )
 {
@@ -187,6 +192,10 @@ elsif ( $type eq 'http' )
 
 	$proxyctl  = &getGlobalConfiguration( 'proxyctl' );
 	$portadmin = &getHTTPFarmSocket( $farmname );
+
+	my $proxy_ng  = &getGlobalConfiguration( 'proxy_ng' );
+	$usemark = $proxy_ng eq "true" ? 1 : 0;
+
 }
 
 # This is a cluster bugfix, to ensure the backend status is correct in the config file.
@@ -200,7 +209,7 @@ while ( 1 )
 	my @backendport;
 	my @backendstatus;
 	my @backendprio;
-	my $timeout = '';
+	my @backendmark;
 	my $i       = 0;
 	my $j       = 0;
 
@@ -209,7 +218,7 @@ while ( 1 )
 	# Collect HTTP/S farm variables values
 	if ( $type eq 'http' )
 	{
-		my $err = &logAndRunCheck( "$proxyctl -c $portadmin" );
+		my $err = &logAndRunCheck( "$proxyctl -C -c $portadmin" );
 		if ( $err != 0 )
 		{
 			my $msg = "Farm $farmname is down, abort.";
@@ -231,6 +240,7 @@ while ( 1 )
 		foreach my $line ( split ( "\n", $backendsvs ) )
 		{
 			my @subbe = split ( ' ', $line );
+			$backendmark[$i] = $subbe[15] if $usemark;
 			$backendid[$i] = $subbe[1];
 			$backendserv[$i] =
 			  ( $useAlias eq 'true' ) ? &getFGAlias( $subbe[3] ) : $subbe[3];
@@ -250,6 +260,7 @@ while ( 1 )
 			$backendid[$i] = $l_serv->{ id };
 			$backendserv[$i] =
 			  ( $useAlias eq 'true' ) ? &getFGAlias( $l_serv->{ ip } ) : $l_serv->{ ip };
+			$backendmark[$i] = hex( $l_serv->{ tag } ) if $usemark;
 			$backendport[$i] = $l_serv->{ port }
 			  // $farm_st->{ vport };    # use farm port if backend port is not defined
 			$backendport[$i]   = $farm_st->{ vport } if ( $backendport[$i] eq "" );
@@ -260,7 +271,7 @@ while ( 1 )
 	}
 
 	# Use the default timetocheck as the timeout for the backends response
-	if ( $timeout eq '' )
+	if ( ! defined $timeout )
 	{
 		$timeout = $timetocheck;
 	}
@@ -305,6 +316,8 @@ while ( 1 )
 
 		#execute the binary to check
 		$command = "$libexec_dir/$command";
+
+		$command = "MARK=$backendmark[$j] LD_PRELOAD=$fgmarkbin " . $command if ( defined $fgmarkbin && $usemark);
 
 		my @output;
 		my $timedout  = 0;

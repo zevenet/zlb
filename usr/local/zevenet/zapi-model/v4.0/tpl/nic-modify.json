@@ -1,0 +1,31 @@
+{
+	"method": "PUT",
+	"url": "/interfaces/nic/<name>",
+	"action": "set",
+	"description": "Modify the parameters of a NIC interface. name is the interface unique identifier.",
+	"params": {
+		"ip": {
+			"regex": "$ip_addr"
+		},
+		"netmask": {
+			"regex": "$ip_mask"
+		},
+		"gateway": {
+			"regex": "$ip_addr"
+		},
+		"force": {
+			"non_blank": "true",
+			"values": [
+				"true"
+			]
+		},
+		"dhcp": {
+			"edition": "ee",
+			"non_blank": "true",
+			"values": [
+				"true",
+				"false"
+			]
+		}
+	}
+}

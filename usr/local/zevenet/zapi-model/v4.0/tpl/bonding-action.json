@@ -1,0 +1,17 @@
+{
+	"method": "POST",
+	"url": "/interfaces/bonding/<name>/actions",
+	"action": "status|destroy",
+	"description": "Apply an action to a bonding interface. This call lets delete the bonding interface and enable or disable it.",
+	"params": {
+		"action": {
+			"non_blank": "true",
+			"required": "true",
+			"values": [
+				"destroy",
+				"up",
+				"down"
+			]
+		}
+	}
+}

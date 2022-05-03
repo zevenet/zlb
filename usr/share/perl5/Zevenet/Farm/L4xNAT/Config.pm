@@ -259,6 +259,11 @@ sub setL4FarmParam
 			$addition = $addition . qq( , "helper" : "$value" );
 			$value    = "udp";
 		}
+		elsif ( $value =~ /all/ )
+		{
+			$addition = $addition . qq( , "helper" : "none" );
+			$addition = $addition . qq( , "virtual-ports" : "" );
+		}
 		elsif ( $value =~ /sip|h323/ )
 		{
 			$addition = $addition . qq( , "helper" : "$value" );
@@ -269,7 +274,6 @@ sub setL4FarmParam
 			$addition = $addition . qq( , "helper" : "none" );
 		}
 
-		$addition = $addition . qq( , "virtual-ports" : "" ) if ( $value eq "all" );
 		$parameters = qq(, "protocol" : "$value" ) . $addition;
 	}
 	elsif ( $param eq "status" || $param eq "bootstatus" )
@@ -338,6 +342,21 @@ sub setL4FarmParam
 	{
 		$parameters = qq(, "policies" : [ { "name" : "$value" } ] );
 	}
+	elsif ( $param eq "logs" )
+	{
+		$srvparam   = "log";
+		$value      = "forward" if ( $value eq "true" );
+		$value      = "none" if ( $value eq "false" );
+		$parameters = qq(, "$srvparam" : "$value");
+	}
+	elsif ( $param eq "log-prefix" )
+	{
+		$srvparam   = "log-prefix";
+		$value      = "l4:$farm_name ";
+		$parameters = qq(, "$srvparam" : "$value");
+
+	  # TODO: put a warning msg when farm name is longer than nftables reserved log size
+	}
 	else
 	{
 		return -1;
@@ -358,7 +377,8 @@ sub setL4FarmParam
 	# Finally, reload rules
 	if ( $param eq "vip" )
 	{
-		&doL4FarmRules( "reload", $farm_name, $prev_config );
+		&doL4FarmRules( "reload", $farm_name, $prev_config )
+		  if ( $prev_config->{ status } eq "up" );
 
 		# reload source address maquerade
 		require Zevenet::Farm::Config;
@@ -574,6 +594,47 @@ sub _getL4ParseFarmConfig
 	}
 
 	return $output;
+}
+
+=begin nd
+Function: modifyLogsParam
+
+	It enables or disables the logs for a l4xnat farm
+
+Parameters:
+	farmname - Farm name
+	log value - The possible values are: 'true' to enable the logs or 'false' to disable them
+
+Returns:
+	String - return an error message on error or undef on success
+
+=cut
+
+sub modifyLogsParam
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $farmname  = shift;
+	my $logsValue = shift;
+
+	my $msg;
+	my $err = 0;
+	if ( $logsValue =~ /(?:true|false)/ )
+	{
+		$err = &setL4FarmParam( 'logs',       $logsValue, $farmname );
+		$err = &setL4FarmParam( 'log-prefix', undef,      $farmname )
+		  if ( !$err and $logsValue eq 'true' );
+	}
+	else
+	{
+		$msg = "Invalid value for logs parameter.";
+	}
+
+	if ( $err )
+	{
+		$msg = "Error modifying the parameter logs.";
+	}
+	return $msg;
 }
 
 =begin nd
@@ -934,7 +995,7 @@ sub doL4FarmProbability
 =begin nd
 Function: doL4FarmRules
 
-	Created to operate with setL4BackendRule in order to start, stop or reload ip rules
+	Created to operate with setBackendRule in order to start, stop or reload ip rules
 
 Parameters:
 	action - stop (delete all ip rules), start (create ip rules) or reload (delete old one stored in prev_farm_ref and create new)
@@ -956,13 +1017,15 @@ sub doL4FarmRules
 
 	my $farm_ref = &getL4FarmStruct( $farm_name );
 
+	require Zevenet::Farm::Backend;
+
 	foreach my $server ( @{ $farm_ref->{ servers } } )
 	{
-		&setL4BackendRule( "del", $farm_ref, $server->{ tag } )
+		&setBackendRule( "del", $farm_ref, $server->{ tag } )
 		  if ( $action eq "stop" );
-		&setL4BackendRule( "del", $prev_farm_ref, $server->{ tag } )
+		&setBackendRule( "del", $prev_farm_ref, $server->{ tag } )
 		  if ( $action eq "reload" );
-		&setL4BackendRule( "add", $farm_ref, $server->{ tag } )
+		&setBackendRule( "add", $farm_ref, $server->{ tag } )
 		  if ( $action eq "start" || $action eq "reload" );
 	}
 }
@@ -1000,24 +1063,38 @@ sub writeL4NlbConfigFile
 
 	my $fo = &openlock( $cfgfile, 'w' );
 	open my $fi, '<', "$nftfile";
-	my $write = 1;
 	my $line  = <$fi>;
+	my $write = 1;
 	my $next_line;
 	while ( defined $line )
 	{
 		$next_line = <$fi>;
 		$write = 0 if ( $line =~ /\"policies\"\:/ );
 
-		if ( defined ( $next_line ) && $next_line =~ /\"policies\"\:/ && $line =~ /\]/ )
+		if (    defined ( $next_line )
+			 && $next_line =~ /\"policies\"\:/
+			 && $line =~ /\]/ )
 		{
 			$line =~ s/,$//g;
+			$line =~ s/\n//g;
 		}
 		print $fo $line
 		  if (
 			   $line !~ /new-rtlimit|rst-rtlimit|tcp-strict|queue|^[\s]{24}.est-connlimit/
 			   && $write == 1 );
 
-		$write = 1 if ( $write == 0 && $line =~ /\]/ );
+		if ( $write == 0 && $line =~ /\]/ )
+		{
+			$write = 1;
+			if ( $next_line =~ /\"sessions\"\:/ )
+			{
+				print $fo ",\n";
+			}
+			else
+			{
+				print $fo "\n";
+			}
+		}
 
 		$line = $next_line;
 	}
@@ -1026,6 +1103,49 @@ sub writeL4NlbConfigFile
 	unlink $nftfile;
 
 	return 0;
+}
+
+=begin nd
+Function: doL4FarmRules
+
+	Reset Connection tracking for a given farm
+
+Parameters:
+	farm_name
+
+Returns:
+	error: 1 in case of error and 0 otherwise
+
+=cut
+
+sub resetL4FarmConntrack
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $farm_name = shift;
+	my $error     = 0;
+
+	my $servers = &getL4FarmServers( $farm_name );
+	foreach my $server ( @{ $servers } )
+	{
+		&resetL4FarmBackendConntrackMark( $server );
+	}
+
+	# Check there are not connections
+	require Zevenet::Farm::L4xNAT::Stats;
+	require Zevenet::Net::ConnStats;
+	my $vip = &getL4FarmParam( "vip", $farm_name );
+	my $netstat = &getConntrack( '', $vip, '', '', '' );
+	my $conns = &getL4FarmEstConns( $farm_name, $netstat );
+	$conns += &getL4FarmSYNConns( $farm_name, $netstat );
+
+	if ( $conns > 0 )
+	{
+		&zenlog( "Error flushing conntrack for $farm_name", "ERROR" );
+		$error = 1;
+	}
+
+	return $error;
 }
 
 1;

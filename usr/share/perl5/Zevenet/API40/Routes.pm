@@ -36,10 +36,43 @@ if ( $ENV{ PATH_INFO } =~ qr{^/ids$} )
 # Certificates
 my $cert_re     = &getValidFormat( 'certificate' );
 my $cert_pem_re = &getValidFormat( 'cert_pem' );
+my $le_cert_re  = &getValidFormat( 'le_certificate_name' );
 
+# LetsencryptZ
+if ( $q->path_info =~ qr{^/certificates/letsencryptz} )
+{
+	require Zevenet::API40::LetsencryptZ;
+
+	#  GET List LetsencryptZ certificates
+	GET qr{^/certificates/letsencryptz$} => \&get_le_certificates;
+
+	#  GET LetsencryptZ config
+	GET qr{^/certificates/letsencryptz/config$} => \&get_le_conf;
+
+	#  GET LetsencryptZ certificate
+	GET qr{^/certificates/letsencryptz/($le_cert_re)$} => \&get_le_certificate;
+
+	#  Create LetsencryptZ certificates
+	POST qr{^/certificates/letsencryptz$} => \&create_le_certificate;
+
+	#  LetsencryptZ certificates actions
+	POST qr{^/certificates/letsencryptz/($le_cert_re)/actions$} =>
+	  \&actions_le_certificate;
+
+	#  DELETE LetsencryptZ certificate
+	DELETE qr{^/certificates/letsencryptz/($le_cert_re)$} =>
+	  \&delete_le_certificate;
+
+	#  Modify LetsencryptZ config
+	PUT qr{^/certificates/letsencryptz/config$} => \&modify_le_conf;
+
+}
+
+# SSL certificates
 if ( $q->path_info =~ qr{^/certificates} )
 {
 	require Zevenet::API40::Certificate;
+	my $cert_name_re = &getValidFormat( 'certificate_name' );
 
 	#  GET List SSL certificates
 	GET qr{^/certificates$} => \&certificates;
@@ -54,10 +87,17 @@ if ( $q->path_info =~ qr{^/certificates} )
 	POST qr{^/certificates$} => \&create_csr;
 
 	#  POST certificates
-	POST qr{^/certificates/($cert_pem_re)$} => \&upload_certificate;
+	POST qr{^/certificates/pem$} => \&create_certificate;
+
+	if ( $q->path_info !~ qr{^/certificates/letsencryptz-wildcard$} )
+	{
+		#  POST certificates
+		POST qr{^/certificates/($cert_name_re)$} => \&upload_certificate;
+	}
 
 	#  DELETE certificate
 	DELETE qr{^/certificates/($cert_re)$} => \&delete_certificate;
+
 }
 
 # Farms
@@ -166,6 +206,9 @@ if ( $q->path_info =~ qr{^/farms} )
 
 		##### /farms/FARM
 		GET qr{^/farms/($farm_re)$} => \&farms_name;
+
+		##### /farms/FARM/status
+		GET qr{^/farms/($farm_re)/status$} => \&farms_name_status;
 	}
 
 	if ( $ENV{ REQUEST_METHOD } eq 'POST' )
@@ -279,56 +322,74 @@ if ( $q->path_info =~ qr{^/graphs} )
 
 	my $frequency_re = &getValidFormat( 'graphs_frequency' );
 	my $system_id_re = &getValidFormat( 'graphs_system_id' );
+	my $rrd_re       = &getValidFormat( 'rrd_time' );
 
 	#  GET possible graphs
-	GET qr{^/graphs$} => \&possible_graphs;
+	GET qr{^/graphs$} => \&list_possible_graphs;
 
 	##### /graphs/system
 	#  GET all possible system graphs
-	GET qr{^/graphs/system$} => \&get_all_sys_graphs;
+	GET qr{^/graphs/system$} => \&list_sys_graphs;
 
 	#  GET system graphs
 	GET qr{^/graphs/system/($system_id_re)$} => \&get_sys_graphs;
 
 	#  GET frequency system graphs
 	GET qr{^/graphs/system/($system_id_re)/($frequency_re)$} =>
-	  \&get_frec_sys_graphs;
+	  \&get_sys_graphs_freq;
+
+	#  GET the interval of a system graph
+	GET qr{^/graphs/system/($system_id_re)/custom/start/($rrd_re)/end/($rrd_re)$} =>
+	  \&get_sys_graphs_interval;
 
 	##### /graphs/system/disk
 
 	# $disk_re includes 'root' at the beginning
 	my $disk_re = &getValidFormat( 'mount_point' );
 
-	GET qr{^/graphs/system/disk$} => \&list_disks;
+	GET qr{^/graphs/system/disk$} => \&list_disks_graphs;
+
+	#  GET the interval of a disk graph
+	GET qr{^/graphs/system/disk/($disk_re)/custom/start/($rrd_re)/end/($rrd_re)$} =>
+	  \&get_disk_graphs_interval;
 
 	# keep before next request
 	GET qr{^/graphs/system/disk/($disk_re)/($frequency_re)$} =>
-	  \&graph_disk_mount_point_freq;
+	  \&get_disk_graphs_freq;
 
-	GET qr{^/graphs/system/disk/($disk_re)$} => \&graphs_disk_mount_point_all;
+	GET qr{^/graphs/system/disk/($disk_re)$} => \&get_disk_graphs;
 
 	##### /graphs/interfaces
 
-	#  GET all posible interfaces graphs
-	GET qr{^/graphs/interfaces$} => \&get_all_iface_graphs;
+	#  GET all possible interfaces graphs
+	GET qr{^/graphs/interfaces$} => \&list_iface_graphs;
 
 	#  GET interfaces graphs
 	GET qr{^/graphs/interfaces/($nic_re|$vlan_re)$} => \&get_iface_graphs;
 
 	#  GET frequency interfaces graphs
-	GET qr{^/graphs/interfaces/($nic_re)/($frequency_re)$} =>
-	  \&get_frec_iface_graphs;
+	GET qr{^/graphs/interfaces/($nic_re|$vlan_re)/($frequency_re)$} =>
+	  \&get_iface_graphs_frec;
+
+	#  GET the interval of an interface graph
+	GET
+	  qr{^/graphs/interfaces/($nic_re|$vlan_re)/custom/start/($rrd_re)/end/($rrd_re)$}
+	  => \&get_iface_graphs_interval;
 
 	##### /graphs/farms
 
 	#  GET all posible farm graphs
-	GET qr{^/graphs/farms$} => \&get_all_farm_graphs;
+	GET qr{^/graphs/farms$} => \&list_farm_graphs;
 
 	#  GET farm graphs
 	GET qr{^/graphs/farms/($farm_re)$} => \&get_farm_graphs;
 
 	#  GET frequency farm graphs
-	GET qr{^/graphs/farms/($farm_re)/($frequency_re)$} => \&get_frec_farm_graphs;
+	GET qr{^/graphs/farms/($farm_re)/($frequency_re)$} => \&get_farm_graphs_frec;
+
+	#  GET the interval of a farm graph
+	GET qr{^/graphs/farms/($farm_re)/custom/start/($rrd_re)/end/($rrd_re)$} =>
+	  \&get_farm_graphs_interval;
 }
 
 # System
@@ -393,8 +454,8 @@ if ( $q->path_info =~ qr{^/system/backup} )
 	  \&apply_backup;                                         #  POST  apply backups
 }
 
-if (
-	 $q->path_info =~ qr{^/system/(?:version|info|license|supportsave|language)} )
+if ( $q->path_info =~
+	 qr{^/system/(?:version|info|license|supportsave|language|packages)} )
 {
 	require Zevenet::API40::System::Info;
 
@@ -405,7 +466,10 @@ if (
 	my $license_re = &getValidFormat( 'license_format' );
 	GET qr{^/system/license/($license_re)$} => \&get_license;
 
+	GET qr{^/system/language$}  => \&get_language;
 	POST qr{^/system/language$} => \&set_language;
+
+	GET qr{^/system/packages$} => \&get_packages_info;
 }
 
 if ( $q->path_info =~ qr{/ciphers$} )
@@ -413,6 +477,55 @@ if ( $q->path_info =~ qr{/ciphers$} )
 	require Zevenet::API40::Certificate;
 
 	GET qr{^/ciphers$} => \&ciphers_available;
+}
+
+if ( $ENV{ PATH_INFO } =~
+	qr{^/farms/$farm_re/(?:replacerequestheader|replaceresponseheader)/(\d+)/actions$}
+  )
+{
+	require Zevenet::API40::Farm::HTTP;
+
+	POST qr{^/farms/($farm_re)/replacerequestheader/(\d+)/actions$} =>
+	  \&move_replacerequestheader;
+	POST qr{^/farms/($farm_re)/replaceresponseheader/(\d+)/actions$} =>
+	  \&move_replaceresponseheader;
+}
+
+if ( $ENV{ PATH_INFO } =~
+	qr{^/farms/$farm_re/(?:addheader|headremove|addresponseheader|removeresponseheader|replacerequestheader|replaceresponseheader)(:?/\d+)?$}
+  )
+{
+	require Zevenet::API40::Farm::HTTP;
+
+	POST qr{^/farms/($farm_re)/addheader$}          => \&add_addheader;
+	PUT qr{^/farms/($farm_re)/addheader/(\d+)$}     => \&modify_addheader;
+	DELETE qr{^/farms/($farm_re)/addheader/(\d+)$}  => \&del_addheader;
+	POST qr{^/farms/($farm_re)/headremove$}         => \&add_headremove;
+	PUT qr{^/farms/($farm_re)/headremove/(\d+)$}    => \&modify_headremove;
+	DELETE qr{^/farms/($farm_re)/headremove/(\d+)$} => \&del_headremove;
+
+	POST qr{^/farms/($farm_re)/addresponseheader$} => \&add_addResponseheader;
+	PUT qr{^/farms/($farm_re)/addresponseheader/(\d+)$} =>
+	  \&modify_addResponseheader;
+	DELETE qr{^/farms/($farm_re)/addresponseheader/(\d+)$} =>
+	  \&del_addResponseheader;
+	POST qr{^/farms/($farm_re)/removeresponseheader$} => \&add_removeResponseheader;
+	PUT qr{^/farms/($farm_re)/removeresponseheader/(\d+)$} =>
+	  \&modify_removeResponseheader;
+	DELETE qr{^/farms/($farm_re)/removeresponseheader/(\d+)$} =>
+	  \&del_removeResponseHeader;
+
+	POST qr{^/farms/($farm_re)/replacerequestheader$} => \&add_replaceRequestHeader;
+	PUT qr{^/farms/($farm_re)/replacerequestheader/(\d+)$} =>
+	  \&modify_replaceRequestHeader;
+	DELETE qr{^/farms/($farm_re)/replacerequestheader/(\d+)$} =>
+	  \&del_replaceRequestHeader;
+	POST qr{^/farms/($farm_re)/replaceresponseheader$} =>
+	  \&add_replaceResponseHeader;
+	PUT qr{^/farms/($farm_re)/replaceresponseheader/(\d+)$} =>
+	  \&modify_replaceResponseHeader;
+	DELETE qr{^/farms/($farm_re)/replaceresponseheader/(\d+)$} =>
+	  \&del_replaceResponseHeader;
 }
 
 ##### Load modules dynamically #######################################

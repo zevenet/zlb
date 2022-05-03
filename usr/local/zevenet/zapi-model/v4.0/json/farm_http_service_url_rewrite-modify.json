@@ -1,0 +1,23 @@
+{
+   "action" : "add",
+   "description" : "It checks a pattern in order to get strings from URL and replace them.",
+   "method" : "POST",
+   "params" : {
+      "last" : {
+         "non_blank" : "true",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "pattern" : {
+         "is_regex" : "true",
+         "negated_regex" : "(?^:\\n)",
+         "non_blank" : "true"
+      },
+      "replace" : {
+         "negated_regex" : "(?^:\\n)"
+      }
+   },
+   "url" : "/farms/<farmname>/service/<servicename>/rewriteurl"
+}

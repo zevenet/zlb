@@ -1,0 +1,27 @@
+{
+	"description": "Modify the configuration of the current user. The current user is the user got from the ZAPI_KEY or the user logged by the WebGUI.",
+	"method": "POST",
+	"url": "/system/users",
+	"action": "set",
+	"params": {
+		"zapikey": {
+			"description": "Each user can have a zapikey. With this zapikey, the user can do action through the zapikey with the permissions of the user’s role.",
+			"regex": "$zapi_key"
+		},
+		"zapi_permissions": {
+			"description": "The possible values are: true, to enable the access to the load balancer through the ZAPI; or false, to deny the access through the ZAPI.",
+			"regex": "$boolean",
+			"non_blank": "true"
+		},
+		"password": {
+			"description": "It is the current user password. It is required when newpassword is sent.",
+			"non_blank": "true"
+		},
+		"newpassword": {
+			"description": "New user password to access through the WebGUI.",
+			"regex": "$rbac_password",
+			"non_blank": "true",
+			"format_msg": "must contain at least a letter and a number and a minimum length of 8 characters."
+		}
+	}
+}

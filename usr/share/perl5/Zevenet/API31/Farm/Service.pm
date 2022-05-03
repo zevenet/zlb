@@ -45,7 +45,7 @@ sub new_farm_service    # ( $json_obj, $farmname )
 	# Check if the farm exists
 	if ( !&getFarmExists( $farmname ) )
 	{
-		my $msg = "The farmname $farmname does not exists.";
+		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
@@ -198,6 +198,8 @@ sub farm_services
 	{
 		$be->{ status } = "up" if $be->{ status } eq "undefined";
 		delete $be->{ priority };
+		delete $be->{ tag };
+		delete $be->{ connection_limit };
 	}
 
 	my $body = {
@@ -418,9 +420,22 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 
 	# no error found, return succesful response
 	$output_params = &getHTTPServiceStruct( $farmname, $service );
+	delete ( $output_params->{ replacerequestheader } );
+	delete ( $output_params->{ replaceresponseheader } );
+	delete ( $output_params->{ rewritelocation } );
+	delete ( $output_params->{ rewriteurl } );
+	delete ( $output_params->{ addrequestheader } );
+	delete ( $output_params->{ addresponseheader } );
+	delete ( $output_params->{ removerequestheader } );
+	delete ( $output_params->{ removeresponseheader } );
+	delete ( $output_params->{ routingpolicy } );
+	delete ( $output_params->{ pinnedconnection } );
+
 	foreach my $be_ref ( @{ $output_params->{ backends } } )
 	{
 		delete $be_ref->{ priority };
+		delete $be_ref->{ tag };
+		delete $be_ref->{ connection_limit };
 	}
 
 	&zenlog(
@@ -470,7 +485,7 @@ sub delete_service    # ( $farmname, $service )
 	# Check if the farm exists
 	if ( !&getFarmExists( $farmname ) )
 	{
-		my $msg = "The farmname $farmname does not exists.";
+		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 

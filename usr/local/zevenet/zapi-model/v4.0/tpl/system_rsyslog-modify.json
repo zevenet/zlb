@@ -1,0 +1,23 @@
+{
+	"description": "Modify the rsyslog service configuration.",
+	"method": "POST",
+	"url": "/system/rsyslog",
+	"action": "set",
+	"params": {
+		"ip": {
+			"description": "Ip/Fqdn where remote log server is listening.",
+			"regex": "$rsyslog_remote"
+		},
+		"port": {
+			"description": "Port where remote log server is listening. If no port is specified, the default value will be 514.",
+			"regex": "$port"
+		},
+		"protocol": {
+			"description": "Protocol Type. The options are: tcp(for the TCP protocol) or udp(for the UDP protocol). If none is specified, the default protocol used will be UDP.",
+			"values": [
+				"tcp",
+				"udp"
+			]
+		}
+	}
+}

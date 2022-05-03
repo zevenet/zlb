@@ -1,0 +1,13 @@
+{
+   "action" : "add",
+   "description" : "Remove certain headers from the client requests.",
+   "method" : "POST",
+   "params" : {
+      "pattern" : {
+         "negated_regex" : "(?^:\\n)",
+         "non_blank" : "true",
+         "required" : "true"
+      }
+   },
+   "url" : "/farms/<farmname>/service/<servicename>/removerequestheader"
+}

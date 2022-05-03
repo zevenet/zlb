@@ -1,0 +1,102 @@
+#!/bin/bash
+
+REPO="repo.zevenet.com"
+
+# load global.conf variables
+if [ -f "/usr/local/zevenet/bin/load_global_conf" ];
+then
+       	source /usr/local/zevenet/bin/load_global_conf
+        load_global_conf
+else
+	echo "I can't find environment variable"
+	exit
+fi
+
+# control errors
+function error {
+        # Input parameters:
+			# $1 = error message
+        if [ $? -ne 0 ]; then
+		echo "$1"
+		exit
+        fi
+}
+
+case "$1" in
+'')
+
+	$aptget_bin update -o Dir::Etc::sourceparts="-" -o Dir::Etc::sourcelist=$apt_source_zevenet> /dev/null
+
+	# check if there are upgradable packages
+	packages=`$apt_bin list --upgradable -o Dir::Etc::sourceparts="-" -o Dir::Etc::sourcelist="$apt_source_zevenet" 2>/dev/null | awk 'FNR > 1' | wc -l`
+	if [ $packages \> 0 ]
+	then
+		echo "$packages package(s) require upgrade"
+		echo "To upgrade, execute: checkupdates -i, or help with checkupdates -h"
+		echo "last check at `date` - $packages package(s) require upgrade, update this information with: checkupdates" > $apt_msg
+		echo "To upgrade, execute: checkupdates -i, or help with checkupdates -h" >> $apt_msg
+		$apt_bin list --upgradable -o Dir::Etc::sourceparts="-" -o Dir::Etc::sourcelist="$apt_source_zevenet" 2>/dev/null | cut -d"/" -f 1  | sed '1d' | tr  '\n' ' ' > $apt_outdated_list
+	else
+		echo "Zevenet Packages are up-to-date."
+		echo "Zevenet Packages are up-to-date." > $apt_msg
+		echo "" > $apt_outdated_list
+    fi
+;;
+
+'-n')
+	# Displays number non-updated packages
+	number=`$apt_bin list --upgradable -o Dir::Etc::sourceparts="-" -o Dir::Etc::sourcelist="$apt_source_zevenet" 2>/dev/null | awk 'FNR > 1' | wc -l`
+	echo "$number"
+;;
+
+'-l')
+	# Displays a list of non-updated packages
+	$apt_bin list --upgradable -o Dir::Etc::sourceparts="-" -o Dir::Etc::sourcelist="$apt_source_zevenet" 2>/dev/null | awk 'FNR > 1'
+;;
+
+'-i')   # Install the non-updated packages
+	DEBIAN_FRONTEND=noninteractive $apt_bin --with-new-pkgs upgrade
+	#checkupdates
+	#do this in order to update the web GUI alerts after any installation
+	$aptget_bin update -o Dir::Etc::sourceparts="-" -o Dir::Etc::sourcelist="sources.list.d/zevenet.list" > /dev/null
+	echo "Zevenet Packages are up-to-date." > $apt_msg
+	$apt_bin list --upgradable -o Dir::Etc::sourceparts="-" -o Dir::Etc::sourcelist="sources.list.d/zevenet.list" 2>/dev/null | cut -d"/" -f 1  | sed '1d' | tr  '\n' ' ' > $apt_outdated_list
+
+;;
+
+'-h')
+	echo "Usage:	checkupdates"
+	echo "	checkupdates name-pkg"
+	echo "	checkupdates [options]"
+	echo ""
+	echo "checkupdates provides informations about packages."
+	echo ""
+	echo "Options:"
+	echo ""
+	echo -e "  -n \t\t\t Displays the number non-updated packages"
+	echo -e "  -l \t\t\t Displays a list of non-updated packages"
+	echo -e "  -i \t\t\t Installs the non-updated packages"
+	echo -e "  -h \t\t\t Displays this help"
+	echo ""
+;;
+
+*)
+	#Check the status of a package
+	$dpkg_bin -l | grep $1 | awk {'print $2'} | grep $1$ > /dev/null
+	if [ $? = 0 ];
+	then
+		installed=`$aptcache_bin policy $1 | head -2 | tail -1 | cut -d ":" -f2 | sed 's/ //g'`
+		candidate=`$aptcache_bin policy $1 | head -3 | tail -1 | cut -d ":" -f2 | sed 's/ //g'`
+		if [ "$installed" != "$candidate" ];
+		then
+			echo "There is a new version of $1"
+			echo "installed = $1 $installed"
+			echo "candidate = $1 $candidate"
+		else
+			echo "$1 is already in the newest version $installed"
+		fi
+	else
+		echo "$1 it is not installed in the system"
+	fi
+;;
+esac

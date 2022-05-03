@@ -1,0 +1,32 @@
+{
+	"method": "POST",
+	"url": "/certificates/letsencryptz",
+	"action": "renew",
+	"description": "Create a new Letsencrypt certificate.",
+	"params": {
+		"vip": {
+			"description": "IP of the system, where a temporal Farm Letsencryptz is configured.",
+			"non_blank": "true",
+			"dyn_values": "true"
+		},
+		"farmname": {
+			"description": "Farm name which a temporal Service Letsencryptz is configured in.",
+			"non_blank": "true",
+			"dyn_values": "true"
+		},
+		"domains": {
+			"description": "List of domains which the certificate is vaild for.",
+			"required": "true",
+			"ref": "ARRAY"
+		},
+		"test": {
+			"description": "true, the certificate is issued by LetsEncrypt Staging Server. false, the certificate is issued by LetsEncrypt Server and it will valid for Production environment.",
+			"required": "true",
+			"non_blank": "true",
+			"values": [
+				"true",
+				"false"
+			]
+		}
+	}
+}

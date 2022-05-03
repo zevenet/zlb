@@ -178,6 +178,20 @@ sub createFile
 	return 0;
 }
 
+sub deleteFile
+{
+	my $file = shift;
+	my $fh;
+
+	if ( !-f $file )
+	{
+		&zenlog( "The file $file doesn't exist", "error", "System" );
+		return 1;
+	}
+	unlink $file;
+	return 0;
+}
+
 =begin nd
 Function: getFileDateGmt
 
@@ -204,6 +218,95 @@ sub getFileDateGmt
 	chomp $date;
 
 	return $date;
+}
+
+=begin nd
+Function: getFileChecksumMD5
+
+	Returns the checksum MD5 of the file or directory including subdirs.
+
+Parameters:
+	file path - File path or Directory path
+
+Returns:
+	Hash ref - Hash ref with filepath as key and checksummd5 as value.
+
+=cut
+
+sub getFileChecksumMD5
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my $filepath = shift;
+	my $md5      = {};
+
+	if ( -d $filepath )
+	{
+		opendir ( DIR, $filepath );
+		my @files = readdir ( DIR );
+		closedir ( DIR );
+		foreach my $file ( @files )
+		{
+			next if ( $file eq "." or $file eq ".." );
+			$md5 = { %{ $md5 }, %{ &getFileChecksumMD5( $filepath . "/" . $file ) } };
+		}
+	}
+	else
+	{
+		use Digest::MD5;
+		open ( my $fh, '<', $filepath );
+		binmode ( $fh );
+		$md5->{ $filepath } = Digest::MD5->new->addfile( $fh )->hexdigest;
+		close $fh;
+	}
+	return $md5;
+}
+
+=begin nd
+Function: getFileChecksumAction
+
+	Compare two Hashes of checksum filepaths and returns the actions to take.
+
+Parameters:
+	checksum_filepath1 - Hash ref checksumMD5 file path1
+	checksum_filepath2 - Hash ref checksumMD5 file path2
+
+Returns:
+	Hash ref - Hash ref with filepath as key and action as value
+
+=cut
+
+sub getFileChecksumAction
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my $checksum_filepath1 = shift;
+	my $checksum_filepath2 = shift;
+	my $files_changed;
+
+	foreach my $file ( keys %{ $checksum_filepath1 } )
+	{
+		if ( !defined $checksum_filepath2->{ $file } )
+		{
+			$files_changed->{ $file } = "del";
+		}
+		elsif ( $checksum_filepath1->{ $file } ne $checksum_filepath2->{ $file } )
+		{
+			$files_changed->{ $file } = "modify";
+			delete $checksum_filepath2->{ $file };
+		}
+		else
+		{
+			delete $checksum_filepath2->{ $file };
+		}
+	}
+	foreach my $file ( keys %{ $checksum_filepath2 } )
+	{
+		$files_changed->{ $file } = "add";
+	}
+	return $files_changed;
 }
 
 1;

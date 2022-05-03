@@ -48,14 +48,7 @@ sub set_dns
 
 	my $desc = "Modify the DNS";
 
-	my $params = {
-				   "primary" => {
-								  'valid_format' => 'dns_nameserver',
-				   },
-				   "secondary" => {
-									'valid_format' => 'dns_nameserver',
-				   },
-	};
+	my $params = &getZAPIModel( "system_dns-modify.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -70,7 +63,15 @@ sub set_dns
 
 	my $dns = &getDns();
 	&httpResponse(
-				   { code => 200, body => { description => $desc, params => $dns } } );
+				   {
+					 code => 200,
+					 body => {
+							   description => $desc,
+							   params      => $dns,
+							   message     => "The DNS service has been updated successfully."
+					 }
+				   }
+	);
 }
 
 1;

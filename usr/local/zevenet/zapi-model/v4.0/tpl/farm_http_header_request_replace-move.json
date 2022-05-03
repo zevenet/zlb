@@ -1,0 +1,13 @@
+{
+	"method": "POST",
+	"url": "/farms/<farmname>/replacerequestheader/<id>/actions",
+	"action": "add",
+	"description": "Move a ReplaceHeader",
+	"params": {
+		"position": {
+			"regex": "$integer",
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

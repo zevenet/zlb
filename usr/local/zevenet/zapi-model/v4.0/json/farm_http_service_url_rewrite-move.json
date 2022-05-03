@@ -1,0 +1,13 @@
+{
+   "action" : "move",
+   "description" : "It checks a pattern in order to get strings from URL and replace them.",
+   "method" : "POST",
+   "params" : {
+      "position" : {
+         "non_blank" : "true",
+         "regex" : "(?^:\\d+)",
+         "required" : "true"
+      }
+   },
+   "url" : "/farms/<farmname>/service/<servicename>/rewriteurl/<id>/actions"
+}

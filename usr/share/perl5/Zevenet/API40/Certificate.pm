@@ -76,15 +76,9 @@ sub get_certificate_info    # ()
 
 	if ( &getValidFormat( 'certificate', $cert_filename ) )
 	{
-		my @cert_info = &getCertData( "$cert_dir\/$cert_filename" );
-		my $body;
+		my $cert = &getCertData( "$cert_dir\/$cert_filename", "true" );
 
-		foreach my $line ( @cert_info )
-		{
-			$body .= $line;
-		}
-
-		&httpResponse( { code => 200, body => $body, type => 'text/plain' } );
+		&httpResponse( { code => 200, body => $cert, type => 'text/plain' } );
 	}
 	else
 	{
@@ -125,6 +119,7 @@ sub delete_certificate    # ( $cert_filename )
 	my $cert_filename = shift;
 
 	require Zevenet::Certificate;
+	require Zevenet::LetsencryptZ;
 
 	my $desc     = "Delete certificate";
 	my $cert_dir = &getGlobalConfiguration( 'certdir' );
@@ -142,6 +137,55 @@ sub delete_certificate    # ( $cert_filename )
 	if ( $status == 0 )
 	{
 		my $msg = "File can't be deleted because it's in use by a farm.";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+
+	if ( $eload )
+	{
+		$status = &eload(
+						  module => 'Zevenet::System::HTTP',
+						  func   => 'getHttpsCertUsed',
+						  args   => [$cert_filename]
+		);
+
+		if ( $status == 0 )
+		{
+			my $msg = "File can't be deleted because it's in use by HTTPS server";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+	}
+
+	# check if it is a LE certificate
+	my $le_cert_name = $cert_filename;
+	$le_cert_name =~ s/.pem//g;
+	$le_cert_name =~ s/\_/\./g;
+	my $error;
+	if ( @{ &getLetsencryptCertificates( $le_cert_name ) } )
+	{
+		$error = &runLetsencryptDestroy( $le_cert_name );
+	}
+
+	if ( $eload )
+	{
+		my $wildcard = &eload(
+							   module => 'Zevenet::LetsencryptZ::Wildcard',
+							   func   => 'getLetsencryptWildcardCertificates',
+							   args   => [$le_cert_name]
+		);
+
+		if ( @{ $wildcard } )
+		{
+			$error = &eload(
+							 module => 'Zevenet::LetsencryptZ::Wildcard',
+							 func   => 'runLetsencryptWildcardDestroy',
+							 args   => [$le_cert_name]
+			);
+		}
+	}
+
+	if ( $error )
+	{
+		my $msg = "LE Certificate can not be removed";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
@@ -183,44 +227,8 @@ sub create_csr
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	my $params = {
-		"name" => {
-					'valid_format' => 'cert_name',
-					'non_blank'    => 'true',
-					'required'     => 'true',
-		},
-		"division" => {
-						'non_blank' => 'true',
-						'required'  => 'true',
-		},
-		"organization" => {
-							'non_blank' => 'true',
-							'required'  => 'true',
-		},
-		"locality" => {
-						'non_blank' => 'true',
-						'required'  => 'true',
-		},
-		"state" => {
-					 'non_blank' => 'true',
-					 'required'  => 'true',
-		},
-		"country" => {
-					   'non_blank' => 'true',
-					   'required'  => 'true',
-		},
-		"mail" => {
-					'non_blank' => 'true',
-					'required'  => 'true',
-		},
-		"fqdn" => {
-			'function'  => \&checkFQDN,
-			'non_blank' => 'true',
-			'required'  => 'true',
-			'format_msg' =>
-			  "FQDN is not valid. It must be as these examples: domain.com, mail.domain.com, or *.domain.com. Try again.",
-		},
-	};
+	my $params = &getZAPIModel( "certificate_csr-create.json" );
+	$params->{ fqdn }->{ function } = \&checkFQDN;
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -269,11 +277,8 @@ sub upload_certificate    # ()
 	my $desc      = "Upload PEM certificate";
 	my $configdir = &getGlobalConfiguration( 'certdir' );
 
-	if ( not &getValidFormat( 'certificate', $filename ) )
-	{
-		my $msg = "Invalid certificate file name";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
+	# add extension if it does not exist
+	$filename .= ".pem" if $filename !~ /\.pem$/;
 
 	# check if the certificate filename already exists
 	$filename =~ s/[\(\)\@ ]//g;
@@ -345,13 +350,6 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 	unless ( $eload ) { require Zevenet::Farm::HTTP::HTTPS; }
 
 	my $desc = "Add certificate to farm '$farmname'";
-	my $params = {
-				   "file" => {
-							   'valid_format' => 'cert_pem',
-							   'non_blank'    => 'true',
-							   'required'     => 'true',
-				   },
-	};
 
 	# Check if the farm exists
 	if ( !&getFarmExists( $farmname ) )
@@ -366,6 +364,8 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 		my $msg = "This feature is only available for 'https' farms";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
+
+	my $params = &getZAPIModel( "farm_certificate-add.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -447,12 +447,21 @@ sub add_farm_certificate    # ( $json_obj, $farmname )
 		}
 		else
 		{
-			&runFarmReload( $farmname );
-			&eload(
-					module => 'Zevenet::Cluster',
-					func   => 'runZClusterRemoteManager',
-					args   => ['farm', 'reload', $farmname],
-			) if ( $eload );
+			require Zevenet::Farm::HTTP::Config;
+			my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
+			if ( $config_error ne "" )
+			{
+				$body->{ warning } = "Farm '$farmname' config error: $config_error";
+			}
+			else
+			{
+				&runFarmReload( $farmname );
+				&eload(
+						module => 'Zevenet::Cluster',
+						func   => 'runZClusterRemoteManager',
+						args   => ['farm', 'reload', $farmname],
+				) if ( $eload );
+			}
 		}
 	}
 
@@ -481,7 +490,7 @@ sub delete_farm_certificate    # ( $farmname, $certfilename )
 	# Check if the farm exists
 	if ( !&getFarmExists( $farmname ) )
 	{
-		my $msg = "The farmname $farmname does not exists";
+		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
@@ -567,12 +576,21 @@ sub delete_farm_certificate    # ( $farmname, $certfilename )
 		}
 		else
 		{
-			&runFarmReload( $farmname );
-			&eload(
-					module => 'Zevenet::Cluster',
-					func   => 'runZClusterRemoteManager',
-					args   => ['farm', 'reload', $farmname],
-			) if ( $eload );
+			require Zevenet::Farm::HTTP::Config;
+			my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
+			if ( $config_error ne "" )
+			{
+				$body->{ warning } = "Farm '$farmname' config error: $config_error";
+			}
+			else
+			{
+				&runFarmReload( $farmname );
+				&eload(
+						module => 'Zevenet::Cluster',
+						func   => 'runZClusterRemoteManager',
+						args   => ['farm', 'reload', $farmname],
+				) if ( $eload );
+			}
 		}
 	}
 
@@ -581,5 +599,52 @@ sub delete_farm_certificate    # ( $farmname, $certfilename )
 	&httpResponse( { code => 200, body => $body } );
 }
 
-1;
+# POST /certificates/pem (Create PEM)
+sub create_certificate    # ()
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $json_obj = shift;
+	my $desc     = "Create certificate";
 
+	my $configdir = &getGlobalConfiguration( 'certdir' );
+
+	if ( -f "$configdir/$json_obj->{ name }.pem" )
+	{
+		my $msg = "$json_obj->{ name } already exists.";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+
+	my $params = &getZAPIModel( "certificate_pem-create.json" );
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
+	if ( $error_msg )
+	{
+		&httpErrorResponse( code => 400, desc => $desc, msg => $error_msg );
+	}
+
+	require Zevenet::Certificate;
+	my $error = &createPEM( $json_obj->{ name },
+							$json_obj->{ key },
+							$json_obj->{ ca },
+							$json_obj->{ intermediates } );
+
+	if ( $error->{ code } )
+	{
+		&httpErrorResponse( code => 400, desc => $desc, msg => $error->{ desc } );
+	}
+
+	# no errors found, return sucessful response
+	my $message = "Certificate $json_obj->{ name } created";
+	my $body = {
+				 description => $desc,
+				 success     => "true",
+				 message     => $message,
+	};
+
+	&httpResponse( { code => 200, body => $body } );
+
+}
+
+1;

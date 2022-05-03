@@ -8,8 +8,12 @@ $version="_VERSION_";#update
 ## Variables
 # debug level
 $debug="0";
+# nftlb debug level
+$nftlb_debug="5";
 #ZAPI Versions
-$zapi_versions="3 3.1 3.2 4.0.1";
+$zapi_versions="3 3.1 3.2 4.0.2";#update
+# API model path
+$zapi_model_path="/usr/local/zevenet/zapi-model";
 #ZAPI KEY
 $zapikey="";
 #proxy
@@ -18,7 +22,11 @@ $https_proxy="";
 # connection logs for farms. If this parameter is "true" all traffic will be logged
 # else only the new connections will be logged
 $full_farm_logs="false";
-
+# cors devel mode. If this parameter is "true", the http response header Access-Control-Allow-Origin
+# will be the same as the http request header Origin
+$cors_devel_mode = "false";
+# Minutes for Gui Session Timeout.
+$session_timeout="30";
 
 ## Zevenet Paths
 #Zevenet root directory
@@ -55,10 +63,13 @@ $first_boot_flag="/etc/firstzlbboot";
 $migration_flag="/etc/zlbmigration";
 #zevenet service
 $zevenet_service="/etc/init.d/zevenet";
+# directory of the migration scripts
+$mig_dir="$zdir/migrating";
 
 # System files
 #rt tables file
 $rttables="/etc/iproute2/rt_tables";
+$rttables_tpl="$templatedir/rt_tables.template";#update
 #HTPASSWD file
 $htpass="/etc/passwd";#update
 #shadow file
@@ -109,11 +120,19 @@ $filecluster="$configdir/cluster.conf";#update
 
 #let's encrypt configuration
 $temp_farm="letsencryptZevenet";
-$le_binary="certbot-auto";
+$le_farm="LetsencryptZevenet";
+$le_service="LetsencryptZ";
+$le_binary="/usr/local/zevenet/bin/certbot-auto --no-self-upgrade";#update
+$le_certbot_bin="/usr/bin/certbot";
 $le_fullchain_path="/usr/local/zevenet/config/letsencrypt/";
 $le_webroot_path="/usr/local/zevenet/app/letsencryptz/webroot/";
 $le_webserver_config_file="/usr/local/zevenet/app/letsencryptz/etc/cherokee_localhost.conf";
-$le_config_path="$le_fullchain_path";
+$le_config_path="/usr/local/zevenet/config/letsencrypt/";
+$le_manual_auth_hook="$zbindir/le_dns_auth_hook";
+$le_manual_cleanup_hook="$zbindir/le_dns_cleanup_hook";
+$le_acme_bin="/usr/local/zevenet/app/letsencryptz/acme/acme.sh";
+$le_acme_config_path="$le_config_path/acme";
+$le_acme_cert_path="$le_acme_config_path/live";
 $le_email="";
 
 #File configuration GUI
@@ -134,13 +153,15 @@ $sys_net_dir="/sys/class/net";
 
 
 ## binaries
+#Where is netstat binary?
+$netstat_bin="/bin/netstat";#update
 #Where is file binary?
 $file_bin="/usr/bin/file";
 #Where is cat binary?
 $aws_cat_bin="/bin/cat";#update
 $default_cat_bin="/usr/bin/cat";#update
 #This variable is modified from postinst
-$cat_bin="/usr/bin/cat";
+$cat_bin="/bin/cat";#update
 #Where is hostname binary?
 $hostname="/bin/hostname";
 #Where is kill binary?
@@ -167,6 +188,8 @@ $fdisk_bin="/usr/sbin/fdisk";
 $df_bin="/bin/df";
 #Where is ssh-keygen binary?
 $sshkeygen="/usr/bin/ssh-keygen";
+#Where is the logrotate binary?
+$logrotate_bin="/usr/sbin/logrotate";
 #Where is ssh client?
 $ssh="/usr/bin/ssh";
 #Where is scp binary?
@@ -184,6 +207,9 @@ $zcat="/bin/zcat";
 #Where is ntpserver?
 $datentp="/usr/sbin/ntpdate";
 #Where is date?
+$aws_date_bin="/bin/date";#update
+$default_date_bin="/usr/bin/date";#update
+#This variable is modified from postinst
 $date="/usr/bin/date";
 #Where is arping?
 $arping_bin="/usr/bin/arping";
@@ -199,6 +225,7 @@ $aptkey_bin="/usr/bin/apt-key";
 $aptcache_bin="/usr/bin/apt-cache";
 #Where is checkupgrades?
 $checkupgrades_bin="/usr/local/zevenet/bin/checkupgrades";#update
+$checkupdates_bin="/usr/local/zevenet/bin/checkupdates";#update
 #Where is openssl?
 $openssl="/usr/bin/openssl";
 #Where is unzip?
@@ -218,6 +245,9 @@ $touch="/usr/bin/touch";
 #Where is sed?
 $sed_bin="/bin/sed";
 #Where is cut?
+$aws_cut_bin="/usr/bin/cut";#update
+$default_cut_bin="/bin/cut";#update
+#This variable is modified from postinst
 $cut_bin="/bin/cut";
 #Where is ls?
 $ls="/bin/ls";
@@ -229,20 +259,20 @@ $stat="/usr/bin/stat";
 $cp="/bin/cp";
 #Where is rm?
 $rm="/bin/rm";
+#Where is find?
+$find="/bin/find";
 #Where is modprobe?
 $aws_modprobe="/sbin/modprobe";#update
-$default_modprobe="/usr/sbin/modprobe";#update
+$default_modprobe="/sbin/modprobe";#update
 #This variable is modified from postinst
-$modprobe="/sbin/modprobe";#update
+$modprobe="/usr/sbin/modprobe";
 #Where is lsmod?
 $aws_lsmod="/sbin/lsmod";#update
 $default_lsmod="/usr/sbin/lsmod";#update
 #This variable is modified from postinst
 $lsmod="/usr/sbin/lsmod";
 #Where is gdnsd?
-$gdnsd="/usr/sbin/gdnsd";#update
 #Where is gdnsd plugins?
-$gdnsd_plugin="/usr/lib/x86_64-linux-gnu/gdnsd/";
 #Where is l4sd?
 $l4sd="$zbindir/l4sd";#update
 #Where is factory_reset?
@@ -260,17 +290,13 @@ $insserv="/sbin/insserv";
 #Where is update-rc.d?
 $updatercd="/usr/sbin/update-rc.d";
 #Where is packetbl?
-$packetbl_bin="/bin/packetbl";
 #Where is adduser?
 $adduser_bin="/usr/sbin/adduser";
 #Where is deluser?
 $deluser_bin="/usr/sbin/deluser";
 #Where is groupadd?
-$groupadd_bin="/usr/sbin/groupadd";
 #Where is groupdel?
-$groupdel_bin="/usr/sbin/groupdel";
 #Where is groups?
-$groups_bin="/usr/bin/groups";
 #Where is echo?
 $echo_bin="/bin/echo";
 #Where is dpkg?
@@ -311,40 +337,41 @@ $default_netcat_bin="/usr/bin/nc.openbsd";#update
 $netcat_bin="/usr/bin/nc.openbsd";
 #Where is dmidecode
 $dmidecode_bin="/usr/sbin/dmidecode";
-
+#Where is expect binary?
+$expect_bin="/usr/bin/expect";
+#Where is dig binary?
+$dig_bin="/usr/bin/dig";
 
 # zproxy
 #where is zproxy dir?
-$base_zproxy="$zdir/app/zproxy";#update
 #where is zproxy binary?
-$zproxy="$base_zproxy/bin/zproxy";#update
 #where is zproxy ctl?
-$zproxyctl="$base_zproxy/bin/zproxyctl";#update
+#where is zproxy configuration template?
+$zproxytpl="$templatedir/proxytpl.cfg";#update
 
 # Pound
 #where is pound binary?
-$base_pound="$zdir/app/pound";#update
 #where is pound binary?
-$pound="$base_pound/sbin/pound";#update
 #where is pound ctl?
-$poundctl="$base_pound/sbin/poundctl";#update
+#where is pound configuration template?
+$poundtpl="$templatedir/poundtpl.cfg";#update
 
 # l7 proxy
 # Set the l7 binary: NG = true => zproxy, NG = false => pound
-$proxy_ng="true";
+$proxy_ng="true";#update
 
 #where is l7 proxy dir?
-$base_proxy="$base_zproxy";
+$base_proxy="$zdir/app/zproxy";#update
 #where is l7 proxy binary?
-$proxy="$zproxy";
+$proxy="$base_proxy/bin/zproxy";#update
 #where is l7 proxy ctl?
-$proxyctl="$zproxyctl";
+$proxyctl="$base_proxy/bin/zproxyctl";#update
 #l7 file configuration template?
 $proxytpl="$templatedir/proxytpl.cfg";#update
 
 #maximum value of http body to pass to modsecurity
+$waf_max_body="32000";
 #Where is modsec rules check
-$waf_rule_check_bin="/usr/bin/modsec-rules-check";
 #time to ensure that the farm has been stopped completaly
 $http_farm_stop_grace_time="2";
 
@@ -370,6 +397,9 @@ $defaultgwif6="";
 $pingc="1";
 #routing options
 $routeparams="";
+# HTTP marked traffic routing
+$mark_routing_L7="true";#update
+# HTTP floating ip
 #IPv6
 $ipv6_enabled="false";
 
@@ -381,10 +411,13 @@ $ipv6_enabled="false";
 
 #FarmGuardian binary, create advanced check for backend servers
 $farmguardian="$zbindir/farmguardian";#update
+$fgmark="$zbindir/mark.so";#update
 
 # files to save the status of the system packages
 $apt_msg="$localconfig/apt_message.txt";
 $apt_outdated_list="$localconfig/apt_outdated_list.txt";
+
+#maintenance status under human action, flag
 
 #Where is ZenRRD Directory?. There is a perl script that create rrd database and images from Monitoring section
 $rrdap_dir="$zdir/app/zenrrd";#update
@@ -430,19 +463,16 @@ $netplugd_srv="/etc/init.d/netplug";
 
 
 #syslog service
-$syslog_service="/etc/init.d/rsyslog";
+#File rsyslog configuration file
 
 
 # keepalived configuration file
-$keepalived_conf="/etc/keepalived/keepalived.conf";
 # conntrackd configuration file
 $conntrackd_conf="/etc/conntrackd/conntrackd.conf";
 #Where is curl binary?
 $curl_bin="/usr/bin/curl";
 # cluster floating interfaces configuration file path
-$floatfile="$configdir/float.conf";#update
 # node_status file path
-$znode_status_file="$zdir/node_status";#update
 
 # zcluster-manager command path
 # ssh-copy-id file path
@@ -467,37 +497,44 @@ $zenbackup="$zbindir/zenbackup.pl";#update
 $backupfor="$configdir $basedir/*.pem $confhttp $rttables $sshConf $snmpdconfig_file /etc/hostname $filedns /etc/cron.d/zevenet $applianceVersionFile";#update
 
 #Bonding interfaces
+$bonding_hwaddr_filename="bonding_slave/perm_hwaddr";
 
 #Notifications Module
+# How time wait to execute the logs rotate
 
 #IPDS Module
-$ipdsCronFile="/etc/cron.d/ipds";
-$lockIpdsPackage="/tmp/ipds_package.lock";
-$rblDNSTemplate="$templatedir/zevenet_nameservers.conf";
-$rblDNSConfig="$configdir/ipds/rbl/zevenet_nameservers.conf";
+
+#WAF Assistant
+
+# IPDS stats
+# How time wait to execute the stats rotate
+# hours to keep the ipds stats database
 
 # Rabc Module
-$rbacRolesTpl_dir="$templatedir/rbac_roles";
+
+# VPN Module
+#ipsec_ike_svc
+#ipsec_ike_ctl
+#ipsec_ike_table_route
+#ipsec_ike_table_route_prio
+#where is ipsec binary?
+#l2tp_ctl_dir
+#l2tp_bin
+#l2tp_ctl_bin
+#l2tp_ppp_secret
 
 # Ssyncd for pound
 #where is pound ssyncd base?
-$base_ssyncd_pound="$zdir/app/ssyncd/pound";#update
 #where is pound ssyncd binary?
-$ssyncd_pound_bin="$base_ssyncd_pound/bin/ssyncd";#update
 #where is pound ssyncd ctl?
-$ssyncdctl_pound_bin="$base_ssyncd_pound/bin/ssyncdctl";#update
 
 # Ssyncd for zproxy
 #where is zproxy ssyncd base?
-$base_ssyncd_zproxy="$zdir/app/ssyncd/zproxy";#update
 #where is zproxy ssyncd binary?
-$ssyncd_zproxy_bin="$base_ssyncd_zproxy/bin/ssyncd";#update
 #where is zproxy ssyncd ctl?
-$ssyncdctl_zproxy_bin="$base_ssyncd_zproxy/bin/ssyncdctl";#update
 
 #Ssyncd
 #where is ssyncd dir?
-$base_ssyncd="$base_ssyncd_zproxy";
 #where ssyncd binary?
 #where is ssyncd ctl?
 
@@ -506,6 +543,7 @@ $l4sdpid="/var/run/l4sd.pid";#update
 $l4sdcfg="$configdir/l4sd.cfg";#update
 
 # routing
+# VPN prio
 # L4 farm prio
 $routingRulePrioFarmL4="25000";
 # datalink farm prio
@@ -534,6 +572,10 @@ $cloud_address_metadata="169.254.169.254";
 $aws_bin="/usr/bin/aws";
 $aws_credentials="$configdir/cloud/.aws/credentials";
 $aws_config="$configdir/cloud/.aws/config";
+
+$az_bin="/usr/bin/az";
+$network_role="Network Contributor";#update
+$vm_user_role="Virtual Machine User Login";#update
 
 # docker
 $docker_flag="/.dockerenv";

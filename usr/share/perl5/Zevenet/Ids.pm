@@ -75,12 +75,12 @@ sub getIdsTree
 				$tree->{ 'farms' }->{ $f }->{ 'services' }->{ $s }->{ 'backends' } = $FIN;
 
 				# add bk
-				my $bks = &getFarmServers( $f, $s );
+				my $bks = &getFarmServerIds( $f, $s );
 
 				foreach my $b ( @{ $bks } )
 				{
-					$tree->{ 'farms' }->{ $f }->{ 'services' }->{ $s }->{ 'backends' }
-					  ->{ $b->{ 'id' } } = $FIN;
+					$tree->{ 'farms' }->{ $f }->{ 'services' }->{ $s }->{ 'backends' }->{ $b } =
+					  $FIN;
 				}
 
 				my $fg = &getFGFarm( $f, ( $type =~ /datalink|l4xnat/ ) ? undef : $s );
@@ -127,6 +127,7 @@ sub getIdsTree
 								 func   => 'listBLByFarm',
 								 args   => [$f],
 				);
+
 				$tree->{ 'farms' }->{ $f }->{ 'ipds' }->{ 'blacklists' } =
 				  &addIdsArrays( \@bl );
 
@@ -144,7 +145,7 @@ sub getIdsTree
 								  func   => 'listRBLByFarm',
 								  args   => [$f],
 				);
-				$tree->{ 'farms' }->{ $f }->{ 'ipds' }->{ 'blacklists' } =
+				$tree->{ 'farms' }->{ $f }->{ 'ipds' }->{ 'rbl' } =
 				  &addIdsArrays( \@rbl );
 
 				#add waf
@@ -186,6 +187,11 @@ sub getIdsTree
 
 	if ( $eload )
 	{
+		# add floating interfaces
+		my $float = &eload( module => 'Zevenet::Net::Floating',
+							func   => 'getFloatingList', );
+		$tree->{ 'interfaces' }->{ 'floating' } = &addIdsArrays( $float );
+
 		# add routing
 		my @routing_table = &eload( module => 'Zevenet::Net::Route',
 									func   => 'listRoutingTablesNames', );
@@ -203,8 +209,24 @@ sub getIdsTree
 		my @roles = &eload( module => 'Zevenet::RBAC::Role::Config',
 							func   => 'getRBACRolesList', );
 		$tree->{ 'rbac' }->{ 'users' }  = &addIdsArrays( \@users );
-		$tree->{ 'rbac' }->{ 'groups' } = &addIdsArrays( \@groups );
 		$tree->{ 'rbac' }->{ 'roles' }  = &addIdsArrays( \@roles );
+		$tree->{ 'rbac' }->{ 'groups' } = &addIdsArrays( \@groups );
+
+		foreach my $g ( @groups )
+		{
+			my $g_cfg = &eload(
+								module => 'Zevenet::RBAC::Group::Core',
+								func   => 'getRBACGroupObject',
+								args   => [$g]
+			);
+
+			$tree->{ 'rbac' }->{ 'groups' }->{ $g }->{ 'users' } =
+			  &addIdsArrays( $g_cfg->{ 'users' } );
+			$tree->{ 'rbac' }->{ 'groups' }->{ $g }->{ 'farms' } =
+			  &addIdsArrays( $g_cfg->{ 'farms' } );
+			$tree->{ 'rbac' }->{ 'groups' }->{ $g }->{ 'interfaces' } =
+			  &addIdsArrays( $g_cfg->{ 'interfaces' } );
+		}
 
 		# add aliases
 		my $alias_bck_ref = &eload(

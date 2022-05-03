@@ -2,4 +2,4 @@
 */10 * * * *	root	/usr/local/zevenet/bin/zenntp &>/dev/null
 */30 * * * *    root    /usr/bin/find /tmp/ -name "cgisess_*" -mmin +60 -exec rm -f {} \;  &>/dev/null
 */30 * * * *    root    /usr/bin/find /tmp/ -name "supportsave*.tar.gz" -mmin +60 -exec rm -f {} \;  &>/dev/null
-0 22 * * *	root	/usr/local/zevenet/bin/checkupgrades
+0 22 * * *	root	/usr/local/zevenet/bin/checkupdates

@@ -107,4 +107,10 @@ cp /usr/local/zevenet/share/zevenet.cron /etc/cron.d/zevenet
 # Change prompt color
 sed -i "s/1;30m/0;37m/g" /etc/bash.bashrc 2> /dev/null
 
+# Configure apt repository
+perl -E " require Zevenet::System::Packages; &setSystemPackagesRepo();"
+
+## Run checkupdates to update message
+$checkupdates_bin > /dev/null
+
 echo "Zevenet Load Balancer installation completed."

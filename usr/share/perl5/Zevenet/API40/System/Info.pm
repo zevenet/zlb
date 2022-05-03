@@ -87,9 +87,8 @@ sub get_version
 			 "debug", "PROFILING" );
 	require Zevenet::SystemInfo;
 
-	my $desc    = "Get version";
-	my $zevenet = &getGlobalConfiguration( 'version' );
-
+	my $desc       = "Get version";
+	my $zevenet    = &getGlobalConfiguration( 'version' );
 	my $kernel     = &getKernelVersion();
 	my $hostname   = &getHostname();
 	my $date       = &getDate();
@@ -166,11 +165,7 @@ sub set_language
 
 	my $desc = "Modify the WebGUI language";
 
-	my $params = {
-				   "language" => {
-								   'required' => 'true',
-				   },
-	};
+	my $params = &getZAPIModel( "system_language-modify.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -181,15 +176,53 @@ sub set_language
 	&setGlobalConfiguration( 'lang', $json_obj->{ language } );
 
 	&httpResponse(
+				{
+				  code => 200,
+				  body => {
+							description => $desc,
+							params      => { language => &getGlobalConfiguration( 'lang' ) },
+							message => "The WebGui language has been configured successfully"
+				  }
+				}
+	);
+}
+
+#  GET /system/language
+sub get_language
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+
+	my $desc = "List the WebGUI language";
+	my $lang = &getGlobalConfiguration( 'lang' ) // 'en';
+
+	&httpResponse(
 				   {
 					 code => 200,
 					 body => {
 							   description => $desc,
-							   params      => { language => &getGlobalConfiguration( 'lang' ) }
+							   params      => { lang => $lang },
 					 }
 				   }
 	);
 }
 
-1;
+# GET /system/packages
+sub get_packages_info
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 
+	require Zevenet::System::Packages;
+	my $desc = "Zevenet packages list info";
+	my $output;
+
+	$output = &getSystemPackagesUpdatesList();
+
+	$output->{ number } += 0 if ( defined $output->{ number } );
+
+	return &httpResponse(
+				 { code => 200, body => { description => $desc, params => $output } } );
+}
+
+1;

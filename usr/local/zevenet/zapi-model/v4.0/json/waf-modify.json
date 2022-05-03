@@ -1,0 +1,61 @@
+{
+   "action" : "set",
+   "description" : "Modify the global setting of a WAF ruleset. The name is the WAF ruleset unique identifier.",
+   "method" : "PUT",
+   "params" : {
+      "audit" : {
+         "description" : "The possible values are: true, enables the audit; or false, disables the audit logging.",
+         "non_blank" : "true",
+         "regex" : "(?^:(?:true|false))"
+      },
+      "default_action" : {
+         "description" : "It is the default value to the action rule parameter. The possible values are: pass, the rule will apply the other options configured and the request won’t be cut; deny, ends the connection, the rest of rules won’t be executed; redirect:, the client will be redirected to the set URL; block, the rule will execute the action that was set in the configuration set default_action. To enable this action, it is necessary to have set parameter status to on.",
+         "non_blank" : "true",
+         "values" : [
+            "allow",
+            "redirect",
+            "pass",
+            "deny"
+         ]
+      },
+      "default_log" : {
+         "description" : "It is the default value to the log rule parameter. If its value is set to true all matches will be logged. If its value is set to false the matches will no be logged.",
+         "regex" : "(?^:(?:(?^:(?:true|false))|))"
+      },
+      "default_phase" : {
+         "description" : "It is the default value to the phase rule parameter. The phase represents the point of the HTTP request where a rule will be executed. The possible values are 1, it is executed when the request headers are received; 2, it is executed when the body request is received; 3, it is executed when the response headers are received; 4, it is executed when the response body is received; or 5, it is executed just before logging.",
+         "non_blank" : "true",
+         "regex" : "(?^:(?:[1-5]|request|response|logging))"
+      },
+      "disable_rules" : {
+         "description" : "It is a list of rule_id. All of them will be disabled.",
+         "ref" : "array",
+         "regex" : "(?^:\\d+)"
+      },
+      "only_logging" : {
+         "description" : "",
+         "non_blank" : "true",
+         "regex" : "(?^:(?:true|false))"
+      },
+      "process_request_body" : {
+         "description" : "This parameter enables the checking of the request body HTTP. The possible values are true to enable the check; or false to disable the check.",
+         "non_blank" : "true",
+         "regex" : "(?^:(?:true|false))"
+      },
+      "process_response_body" : {
+         "description" : "This parameter enables the checking of the response body HTTP. The possible values are true to enable the check; or false to disable the check.",
+         "non_blank" : "true",
+         "regex" : "(?^:(?:true|false))"
+      },
+      "redirect_url" : {
+         "depend_on" : "default_action==redirect",
+         "description" : "It is the URL where redirecting the client in the case that the resolution redirect is executed. This parameter can be set only when the rule resolution has the value redirect.",
+         "non_blank" : "true"
+      },
+      "request_body_limit" : {
+         "description" : "Set a limit to the HTTP request body. This number is the size in Bytes.",
+         "regex" : "(?^:[1-9]\\d*)"
+      }
+   },
+   "url" : "/ipds/waf/<name>"
+}

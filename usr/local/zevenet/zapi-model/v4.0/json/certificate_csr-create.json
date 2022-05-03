@@ -1,0 +1,50 @@
+{
+   "action" : "add",
+   "description" : "Create a Certificate Signing Request (CSR file).",
+   "method" : "POST",
+   "params" : {
+      "country" : {
+         "description" : "The two-letter ISO code for the country where your organization is localized.",
+         "non_blank" : "true",
+         "required" : "true"
+      },
+      "division" : {
+         "description" : "The division of your organization handling the certificate.",
+         "non_blank" : "true",
+         "required" : "true"
+      },
+      "fqdn" : {
+         "description" : "The fully qualified domain name of your server.",
+         "format_msg" : "FQDN is not valid. It must be as these examples: domain.com, mail.domain.com, or *.domain.com. Try again.",
+         "non_blank" : "true",
+         "required" : "true"
+      },
+      "locality" : {
+         "description" : "The city where your organization is located.",
+         "non_blank" : "true",
+         "required" : "true"
+      },
+      "mail" : {
+         "description" : "An email address used to contact your organization.",
+         "non_blank" : "true",
+         "required" : "true"
+      },
+      "name" : {
+         "description" : "Certificate ID name.",
+         "non_blank" : "true",
+         "regex" : "(?^:[a-zA-Z0-9\\-]+)",
+         "required" : "true"
+      },
+      "organization" : {
+         "description" : "The legal name of your organization.",
+         "non_blank" : "true",
+         "required" : "true"
+      },
+      "state" : {
+         "description" : "The state/region where your organization is located.",
+         "non_blank" : "true",
+         "required" : "true"
+      }
+   },
+   "url" : "/certificates"
+}

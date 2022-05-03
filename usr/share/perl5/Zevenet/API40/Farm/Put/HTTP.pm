@@ -42,120 +42,22 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 	my $desc = "Modify HTTP farm $farmname";
 
 	require Zevenet::Net::Interface;
+	my $ip_list = &getIpAddressList();
 
-	my $params = {
-		"newfarmname" => {
-						   'valid_format' => 'farm_name',
-						   'non_blank'    => 'true',
-		},
-		"vport" => {
-					 'interval'  => "1,65535",
-					 'non_blank' => 'true',
-		},
-		"vip" => {
-				   'valid_format' => 'ip_addr',
-				   'non_blank'    => 'true',
-				   'format_msg'   => 'expects an IP'
-		},
-		"contimeout" => {
-						  'valid_format' => 'natural_num',
-						  'non_blank'    => 'true',
-						  'format_msg'   => 'expects a natural number'
-		},
-		"restimeout" => {
-						  'valid_format' => 'natural_num',
-						  'non_blank'    => 'true',
-						  'format_msg'   => 'expects a natural number'
-		},
-		"resurrectime" => {
-							'valid_format' => 'natural_num',
-							'non_blank'    => 'true',
-							'format_msg'   => 'expects a natural number'
-		},
-		"reqtimeout" => {
-						  'valid_format' => 'natural_num',
-						  'non_blank'    => 'true',
-						  'format_msg'   => 'expects a natural number'
-		},
-		"rewritelocation" => {
-							   'values'    => ["disabled", "enabled", "enabled-backends"],
-							   'non_blank' => 'true',
-		},
-		"httpverb" => {
-			   'values' => [
-							"standardHTTP", "extendedHTTP", "standardWebDAV", "MSextWebDAV",
-							"MSRPCext",     "optionsHTTP"
-			   ],
-			   'non_blank' => 'true',
-		},
-		"error414" => {
-						'regex' => ".*",
-		},
-		"error500" => {
-						'regex' => ".*",
-		},
-		"error501" => {
-						'regex' => ".*",
-		},
-		"error503" => {
-						'regex' => ".*",
-		},
-		"listener" => {
-						'values'    => ["http", "https"],
-						'non_blank' => 'true',
-		},
-		"ciphers" => {
-					   'values'    => ["all", "highsecurity", "customsecurity"],
-					   'non_blank' => 'true',
-					   'listener'  => 'https',
-		},
-		"cipherc" => {
-					   'non_blank' => 'true',
-					   'listener'  => 'https',
-		},
-		"certname" => {
-						'valid_format' => 'certificate',
-						'non_blank'    => 'true',
-						'listener'     => 'https',
-		},
-		"disable_sslv2" => {
-							 'values'    => ["true", "false"],
-							 'non_blank' => 'true',
-							 'listener'  => 'https',
-		},
-		"disable_sslv3" => {
-							 'values'    => ["true", "false"],
-							 'non_blank' => 'true',
-							 'listener'  => 'https',
-		},
-		"disable_tlsv1" => {
-							 'values'    => ["true", "false"],
-							 'non_blank' => 'true',
-							 'listener'  => 'https',
-		},
-		"disable_tlsv1_1" => {
-							   'values'    => ["true", "false"],
-							   'non_blank' => 'true',
-							   'listener'  => 'https',
-		},
-		"disable_tlsv1_2" => {
-							   'values'    => ["true", "false"],
-							   'non_blank' => 'true',
-							   'listener'  => 'https',
-		},
-	};
-
-	if ( $eload )
+	my $params = &getZAPIModel( "farm_http-modify.json" );
+	$params->{ vip }->{ values }               = $ip_list;
+	$params->{ ciphers }->{ listener }         = "https";
+	$params->{ cipherc }->{ listener }         = "https";
+	$params->{ certname }->{ listener }        = "https";
+	$params->{ disable_sslv2 }->{ listener }   = "https";
+	$params->{ disable_sslv3 }->{ listener }   = "https";
+	$params->{ disable_tlsv1 }->{ listener }   = "https";
+	$params->{ disable_tlsv1_1 }->{ listener } = "https";
+	$params->{ disable_tlsv1_2 }->{ listener } = "https";
+	if ( !$eload )
 	{
-		$params->{ logs } = {
-							  'values'    => ["true", "false"],
-							  'non_blank' => 'true',
-		};
-		$params->{ ignore_100_continue } = {
-											 'values'    => ["true", "false"],
-											 'non_blank' => 'true',
-		};
-		push @{ $params->{ ciphers }->{ values } }, "ssloffloading";
+		$params->{ "ciphers" }->{ 'values' } =
+		  ["all", "highsecurity", "customsecurity"];
 	}
 
 	# Check allowed parameters
@@ -172,11 +74,39 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 	if ( exists ( $json_obj->{ vip } ) or exists ( $json_obj->{ vport } ) )
 	{
 		require Zevenet::Net::Validate;
-		if (     $farm_st->{ status } ne 'down'
-			 and &checkport( $vip, $vport, $farmname ) eq 'true' )
+		if ( $farm_st->{ status } ne 'down'
+			 and !&validatePort( $vip, $vport, 'http', $farmname ) )
 		{
 			my $msg =
-			  "The '$vip' ip and '$vport' port are being used for another farm. This farm should be sopped before modifying it";
+			  "The '$vip' ip and '$vport' port are being used for another farm. This farm should be stopped before modifying it";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+	}
+	if ( exists ( $json_obj->{ vip } ) )
+	{
+		if ( $farm_st->{ status } ne 'down' )
+		{
+			require Zevenet::Net::Interface;
+			my $if_name = &getInterfaceByIp( $json_obj->{ vip } );
+			my $if_ref  = &getInterfaceConfig( $if_name );
+			if ( &getInterfaceSystemStatus( $if_ref ) ne "up" )
+			{
+				my $msg =
+				  "The '$json_obj->{ vip }' ip is not UP. This farm should be stopped before modifying it";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
+	}
+
+	if (    exists ( $json_obj->{ contimeout } )
+		 or exists ( $json_obj->{ resurrectime } ) )
+	{
+		my $conntimeout  = $json_obj->{ contimeout }   // $farm_st->{ contimeout };
+		my $resurrectime = $json_obj->{ resurrectime } // $farm_st->{ resurrectime };
+		if ( $resurrectime < $conntimeout )
+		{
+			my $msg =
+			  "The param 'resurrectime' value ( $resurrectime ) can not be lower than the param 'contimeout' value ( $conntimeout )";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}
@@ -277,57 +207,59 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 	if ( exists ( $json_obj->{ rewritelocation } ) )
 	{
 		my $rewritelocation = 0;
+		my $path            = 0;
 		if    ( $json_obj->{ rewritelocation } eq "disabled" ) { $rewritelocation = 0; }
 		elsif ( $json_obj->{ rewritelocation } eq "enabled" )  { $rewritelocation = 1; }
 		elsif ( $json_obj->{ rewritelocation } eq "enabled-backends" )
 		{
 			$rewritelocation = 2;
 		}
+		elsif ( $json_obj->{ rewritelocation } eq "enabled-path" )
+		{
+			$rewritelocation = 1;
+			$path            = 1;
+		}
+		elsif ( $json_obj->{ rewritelocation } eq "enabled-backends-path" )
+		{
+			$rewritelocation = 2;
+			$path            = 1;
+		}
 
-		if ( &setFarmRewriteL( $farmname, $rewritelocation ) == -1 )
+		if ( &setFarmRewriteL( $farmname, $rewritelocation, $path ) == -1 )
 		{
 			my $msg = "Some errors happened trying to modify the rewritelocation.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}
 
-	if ( $eload )
+	# Enable the log connection tracking
+	if ( exists ( $json_obj->{ logs } ) )
 	{
-		# Enable the log connection tracking
-		if ( exists ( $json_obj->{ logs } ) )
-		{
-			my $status = &eload(
-								 module => 'Zevenet::Farm::HTTP::Ext',
-								 func   => 'setHTTPFarmLogs',
-								 args   => [$farmname, $json_obj->{ logs }],
-			);
+		require Zevenet::Farm::HTTP::Config;
+		my $status = &setHTTPFarmLogs( $farmname, $json_obj->{ logs } );
 
-			if ( $status )
-			{
-				my $msg = "Some errors happened trying to modify the log parameter.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
+		if ( $status )
+		{
+			my $msg = "Some errors happened trying to modify the log parameter.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
+	}
 
-		# Enable or disable ignore 100 continue header
-		if ( exists ( $json_obj->{ ignore_100_continue } )
-			 and
-			 ( $json_obj->{ ignore_100_continue } ne $farm_st->{ ignore_100_continue } )
-		  )    # this is a bugfix
+	# Enable or disable ignore 100 continue header
+	if ( exists ( $json_obj->{ ignore_100_continue } )
+		 and
+		 ( $json_obj->{ ignore_100_continue } ne $farm_st->{ ignore_100_continue } )
+	  )    # this is a bugfix
+	{
+		my $action = ( $json_obj->{ ignore_100_continue } eq "true" ) ? 1 : 0;
+
+		my $status = &setHTTPFarm100Continue( $farmname, $action );
+
+		if ( $status == -1 )
 		{
-			my $action = ( $json_obj->{ ignore_100_continue } eq "true" ) ? 1 : 0;
-			my $status = &eload(
-								 module => 'Zevenet::Farm::HTTP::Ext',
-								 func   => 'setHTTPFarm100Continue',
-								 args   => [$farmname, $action],
-			);
-
-			if ( $status == -1 )
-			{
-				my $msg =
-				  "Some errors happened trying to modify the ignore_100_continue parameter.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
+			my $msg =
+			  "Some errors happened trying to modify the ignore_100_continue parameter.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}
 
@@ -338,6 +270,16 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 		if ( &setFarmHttpVerb( $code, $farmname ) == -1 )
 		{
 			my $msg = "Some errors happened trying to modify the httpverb.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+	}
+
+	#Modify Error WAF
+	if ( exists ( $json_obj->{ errorWAF } ) )
+	{
+		if ( &setFarmErr( $farmname, $json_obj->{ errorWAF }, "WAF" ) == -1 )
+		{
+			my $msg = "Some errors happened trying to modify the errorWAF.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}
@@ -594,6 +536,7 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 	my $body = {
 				 description => $desc,
 				 params      => $out_obj,
+				 message     => "Some parameters have been changed in farm $farmname."
 	};
 
 	if ( exists $json_obj->{ newfarmname } )
@@ -610,12 +553,20 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 		}
 		else
 		{
-			&runFarmReload( $farmname );
-			&eload(
-					module => 'Zevenet::Cluster',
-					func   => 'runZClusterRemoteManager',
-					args   => ['farm', 'reload', $farmname],
-			) if ( $eload );
+			my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
+			if ( $config_error ne "" )
+			{
+				$body->{ warning } = "Farm '$farmname' config error: $config_error";
+			}
+			else
+			{
+				&runFarmReload( $farmname );
+				&eload(
+						module => 'Zevenet::Cluster',
+						func   => 'runZClusterRemoteManager',
+						args   => ['farm', 'reload', $farmname],
+				) if ( $eload );
+			}
 		}
 	}
 

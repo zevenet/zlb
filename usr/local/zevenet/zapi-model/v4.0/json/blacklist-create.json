@@ -1,0 +1,41 @@
+{
+   "action" : "create",
+   "description" : "Create a blacklist to be used in the farms. Blacklists can be of two types:",
+   "method" : "POST",
+   "params" : {
+      "name" : {
+         "description" : "Blacklist name. It is used as a unique identifier.",
+         "exceptions" : [
+            "0"
+         ],
+         "non_blank" : "true",
+         "regex" : "(?^:\\w+)",
+         "required" : "true"
+      },
+      "policy" : {
+         "description" : "Action to apply to a source. The options are: deny, block the input traffic from sources of the list; or allow accept the traffic from sources of the list. The default value is denied.",
+         "non_blank" : "true",
+         "values" : [
+            "allow",
+            "deny"
+         ]
+      },
+      "type" : {
+         "description" : "Where the list is saved and who maintenances it. The values are: local, the list is saved in system and maintenance for administration system; or remote, the list is taken from an out service through a url and the administrator’s service will maintenance the list.",
+         "non_blank" : "true",
+         "required" : "true",
+         "values" : [
+            "local",
+            "remote"
+         ]
+      },
+      "url" : {
+         "depend_on" : "type==remote",
+         "description" : "Where the remote list is downloaded from. The remote format must be a list of one source per line in the format Network address/Mask bit or IP.",
+         "non_blank" : "true",
+         "regex" : "(?^:.+)",
+         "required" : "true"
+      }
+   },
+   "url" : "/ipds/blacklists"
+}

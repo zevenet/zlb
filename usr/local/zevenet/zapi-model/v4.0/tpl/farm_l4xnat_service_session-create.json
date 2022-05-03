@@ -1,0 +1,18 @@
+{
+	"method": "POST",
+	"url": "/farms/<farmname>/sessions",
+	"action": "add",
+	"description": "It creates a static session with a backend in a l4xnat farm.",
+	"params": {
+		"id": {
+			"non_blank": "true",
+			"required": "true",
+			"regex": "$integer",
+			"dyn_values": "true"
+		},
+		"session": {
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

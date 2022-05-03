@@ -1,0 +1,27 @@
+{
+   "action" : "set",
+   "description" : "Modify the configuration of a datalink farm.",
+   "method" : "PUT",
+   "params" : {
+      "algorithm" : {
+         "non_blank" : "true",
+         "values" : [
+            "prio",
+            "weight"
+         ]
+      },
+      "newfarmname" : {
+         "exceptions" : [
+            "0"
+         ],
+         "non_blank" : "true",
+         "regex" : "(?^:[a-zA-Z0-9\\-]+)"
+      },
+      "vip" : {
+         "dyn_values" : "true",
+         "format_msg" : "expects an IP",
+         "non_blank" : "true"
+      }
+   },
+   "url" : "/farm/<farmname>"
+}

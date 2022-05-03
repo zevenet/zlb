@@ -1,0 +1,25 @@
+{
+	"description": "Change the local cluster node to maintenance mode.",
+	"method": "POST",
+	"url": "/system/cluster/actions",
+	"action": "maintenance",
+	"params": {
+		"action": {
+			"description": "Action to apply to the cluster. The available action is maintenance.",
+			"non_blank": "true",
+			"required": "true",
+			"values": [
+				"maintenance"
+			]
+		},
+		"status": {
+			"description": "Status to put the node, the possible values are enable, put it in maintenance mode; or disable, put the node available.",
+			"non_blank": "true",
+			"required": "true",
+			"values": [
+				"enable",
+				"disable"
+			]
+		}
+	}
+}

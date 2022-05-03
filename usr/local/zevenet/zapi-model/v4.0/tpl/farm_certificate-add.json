@@ -1,0 +1,13 @@
+{
+	"method": "POST",
+	"url": "/farms/<farmname>/certificates",
+	"action": "add",
+	"description": "Include an available PEM Certificate to the SNI list or certlist array of an HTTP farm with an HTTPS listener.",
+	"params": {
+		"file": {
+			"regex": "$cert_pem",
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

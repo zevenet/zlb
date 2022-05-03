@@ -1,0 +1,14 @@
+{
+   "action" : "set",
+   "description" : "Modify the HTTPS service certificate.",
+   "method" : "POST",
+   "params" : {
+      "certificate" : {
+         "description" : "Certificate name.",
+         "non_blank" : "true",
+         "regex" : "(?^:(?^:(?:\\*[_|\\.])?\\w[\\w\\.\\(\\)\\@ \\-]*)\\.pem)",
+         "required" : "true"
+      }
+   },
+   "url" : "/system/https/certificate"
+}

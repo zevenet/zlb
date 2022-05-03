@@ -1,0 +1,25 @@
+{
+	"description": "Do a cluster communicating two balancers.",
+	"method": "POST",
+	"url": "/system/cluster",
+	"action": "create",
+	"params": {
+		"local_ip": {
+			"description": "IP of the local host used to the cluster.",
+			"regex": "$IPv4_addr",
+			"non_blank": "true",
+			"required": "true"
+		},
+		"remote_ip": {
+			"description": "IP of a remote host used to the cluster.",
+			"regex": "$IPv4_addr",
+			"non_blank": "true",
+			"required": "true"
+		},
+		"remote_password": {
+			"description": "Root user password for remote balancer.",
+			"non_blank": "true",
+			"required": "true"
+		}
+	}
+}

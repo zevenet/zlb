@@ -1,0 +1,13 @@
+{
+	"method": "PUT",
+	"url": "/farms/<farmname>/addheader/<id>",
+	"action": "modify",
+	"description": "The farm will add the header to the backend request.",
+	"params": {
+		"header": {
+			"non_blank": "true",
+			"required": "true",
+			"negated_regex": "$newline"
+		}
+	}
+}

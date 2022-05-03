@@ -1,0 +1,13 @@
+{
+	"method": "POST",
+	"url": "/farms/<farmname>/addrequestheader",
+	"action": "add",
+	"description": "Add header in the client request.",
+	"params": {
+		"header": {
+			"non_blank": "true",
+			"required": "true",
+			"negated_regex": "$newline"
+		}
+	}
+}

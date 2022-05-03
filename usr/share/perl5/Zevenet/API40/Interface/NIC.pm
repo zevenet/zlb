@@ -61,6 +61,30 @@ sub delete_interface_nic    # ( $nic )
 			$msg = "The interface cannot be modified. $msg";
 			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
+		my $zcl_conf = &eload( module => 'Zevenet::Cluster',
+							   func   => 'getZClusterConfig', );
+		if ( defined $zcl_conf->{ _ }->{ interface }
+			 and $zcl_conf->{ _ }->{ interface } eq $if_ref->{ name } )
+		{
+			$msg = "The cluster interface $if_ref->{ name } cannot be modified.";
+			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+		if ( defined $if_ref->{ is_slave } and $if_ref->{ is_slave } eq "true" )
+		{
+			$msg = "The slave interface $if_ref->{ name } cannot be modified.";
+			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+		if ( defined $zcl_conf->{ _ }->{ track_interface } )
+		{
+			my @track_interface = split ( /\s/, $zcl_conf->{ _ }->{ track_interface } );
+			if ( grep { $_ eq $if_ref->{ name } } @track_interface )
+			{
+				$msg =
+				  "The interface $if_ref->{ name } cannot be modified because it is been tracked by the cluster.
+						If you still want to modify it, remove it from the cluster track interface list.";
+				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
 	}
 
 	# not delete the interface if it has some vlan configured
@@ -81,6 +105,34 @@ sub delete_interface_nic    # ( $nic )
 		my $str = join ( ', ', @farms );
 		my $msg = "This interface is being used as vip in the farm(s): $str.";
 		return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+
+	if ( $eload )
+	{
+		# check if some VPN is using this ip
+		my $vpns = &eload(
+						   module => 'Zevenet::VPN::Util',
+						   func   => 'getVPNByIp',
+						   args   => [$if_ref->{ addr }],
+		);
+		if ( @{ $vpns } )
+		{
+			my $str = join ( ', ', @{ $vpns } );
+			my $msg = "The interface is being used as Local Gateway in VPN(s): $str";
+			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+		$vpns = &eload(
+						module => 'Zevenet::VPN::Util',
+						func   => 'getVPNByNet',
+						args   => [$if_ref->{ net }],
+		);
+		if ( @{ $vpns } )
+		{
+			my $str = join ( ', ', @{ $vpns } );
+			my $msg = "The interface is being used as Local Network in VPN(s): $str";
+			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+
 	}
 
 	eval {
@@ -167,19 +219,30 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 		my $msg = "Nic interface not found";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
-
-	my $params = {
-				   "action" => {
-								 'non_blank' => 'true',
-								 'required'  => 'true',
-								 'values'    => ['up', 'down'],
-				   },
-	};
+	my $params = &getZAPIModel( "nic-action.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
+
+	if ( $eload )
+	{
+		my $zcl_conf = &eload( module => 'Zevenet::Cluster',
+							   func   => 'getZClusterConfig', );
+
+		if ( defined $zcl_conf->{ _ }->{ track_interface } )
+		{
+			my @track_interface = split ( /\s/, $zcl_conf->{ _ }->{ track_interface } );
+			if ( grep { $_ eq $nic } @track_interface )
+			{
+				my $msg =
+				  "The interface $nic cannot be modified because it is been tracked by the cluster.
+						If you still want to modify it, remove it from the cluster track interface list.";
+				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
+	}
 
 	my $if_ref = &getInterfaceConfig( $nic, $ip_v );
 
@@ -240,9 +303,11 @@ sub actions_interface_nic    # ( $json_obj, $nic )
 		}
 	}
 
+	my $msg = "The $nic NIC is $json_obj->{ action }";
 	my $body = {
 				 description => $desc,
 				 params      => { action => $json_obj->{ action } },
+				 message     => $msg
 	};
 
 	&httpResponse( { code => 200, body => $body } );
@@ -270,30 +335,7 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 		my $msg = "NIC interface not found.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
-
-	my $params = {
-				   "ip" => {
-							 'valid_format' => 'ip_addr',
-				   },
-				   "netmask" => {
-								  'valid_format' => 'ip_mask',
-				   },
-				   "gateway" => {
-								  'valid_format' => 'ip_addr',
-				   },
-				   "force" => {
-								'non_blank' => 'true',
-								'values'    => ['true'],
-				   },
-	};
-
-	if ( $eload )
-	{
-		$params->{ "dhcp" } = {
-								'non_blank' => 'true',
-								'values'    => ['true', 'false'],
-		};
-	}
+	my $params = &getZAPIModel( "nic-modify.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -303,50 +345,11 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 	# Delete old interface configuration
 	my $if_ref = &getInterfaceConfig( $nic ) // &getSystemInterface( $nic );
 
-	# check if some farm is using this ip
+	# Ignore the dhcp parameter if it is equal to the configured one
+	delete $json_obj->{ dhcp }
+	  if ( exists $json_obj->{ dhcp } && $json_obj->{ dhcp } eq $if_ref->{ dhcp } );
+
 	my @child = &getInterfaceChild( $nic );
-	my @farms;
-	if ( exists $json_obj->{ ip }
-		 or ( exists $json_obj->{ dhcp } ) )
-	{
-		if ( $eload )
-		{
-			my $msg = &eload(
-							  module => 'Zevenet::Net::Ext',
-							  func   => 'isManagementIP',
-							  args   => [$if_ref->{ addr }],
-			);
-			if ( $msg ne "" )
-			{
-				$msg = "The interface cannot be modified. $msg";
-				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-		}
-
-		require Zevenet::Farm::Base;
-		@farms = &getFarmListByVip( $if_ref->{ addr } );
-
-		if ( @farms )
-		{
-			if (    !exists $json_obj->{ ip }
-				 and exists $json_obj->{ dhcp }
-				 and $json_obj->{ dhcp } eq 'false' )
-			{
-				my $msg =
-				  "This interface is been used by some farms, please, set up a new 'ip' in order to be used as farm vip.";
-				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-			if ( $json_obj->{ force } ne 'true' )
-			{
-				my $str = join ( ', ', @farms );
-				my $msg =
-				  "The IP is being used as farm vip in the farm(s): $str. If you are sure, repeat with parameter 'force'. All farms using this interface will be restarted.";
-				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-		}
-	}
-
-	my $dhcp_status = $json_obj->{ dhcp } // $if_ref->{ dhcp };
 
 	if ( exists $json_obj->{ dhcp } )
 	{
@@ -374,6 +377,7 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 	}
 
 	# check if network is correct
+
 	my $new_if;
 	if ( $if_ref )
 	{
@@ -398,13 +402,13 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 		my $ip_v = &ipversion( $new_if->{ addr } );
 		my $gw_v = &ipversion( $new_if->{ gateway } );
 
-		my $mask_v =
-		    ( $ip_v == 4 && &getValidFormat( 'IPv4_mask', $new_if->{ mask } ) ) ? 4
-		  : ( $ip_v == 6 && &getValidFormat( 'IPv6_mask', $new_if->{ mask } ) ) ? 6
-		  :                                                                       '';
+		if ( !&validateNetmask( $json_obj->{ netmask }, $ip_v ) )
+		{
+			my $msg = "The netmask is not valid";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
 
-		if ( $ip_v ne $mask_v
-			 || ( $new_if->{ gateway } && $ip_v ne $gw_v ) )
+		if ( $new_if->{ gateway } && $ip_v ne $gw_v )
 		{
 			my $msg = "Invalid IP stack version match.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -413,7 +417,7 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 
 	if ( exists $json_obj->{ ip } or exists $json_obj->{ netmask } )
 	{
-		# check ip and netmas are configured
+		# check ip and netmask are configured
 		unless ( $new_if->{ addr } ne "" and $new_if->{ mask } ne "" )
 		{
 			my $msg =
@@ -427,7 +431,7 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 		{
 			my $child_if = &getInterfaceConfig( $child_name );
 			unless (
-				  &getNetValidate( $child_if->{ addr }, $new_if->{ mask }, $new_if->{ addr } ) )
+				 &validateGateway( $child_if->{ addr }, $new_if->{ mask }, $new_if->{ addr } ) )
 			{
 				push @wrong_conf, $child_name;
 			}
@@ -446,7 +450,7 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 	if ( $new_if->{ gateway } )
 	{
 		unless (
-			 &getNetValidate( $new_if->{ addr }, $new_if->{ mask }, $new_if->{ gateway } ) )
+			&validateGateway( $new_if->{ addr }, $new_if->{ mask }, $new_if->{ gateway } ) )
 		{
 			my $msg = "The gateway is not valid for the network.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -461,6 +465,156 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 		{
 			my $msg = "The network already exists in the interface $if_used.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+	}
+
+	# Check new IP address is not in use
+	if ( $json_obj->{ ip } and ( $new_if->{ addr } ne $if_ref->{ addr } ) )
+	{
+		require Zevenet::Net::Util;
+		my @activeips = &listallips();
+		for my $ip ( @activeips )
+		{
+			if ( $ip eq $json_obj->{ ip } )
+			{
+				my $msg = "IP address $json_obj->{ip} already in use.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+		}
+	}
+
+	# check if some farm is using this ip
+	my @farms;
+	my $vpns_localgw;
+	@{ $vpns_localgw } = ();
+	my $vpns_localnet;
+	@{ $vpns_localnet } = ();
+	my $warning_msg;
+
+	if (    exists $json_obj->{ ip }
+		 or ( exists $json_obj->{ dhcp } )
+		 or ( exists $json_obj->{ netmask } ) )
+	{
+		if ( exists $json_obj->{ ip }
+			 or ( exists $json_obj->{ dhcp } ) )
+		{
+			if ( $eload )
+			{
+				my $msg = &eload(
+								  module => 'Zevenet::Net::Ext',
+								  func   => 'isManagementIP',
+								  args   => [$if_ref->{ addr }],
+				);
+				if ( $msg ne "" )
+				{
+					$msg = "The interface cannot be modified. $msg";
+					return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+				}
+				my $zcl_conf = &eload( module => 'Zevenet::Cluster',
+									   func   => 'getZClusterConfig', );
+				if ( defined $zcl_conf->{ _ }->{ interface }
+					 and $zcl_conf->{ _ }->{ interface } eq $if_ref->{ name } )
+				{
+					$msg = "The cluster interface $if_ref->{ name } cannot be modified.";
+					return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+				}
+				if ( defined $if_ref->{ is_slave } and $if_ref->{ is_slave } eq "true" )
+				{
+					$msg = "The slave interface $if_ref->{ name } cannot be modified.";
+					return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+				}
+			}
+
+			require Zevenet::Farm::Base;
+			@farms = &getFarmListByVip( $if_ref->{ addr } );
+			$vpns_localgw = &eload(
+									module => 'Zevenet::VPN::Util',
+									func   => 'getVPNByIp',
+									args   => [$if_ref->{ addr }],
+			) if $eload;
+		}
+
+		# check if its a new network and a vpn using old network
+		if ( exists $json_obj->{ ip } or exists $json_obj->{ netmask } )
+		{
+			# check if network is changed
+			my $mask = $json_obj->{ netmask } // $if_ref->{ mask };
+			if (
+				   !&validateGateway( $if_ref->{ addr }, $if_ref->{ mask }, $json_obj->{ ip } )
+				 or $if_ref->{ mask } ne $mask )
+			{
+				my $net = new NetAddr::IP( $if_ref->{ addr }, $if_ref->{ mask } )->cidr();
+				$vpns_localnet = &eload(
+										 module => 'Zevenet::VPN::Util',
+										 func   => 'getVPNByNet',
+										 args   => [$net],
+				) if $eload;
+			}
+		}
+
+		if ( @farms or @{ $vpns_localgw } or @{ $vpns_localnet } )
+		{
+			if (    !exists $json_obj->{ ip }
+				 and exists $json_obj->{ dhcp }
+				 and $json_obj->{ dhcp } eq 'false' )
+			{
+
+				my $str_objects;
+				my $str_function;
+				if ( @farms )
+				{
+					$str_objects  = " and farms";
+					$str_function = " and farm VIP";
+				}
+				if ( @{ $vpns_localgw } or @{ $vpns_localnet } )
+				{
+					$str_objects .= " and vpns";
+				}
+				if ( @{ $vpns_localgw } )
+				{
+					$str_function .= " and Local Gateway";
+				}
+				if ( @{ $vpns_localnet } )
+				{
+					$str_function .= " and Local Network";
+				}
+				$str_objects  = substr ( $str_objects,  5 );
+				$str_function = substr ( $str_function, 5 );
+
+				my $msg =
+				  "This interface is been used by some $str_objects, please, set up a new 'ip' in order to be used as $str_function.";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
+			if ( $json_obj->{ force } ne 'true' )
+			{
+				my $str_objects;
+				my $str_function;
+				if ( @farms )
+				{
+					$str_objects = " and farms";
+					$str_function = " and as farm VIP in the farm(s): " . join ( ', ', @farms );
+				}
+				if ( @{ $vpns_localgw } or @{ $vpns_localnet } )
+				{
+					$str_objects .= " and vpns";
+				}
+				if ( @{ $vpns_localgw } )
+				{
+					$str_function .=
+					  " and as Local Gateway in the VPN(s): " . join ( ', ', @{ $vpns_localgw } );
+				}
+				if ( @{ $vpns_localnet } )
+				{
+					$str_function .=
+					  " and as Local Network in the VPN(s): " . join ( ', ', @{ $vpns_localnet } );
+				}
+				$str_objects  = substr ( $str_objects,  5 );
+				$str_function = substr ( $str_function, 5 );
+
+				my $msg =
+				  "The IP is being used $str_function. If you are sure, repeat with parameter 'force'. All $str_objects using this interface will be restarted.";
+				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
 		}
 	}
 
@@ -511,10 +665,10 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 		}
 
 		my $func = ( $json_obj->{ dhcp } eq 'true' ) ? "enableDHCP" : "disableDHCP";
-		my $err = &eload(
-						  module => 'Zevenet::Net::DHCP',
-						  func   => $func,
-						  args   => [$if_ref],
+		&eload(
+				module => 'Zevenet::Net::DHCP',
+				func   => $func,
+				args   => [$if_ref],
 		);
 
 		if (    $json_obj->{ dhcp } eq 'false' and !exists $json_obj->{ ip }
@@ -562,6 +716,24 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 				{
 					$if_ref->{ status } = "up";
 					&applyRoutes( "local", $if_ref );
+					if ( $if_ref->{ ip_v } eq "4" )
+					{
+						my $if_gw = &getGlobalConfiguration( 'defaultgwif' );
+						if ( $if_ref->{ name } eq $if_gw )
+						{
+							my $defaultgw = &getGlobalConfiguration( 'defaultgw' );
+							&applyRoutes( "global", $if_ref, $defaultgw );
+						}
+					}
+					elsif ( $if_ref->{ ip_v } eq "6" )
+					{
+						my $if_gw = &getGlobalConfiguration( 'defaultgwif6' );
+						if ( $if_ref->{ name } eq $if_gw )
+						{
+							my $defaultgw = &getGlobalConfiguration( 'defaultgw6' );
+							&applyRoutes( "global", $if_ref, $defaultgw );
+						}
+					}
 				}
 				else
 				{
@@ -580,6 +752,19 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 				}
 			}
 
+			# modify netmask on all dependent interfaces
+			if ( exists $json_obj->{ netmask } )
+			{
+				foreach my $appending ( &getInterfaceChild( $nic ) )
+				{
+					my $app_config = &getInterfaceConfig( $appending );
+					&delRoutes( "local", $app_config );
+					&downIf( $app_config );
+					$app_config->{ mask } = $json_obj->{ netmask };
+					&setInterfaceConfig( $app_config );
+				}
+			}
+
 			# put all dependent interfaces up
 			require Zevenet::Net::Util;
 			&setIfacesUp( $nic, "vini" );
@@ -590,6 +775,25 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 				require Zevenet::Farm::Config;
 				&setAllFarmByVip( $json_obj->{ ip }, \@farms );
 				&reloadFarmsSourceAddress();
+			}
+			if ( @{ $vpns_localgw } )
+			{
+				my $error = &eload(
+									module => 'Zevenet::VPN::Config',
+									func   => 'setAllVPNLocalGateway',
+									args   => [$if_ref->{ addr }, $vpns_localgw],
+				);
+				$warning_msg .= $error->{ desc } if ( $error->{ code } );
+			}
+			if ( @{ $vpns_localnet } )
+			{
+				my $net = new NetAddr::IP( $if_ref->{ net }, $if_ref->{ mask } )->cidr();
+				my $error = &eload(
+									module => 'Zevenet::VPN::Config',
+									func   => 'setAllVPNLocalNetwork',
+									args   => [$net, $vpns_localnet],
+				);
+				$warning_msg .= $error->{ desc } if ( $error->{ code } );
 			}
 		};
 
@@ -605,7 +809,9 @@ sub modify_interface_nic    # ( $json_obj, $nic )
 	my $body = {
 				 description => $desc,
 				 params      => $iface_out,
+				 message     => "The $nic NIC has been updated successfully."
 	};
+	$body->{ warning } = $warning_msg if ( $warning_msg );
 
 	&httpResponse( { code => 200, body => $body } );
 }

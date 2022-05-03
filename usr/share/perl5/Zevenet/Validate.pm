@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -24,6 +24,11 @@
 use strict;
 use Regexp::IPv6 qw($IPv6_re);
 require Zevenet::Net::Validate;
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
 
 # Notes about regular expressions:
 #
@@ -46,11 +51,15 @@ my $weekdays = qr/(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)/;
 my $minutes  = qr/(?:\d|[0-5]\d)/;
 my $hours    = qr/(?:\d|[0-1]\d|2[0-3])/;
 my $months   = qr/(?:[1-9]|1[0-2])/;
-my $dayofmonth = qr/(?:[1-9]|[1-2]\d|3[01])/;    # day of month
+my $dayofmonth = qr/(?:[1-9]|[1-2]\d|3[01])/;            # day of month
+my $rrdTime    = qr/\d\d-\d\d-(?:\d\d)?\d\d-\d\d:\d\d/
+  ;    # MM-DD-[YY]YY-hh:mm ; example: "11-09-2020-14:05";
 
 my $hostname = qr/[a-z][a-z0-9\-]{0,253}[a-z0-9]/;
 my $service  = qr/[a-zA-Z0-9][a-zA-Z0-9_\-\.]*/;
 my $zone     = qr/(?:$hostname\.)+[a-z]{2,}/;
+
+my $cert_name = qr/(?:\*[_|\.])?\w[\w\.\(\)\@ \-]*/;
 
 my $vlan_tag    = qr/\d{1,4}/;
 my $virtual_tag = qr/[a-zA-Z0-9\-]{1,13}/;
@@ -59,16 +68,18 @@ my $bond_if     = qr/[a-zA-Z0-9\-]{1,15}/;
 my $vlan_if     = qr/[a-zA-Z0-9\-]{1,13}\.$vlan_tag/;
 my $interface   = qr/$nic_if(?:\.$vlan_tag)?(?:\:$virtual_tag)?/;
 my $port_range =
-  qr/(?:[1-5]?\d{1,4}|6[0-4]\d{3}|65[1-4]\d{2}|655[1-2]\d{1}|6553[1-5])/;
+  qr/(?:[1-9]\d{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])/;
 my $graphsFrequency = qr/(?:daily|weekly|monthly|yearly)/;
 
-my $dos_global = qr/(?:sshbruteforce)/;
-my $dos_all    = qr/(?:limitconns|limitsec)/;
-my $dos_tcp    = qr/(?:bogustcpflags|limitrst)/;
+my $blacklists_source = qr{(?:\d{1,3}\.){3}\d{1,3}(?:\/\d{1,2})?};
+my $dos_global        = qr/(?:sshbruteforce)/;
+my $dos_all           = qr/(?:limitconns|limitsec)/;
+my $dos_tcp           = qr/(?:bogustcpflags|limitrst)/;
 
 my $run_actions = qr/^(?:stop|start|restart)$/;
 
-my $name = qr/^(?:[a-zA-Z0-9][\w]{5,31})$/;
+my $name  = qr/^(?:[a-zA-Z0-9][\w]{5,31})$/;
+my $email = qr/^(?:[a-zA-Z][\w\_\.]+)\@(?:[a-zA-Z0-9.-]+)\.(?:[a-zA-Z]{2,4})$/;
 
 my %format_re = (
 
@@ -77,6 +88,7 @@ my %format_re = (
 	'natural_num' => $natural,
 	'boolean'     => $boolean,
 	'ipv4v6'      => $ipv4v6,
+	'rrd_time'    => $rrdTime,
 
 	# hostname
 	'hostname' => $hostname,
@@ -93,7 +105,10 @@ my %format_re = (
 	'zapi_password' => qr/.+/,
 
 	# common
-	'port'     => $port_range,
+	'port' => $port_range,
+	'multiport' =>
+	  qr/(?:\*|(?:$port_range|$port_range\:$port_range)(?:,$port_range|,$port_range\:$port_range)*)/,
+
 	'user'     => qr/[\w]+/,
 	'password' => qr/.+/,
 
@@ -120,6 +135,7 @@ my %format_re = (
 	'farm_modules'          => qr/(?:gslb|dslb|lslb)/,
 	'service_position'      => qr/\d+/,
 	'l4_session'            => qr/[ \._\:\w]+/,
+	'l7_session'            => qr/[ \._\:\w]+/,
 	'farm_maintenance_mode' => qr/(?:drain|cut)/,              # not used from API 4
 
 	# cipher
@@ -176,19 +192,20 @@ my %format_re = (
 	,    # not used from API 4
 
 	# notifications
-	'notif_alert'  => qr/(?:backends|cluster)/,
+	'notif_alert' => qr/(?:backends|cluster|license|interface|package|certificate)/,
 	'notif_method' => qr/(?:email)/,
 	'notif_tls'    => $boolean,
 	'notif_action' => $enable,
-	'notif_time'   => $natural,                   # this value can't be 0
+	'notif_time'   => $natural,        # this value can't be 0
 
 	# IPDS
 	# blacklists
 	'day_of_month'         => qr{$dayofmonth},
 	'weekdays'             => qr{$weekdays},
 	'blacklists_name'      => qr{\w+},
-	'blacklists_source'    => qr{(?:\d{1,3}\.){3}\d{1,3}(?:\/\d{1,2})?},
-	'blacklists_source_id' => qr{\d+},
+	'blacklists_source'    => qr{$blacklists_source},
+	'blacklists_source_id' => qr{(?:\d+|$blacklists_source(,$blacklists_source)*)},
+
 	'blacklists_url'       => qr{.+},
 	'blacklists_hour'      => $hours,
 	'blacklists_minutes'   => $minutes,
@@ -238,14 +255,17 @@ my %format_re = (
 	'waf_skip'       => qr/[0-9]+/,
 	'waf_skip_after' => qr/\w+/,
 	'waf_set_status' => qr/(?:$boolean|detection)/,
-	'waf_file'       => qr/(?:[\w-]+)/,
+	'waf_file'       => qr/(?:[\s+\w-]+)/,
 
 	# certificates filenames
-	'certificate' => qr/\w[\w\.\(\)\@ \-]*\.(?:pem|csr)/,
-	'cert_pem'    => qr/\w[\w\.\(\)\@ \-]*\.pem/,
-	'cert_name'   => qr/[a-zA-Z0-9\-]+/,
-	'cert_csr'    => qr/\w[\w\.\-]*\.csr/,
-	'cert_dh2048' => qr/\w[\w\.\-]*_dh2048\.pem/,
+	'certificate_name'    => $cert_name,
+	'certificate'         => qr/$cert_name\.(?:pem|csr)/,
+	'cert_pem'            => qr/$cert_name\.pem/,
+	'cert_name'           => qr/[a-zA-Z0-9\-]+/,
+	'cert_csr'            => qr/\w[\w\.\-]*\.csr/,
+	'cert_dh2048'         => qr/\w[\w\.\-]*_dh2048\.pem/,
+	'le_certificate_name' => $cert_name,
+	'le_mail'             => $email,
 
 	# IPS
 	'IPv4_addr' => qr/$ipv4_addr/,
@@ -254,8 +274,9 @@ my %format_re = (
 	'IPv6_addr' => qr/$ipv6_addr/,
 	'IPv6_mask' => $UNSIGNED7BITS,
 
-	'ip_addr' => $ipv4v6,
-	'ip_mask' => qr/(?:$ipv4_addr|$UNSIGNED7BITS)/,
+	'ip_addr'       => $ipv4v6,
+	'ip_mask'       => qr/(?:$ipv4_addr|$UNSIGNED7BITS)/,
+	'ip_addr_range' => qr/$ipv4_addr-$ipv4_addr/,
 
 	# farm guardian
 	'fg_name'    => qr/[\w-]+/,
@@ -265,8 +286,8 @@ my %format_re = (
 	'fg_time'    => qr/$natural/,                      # this value can't be 0
 
 	# RBAC
-	'user_name'     => qr/[a-z][-a-z0-9_]+/,
-	'rbac_password' => qr/(?=.*[0-9])(?=.*[a-zA-Z]).{8,16}/,
+	'user_name'     => qr/[a-z][-a-z0-9_.]+/,
+	'rbac_password' => qr/(?=.*[0-9])(?=.*[a-zA-Z]).{8,512}/,
 	'group_name'    => qr/[\w-]+/,
 	'role_name'     => qr/[\w-]+/,
 
@@ -279,10 +300,32 @@ my %format_re = (
 
 	# routing
 	'route_rule_id'  => qr/$natural/,
-	'route_table_id' => qr/[\w\.]+/,
+	'route_table_id' => qr/[\w\.\-]+/,
 	'route_entry_id' => qr/$natural/,
 
+	# vpn
+	'vpn_name' => qr/[a-zA-Z][a-zA-Z0-9\-]*/,
+	'vpn_user' => qr/[a-zA-Z][a-zA-Z0-9\-]*/,
+
 );
+
+sub getZAPIModel
+{
+	my $file = shift;
+	require Zevenet::Zapi;
+	my $api_version = &getZapiVersion();
+	my $dir = &getGlobalConfiguration( "zapi_model_path" ) . "/v$api_version/json";
+
+	require JSON;
+	my $content;
+	{
+		open ( my $fh, '<', "$dir/$file" ) or die "The file '$dir/$file' was not found";
+		local $/ = undef;
+		$content = <$fh>;
+		close $fh;
+	}
+	return JSON::decode_json( $content )->{ params } if ( $content ne "" );
+}
 
 =begin nd
 Function: getValidFormat
@@ -328,7 +371,14 @@ sub getValidFormat
 		if ( defined $value )
 		{
 			#~ print "$format_re{ $format_name }\n"; # DEBUG
-			return $value =~ /^$format_re{ $format_name }$/;
+			if ( ref ( $value ) eq "ARRAY" )
+			{
+				return !grep ( !/^$format_re{ $format_name }$/, @{ $value } ) > 0;
+			}
+			else
+			{
+				return $value =~ /^$format_re{ $format_name }$/;
+			}
 		}
 		else
 		{
@@ -369,15 +419,13 @@ sub getValidPort    # ( $ip, $port, $profile )
 	my $port    = shift;
 	my $profile = shift;    # farm profile, optional
 
-	require Zevenet::Net::Validate;
 	if ( $profile =~ /^(?:HTTP|GSLB)$/i )
 	{
-		return &isValidPortNumber( $port ) eq 'true';
+		return &getValidFormat( 'port', $port );
 	}
 	elsif ( $profile =~ /^(?:L4XNAT)$/i )
 	{
-		require Zevenet::Farm::L4xNAT::Validate;
-		return &ismport( $port ) eq 'true';
+		return &getValidFormat( 'multiport', $port );
 	}
 	elsif ( $profile =~ /^(?:DATALINK)$/i )
 	{
@@ -385,7 +433,7 @@ sub getValidPort    # ( $ip, $port, $profile )
 	}
 	elsif ( !defined $profile )
 	{
-		return &isValidPortNumber( $port ) eq 'true';
+		return &getValidFormat( 'port', $port );
 	}
 	else    # profile not supported
 	{
@@ -545,7 +593,7 @@ Parameters:
 			"values" : ["priority", "weight"],		# list of possible values for a parameter
 			"length" : 32,				# it is the maximum string size for the value
 			"regex"	: "/\w+,\d+/",		# regex format
-			"ref"	: "array|hash",		# the expected input must be an array or hash ref
+			"ref"	: "array|hash",		# the expected input must be an array or hash ref. To allow ref inputs and non ref for a parameter use the word 'none'. Example:  'ref' => 'array|none'
 			"valid_format"	: "farmname",		# regex stored in Validate.pm file, it checks with the function getValidFormat
 			"function" : \&func,		# function of validating, the input parameter is the value of the argument. The function has to return 0 or 'false' when a error exists
 			"format_msg"	: "must have letters and digits",	# used message when a value is not correct
@@ -571,6 +619,19 @@ sub checkZAPIParams
 	my $param_obj   = shift;
 	my $description = shift;
 	my $err_msg;
+
+	## Remove parameters do not according to the edition
+	foreach my $p ( keys %$param_obj )
+	{
+		if (
+			 exists $param_obj->{ $p }->{ edition }
+			 && (    ( $param_obj->{ $p }->{ edition } eq 'ee' && !$eload )
+				  || ( $param_obj->{ $p }->{ edition } eq 'ce' && $eload ) )
+		  )
+		{
+			delete $param_obj->{ $p };
+		}
+	}
 
 	my @rec_keys = keys %{ $json_obj };
 
@@ -598,7 +659,10 @@ sub checkZAPIParams
 		  ? "$param $param_obj->{ $param }->{ format_msg }"
 		  : "The parameter '$param' has not a valid value.";
 
-		if ( $json_obj->{ $param } eq '' or not defined $json_obj->{ $param } )
+		if (   $json_obj->{ $param } eq ''
+			or not defined $json_obj->{ $param }
+			or ( ref $json_obj->{ $param } eq 'ARRAY' and @{ $json_obj->{ $param } } == 0 )
+		  )
 		{
 			# if blank value is allowed
 			if ( $param_obj->{ $param }->{ 'non_blank' } eq 'true' )
@@ -610,22 +674,19 @@ sub checkZAPIParams
 			next;
 		}
 
-		if (
-			( exists $param_obj->{ $param }->{ 'values' } )
-			and (
-				!grep ( /^$json_obj->{ $param }$/, @{ $param_obj->{ $param }->{ 'values' } } ) )
-		  )
-		{
-			return
-			  "The parameter '$param' expects once of the following values: '"
-			  . join ( "', '", @{ $param_obj->{ $param }->{ 'values' } } ) . "'";
-		}
-
 		# the input has to be a ref
 		my $r = ref $json_obj->{ $param } // '';
 		if ( exists $param_obj->{ $param }->{ 'ref' } )
 		{
-			if ( $r !~ /^$param_obj->{ $param }->{ 'ref' }$/i )
+			if ( $r eq '' )
+			{
+				if ( 'none' !~ /$param_obj->{ $param }->{ 'ref' }/ )
+				{
+					return
+					  "The parameter '$param' expects a '$param_obj->{ $param }->{ref}' reference as input";
+				}
+			}
+			elsif ( $r !~ /^$param_obj->{ $param }->{ 'ref' }$/i )
 			{
 				return
 				  "The parameter '$param' expects a '$param_obj->{ $param }->{ref}' reference as input";
@@ -634,6 +695,32 @@ sub checkZAPIParams
 		elsif ( $r eq 'ARRAY' or $r eq 'HASH' )
 		{
 			return "The parameter '$param' does not expect a $r as input";
+		}
+
+		if ( ( exists $param_obj->{ $param }->{ 'values' } ) )
+		{
+			if ( $r eq 'ARRAY' )
+			{
+				foreach my $value ( @{ $json_obj->{ $param } } )
+				{
+					if ( !grep ( /^$value$/, @{ $param_obj->{ $param }->{ 'values' } } ) )
+					{
+						return
+						  "The parameter '$param' expects some of the following values: '"
+						  . join ( "', '", @{ $param_obj->{ $param }->{ 'values' } } ) . "'";
+					}
+				}
+			}
+			else
+			{
+				if (
+					!grep ( /^$json_obj->{ $param }$/, @{ $param_obj->{ $param }->{ 'values' } } ) )
+				{
+					return
+					  "The parameter '$param' expects one of the following values: '"
+					  . join ( "', '", @{ $param_obj->{ $param }->{ 'values' } } ) . "'";
+				}
+			}
 		}
 
 		# getValidFormat funcion:
@@ -648,16 +735,6 @@ sub checkZAPIParams
 		  )
 		{
 			return $custom_msg;
-		}
-
-		if (
-			( exists $param_obj->{ $param }->{ 'values' } )
-			and (
-				!grep ( /^$json_obj->{ $param }$/, @{ $param_obj->{ $param }->{ 'values' } } ) )
-		  )
-		{
-			return "The parameter '$param' expects one of the following values: "
-			  . join ( "', '", @{ $param_obj->{ $param }->{ 'values' } } );
 		}
 
 		# length
@@ -692,11 +769,59 @@ sub checkZAPIParams
 		}
 
 		# regex
-		if (    ( exists $param_obj->{ $param }->{ 'regex' } )
-			and ( ( $json_obj->{ $param } !~ /$param_obj->{ $param }->{ 'regex' }/ ) ) )
+		if ( ( exists $param_obj->{ $param }->{ 'regex' } ) )
 		{
-			return
-			  "The value '$json_obj->{ $param }' is not valid for the parameter '$param'.";
+			if ( defined $json_obj->{ $param } )
+			{
+				# If ARRAY, evaluate all in values.
+				if ( ref ( $json_obj->{ $param } ) eq "ARRAY" )
+				{
+					foreach my $value ( @{ $json_obj->{ $param } } )
+					{
+						return "The value '$value' is not valid for the parameter '$param'."
+						  if ( grep ( !/^$param_obj->{ $param }->{ 'regex' }$/, $value ) );
+					}
+				}
+				else
+				{
+					return
+					  "The value '$json_obj->{ $param }' is not valid for the parameter '$param'."
+					  if ( $json_obj->{ $param } !~ /^$param_obj->{ $param }->{ 'regex' }$/ );
+				}
+			}
+		}
+
+		# negated_regex
+		if ( ( exists $param_obj->{ $param }->{ 'negated_regex' } ) )
+		{
+			if ( defined $json_obj->{ $param } )
+			{
+				# If ARRAY, evaluate all in values.
+				if ( ref ( $json_obj->{ $param } ) eq "ARRAY" )
+				{
+					foreach my $value ( @{ $json_obj->{ $param } } )
+					{
+						return "The value '$value' is not valid for the parameter '$param'."
+						  if ( grep ( /^$param_obj->{ $param }->{ 'regex' }$/, $value ) );
+					}
+				}
+				else
+				{
+					return
+					  "The value '$json_obj->{ $param }' is not valid for the parameter '$param'."
+					  if ( $json_obj->{ $param } =~ /$param_obj->{ $param }->{ 'negated_regex' }/ );
+				}
+			}
+		}
+
+		# is_regex
+		if ( $param_obj->{ $param }->{ 'is_regex' } eq 'true' )
+		{
+			if ( defined $json_obj->{ $param } )
+			{
+				my $regex = eval { qr/$json_obj->{ $param }/ };
+				return "The value of field $param is an invalid regex" if $@;
+			}
 		}
 
 		if ( exists $param_obj->{ $param }->{ 'function' } )
@@ -1003,4 +1128,3 @@ sub putArrayAsText
 }
 
 1;
-

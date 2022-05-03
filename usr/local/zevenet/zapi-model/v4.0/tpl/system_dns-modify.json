@@ -1,0 +1,16 @@
+{
+	"description": "Modify the DNS service configuration.",
+	"method": "POST",
+	"url": "/system/dns",
+	"action": "set",
+	"params": {
+		"primary": {
+			"description": "Primary DNS configurated in the system.",
+			"regex": "$dns_nameserver"
+		},
+		"secondary": {
+			"description": "Secondary DNS configurated in the system.",
+			"regex": "$dns_nameserver"
+		}
+	}
+}

@@ -217,6 +217,7 @@ sub getFarmsByType    # ($farm_type)
 	foreach my $farm_filename ( @farm_files )
 	{
 		next if $farm_filename =~ /.*status.cfg/;
+		next if $farm_filename =~ /.*sessions.cfg/;
 		my $farm_name = &getFarmName( $farm_filename );
 
 		if ( &getFarmType( $farm_name ) eq $farm_type )

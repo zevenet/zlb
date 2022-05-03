@@ -1,0 +1,85 @@
+{
+   "action" : "set",
+   "description" : "Modify the configuration of a l4xnat farm.",
+   "method" : "PUT",
+   "params" : {
+      "algorithm" : {
+         "non_blank" : "true",
+         "values" : [
+            "weight",
+            "roundrobin",
+            "hash_srcip_srcport",
+            "hash_srcip",
+            "symhash",
+            "leastconn"
+         ]
+      },
+      "logs" : {
+         "edition" : "ee",
+         "non_blank" : "true",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "nattype" : {
+         "non_blank" : "true",
+         "values" : [
+            "nat",
+            "dnat",
+            "dsr",
+            "stateless_dnat"
+         ]
+      },
+      "newfarmname" : {
+         "exceptions" : [
+            "0"
+         ],
+         "non_blank" : "true",
+         "regex" : "(?^:[a-zA-Z0-9\\-]+)"
+      },
+      "persistence" : {
+         "values" : [
+            "ip",
+            "srcip",
+            "srcport",
+            "srcmac",
+            "srcip_srcport",
+            "srcip_dstport",
+            "none"
+         ]
+      },
+      "protocol" : {
+         "non_blank" : "true",
+         "values" : [
+            "all",
+            "tcp",
+            "udp",
+            "sctp",
+            "sip",
+            "ftp",
+            "tftp",
+            "amanda",
+            "h323",
+            "irc",
+            "netbios-ns",
+            "pptp",
+            "sane",
+            "snmp"
+         ]
+      },
+      "ttl" : {
+         "non_blank" : "true",
+         "regex" : "(?^:[1-9]\\d*)"
+      },
+      "vip" : {
+         "dyn_values" : "true",
+         "format_msg" : "The vip IP must exist in some interface.",
+         "non_blank" : "true"
+      },
+      "vport" : {
+         "non_blank" : "true"
+      }
+   },
+   "url" : "/farm/<farmname>"
+}

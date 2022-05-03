@@ -111,6 +111,13 @@ sub setFarmCertificate    # ($cfile,$farm_name)
 	&zenlog( "Setting 'Certificate $cfile' for $farm_name farm https",
 			 "info", "LSLB" );
 
+	require Zevenet::Certificate;
+	unless ( !&getCertIsValid( "$certdir/$cfile" ) )
+	{
+		&zenlog( "'Certificate $cfile' for $farm_name farm https is not valid",
+				 "error", "LSLB" );
+		return $output;
+	}
 	tie my @array, 'Tie::File', "$configdir/$farm_filename";
 	for ( @array )
 	{

@@ -1,0 +1,54 @@
+{
+   "action" : "update",
+   "description" : "It upgrades the IPDS package from the repository or it configures the time scheduler to get automatical upgrades.",
+   "method" : "POST",
+   "params" : {
+      "action" : {
+         "format_msg" : "Invalid value for action parameter",
+         "non_blank" : "true",
+         "required" : "true",
+         "values" : [
+            "upgrade",
+            "schedule"
+         ]
+      },
+      "frequency" : {
+         "depend_on" : "action==schedule",
+         "depend_on_msg" : "the value: if (mode==daily) interval from 0 to 23; if (mode==weekly) interval from 1 to 7; if (mode==daily) interval from 1 to 31",
+         "format_msg" : "Invalid value for frequency parameter in daily mode",
+         "non_blank" : "true"
+      },
+      "hour" : {
+         "depend_on" : "action==schedule && mode!=disabled",
+         "format_msg" : "Invalid hour value",
+         "interval" : "0,23",
+         "non_blank" : "true"
+      },
+      "minute" : {
+         "depend_on" : "action==schedule && mode!=disabled",
+         "format_msg" : "Invalid minute value",
+         "interval" : "00,59",
+         "non_blank" : "true"
+      },
+      "mode" : {
+         "depend_on" : "action==schedule",
+         "format_msg" : "Invalid value for mode parameter",
+         "non_blank" : "true",
+         "values" : [
+            "hour",
+            "daily",
+            "weekly",
+            "monthly",
+            "disabled"
+         ]
+      },
+      "time" : {
+         "depend_on" : "action==schedule",
+         "deprecated" : "true",
+         "format_msg" : "use directly the hour and minute parameters.",
+         "non_blank" : "true",
+         "ref" : "hash"
+      }
+   },
+   "url" : "/ipds/package/actions"
+}

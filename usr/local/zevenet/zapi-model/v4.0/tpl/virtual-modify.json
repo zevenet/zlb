@@ -1,0 +1,17 @@
+{
+	"method": "PUT",
+	"url": "/interfaces/virtual/<name>",
+	"action": "set",
+	"description": "Modify the parameters of a virtual interface. name is the interface unique identifier.",
+	"params": {
+		"ip": {
+			"regex": "$ip_addr"
+		},
+		"force": {
+			"non_blank": "true",
+			"values": [
+				"true"
+			]
+		}
+	}
+}

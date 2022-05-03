@@ -52,8 +52,12 @@ sub runHTTPFarmCreate    # ( $vip, $vip_port, $farm_name, $farm_type )
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
+
+	require Zevenet::Farm::HTTP::Config;
 	my ( $vip, $vip_port, $farm_name, $farm_type, $status ) = @_;
 	$status = 'up' if not defined $status;
+
+	my $proxy_ng = &getGlobalConfiguration( 'proxy_ng' );
 
 	require Tie::File;
 	require File::Copy;
@@ -87,6 +91,12 @@ sub runHTTPFarmCreate    # ( $vip, $vip_port, $farm_name, $farm_type )
 
 	#create files with personalized errors
 	my $f_err;
+	if ( $eload )
+	{
+		open $f_err, '>', "$configdir\/$farm_name\_ErrWAF.html";
+		print $f_err "The request was rejected by the server.\n";
+		close $f_err;
+	}
 	open $f_err, '>', "$configdir\/$farm_name\_Err414.html";
 	print $f_err "Request URI is too long.\n";
 	close $f_err;
@@ -100,16 +110,22 @@ sub runHTTPFarmCreate    # ( $vip, $vip_port, $farm_name, $farm_type )
 	print $f_err "The service is not available. Please try again later.\n";
 	close $f_err;
 
+	#create session file
+	open $f_err, '>', "$configdir\/$farm_name\_sessions.cfg";
+	close $f_err;
+
+	&setHTTPFarmLogs( $farm_name, 'false' );
+
 	if ( $eload )
 	{
+
 		&eload(
 				module => 'Zevenet::Farm::HTTP::Ext',
-				func   => 'setHTTPFarmLogs',
-				args   => [$farm_name, 'false'],
-		);
+				func   => 'addHTTPFarmWafBodySize',
+				args   => [$farm_name],
+		) if ( $proxy_ng eq 'false' );
 	}
 
-	require Zevenet::Farm::HTTP::Config;
 	$output = &getHTTPFarmConfigIsOK( $farm_name );
 
 	if ( $output )
@@ -134,6 +150,12 @@ sub runHTTPFarmCreate    # ( $vip, $vip_port, $farm_name, $farm_type )
 		$output = &zsystem(
 			"$proxy -f $configdir\/$farm_name\_proxy.cfg -p $piddir\/$farm_name\_proxy.pid 2>/dev/null"
 		);
+
+		&eload(
+				module => 'Zevenet::Farm::Config',
+				func   => 'reloadFarmsSourceAddressByFarm',
+				args   => [$farm_name],
+		) if ( $proxy_ng eq 'true' && $eload );
 	}
 	else
 	{
@@ -144,4 +166,3 @@ sub runHTTPFarmCreate    # ( $vip, $vip_port, $farm_name, $farm_type )
 }
 
 1;
-

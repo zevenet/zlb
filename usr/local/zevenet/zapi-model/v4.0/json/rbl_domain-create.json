@@ -1,0 +1,17 @@
+{
+   "action" : "add",
+   "description" : "Add a new domain to the user domain list.",
+   "method" : "POST",
+   "params" : {
+      "domain" : {
+         "description" : "It is a zone of an RBL provider where an RBL rule will do queries.",
+         "exceptions" : [
+            "0"
+         ],
+         "non_blank" : "true",
+         "regex" : "(?^:[\\w\\.\\-]+)",
+         "required" : "true"
+      }
+   },
+   "url" : "/ipds/rbl/domains"
+}

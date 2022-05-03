@@ -1,0 +1,58 @@
+{
+	"method": "PUT",
+	"url": "/ipds/rbl/<name>",
+	"action": "set",
+	"description": "Modify the configuration of an RBL rule. name is the RBL rules unique identifier.",
+	"params": {
+		"name": {
+			"description": "RBL rule name. It is used as a unique identifier.",
+			"regex": "$rbl_name",
+			"non_blank": "true",
+			"exceptions": [
+				"domains",
+				"0"
+			]
+		},
+		"threadmax": {
+			"description": "It is the number of packets that the rule can query simultaneously to DNS servers. Its maximum value is 700. When the number of input packets is bigger than threadmax, the next packets will be automatically accepted.",
+			"regex": "$integer",
+			"non_blank": "true"
+		},
+		"only_logging": {
+			"description": "If the value is true, when an IP matches in a domain, it will be logged; or if this field has the value false, when an IP matches in a domain, the IP will be logged and the packet will be dropped.",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		},
+		"log_level": {
+			"description": "It is the severity log level. It can have a value between 0 and 7, being 0 emergency and 7 debug.",
+			"interval": "0,7",
+			"non_blank": "true"
+		},
+		"queue_size": {
+			"description": "It is the number of packets that the rule can keep in the queue.",
+			"regex": "$natural_num",
+			"non_blank": "true"
+		},
+		"cache_size": {
+			"description": "It is the number of IP sources that the RBL rule can cache.",
+			"regex": "$natural_num",
+			"non_blank": "true"
+		},
+		"cache_time": {
+			"description": "It is the time (in seconds) that an IP source will be blocked.",
+			"regex": "$natural_num",
+			"non_blank": "true"
+		},
+		"local_traffic": {
+			"description": "If this field has the value true, the RBL rule will examine traffic from private network segments; or if its value is false the RBL rule will ignore traffic from private network segments. The local traffic never will be blocked by a public DNS.",
+			"values": [
+				"true",
+				"false"
+			],
+			"non_blank": "true"
+		}
+	}
+}

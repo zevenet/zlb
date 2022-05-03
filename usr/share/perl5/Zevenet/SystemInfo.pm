@@ -214,7 +214,7 @@ sub getCpuCores
 
 	while ( my $line = <$stat_file> )
 	{
-		next unless $line =~ /^cpu(\d) /;
+		next unless $line =~ /^cpu(\d+) /;
 		$cores = $1 + 1;
 	}
 

@@ -1,0 +1,18 @@
+{
+	"method": "PUT",
+	"url": "/ipds/dos/<name>",
+	"action": "set",
+	"description": "Modify a limit per second DoS rule. name is the DoS rule unique identifier.",
+	"params": {
+		"limit": {
+			"description": "It is the maximum number of new connections per second for a source.",
+			"regex": "$natural_num",
+			"non_blank": "true"
+		},
+		"limit_burst": {
+			"description": "It is an allowed peak of new connections. A burst unit regenerates when “limit” seconds will pass.",
+			"regex": "$integer",
+			"non_blank": "true"
+		}
+	}
+}

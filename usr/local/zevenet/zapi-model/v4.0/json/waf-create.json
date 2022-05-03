@@ -1,0 +1,24 @@
+{
+   "action" : "create",
+   "description" : "Create a WAF ruleset to be used to farms. It is created empty without any rule and all it is disabled by default",
+   "method" : "POST",
+   "params" : {
+      "copy_from" : {
+         "description" : "It is a WAF ruleset name, if this parameter is sent the new set will be a copy from this.",
+         "non_blank" : "true",
+         "regex" : "(?^:[\\.\\w-]+)"
+      },
+      "name" : {
+         "description" : "WAF ruleset name. It is used as the unique identifier.",
+         "exceptions" : [
+            "options",
+            "files",
+            "0"
+         ],
+         "non_blank" : "true",
+         "regex" : "(?^:[\\.\\w-]+)",
+         "required" : "true"
+      }
+   },
+   "url" : "/ipds/waf"
+}

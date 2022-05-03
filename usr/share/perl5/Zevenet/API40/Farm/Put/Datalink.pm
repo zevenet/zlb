@@ -46,21 +46,8 @@ sub modify_datalink_farm    # ( $json_obj, $farmname )
 	require Zevenet::Net::Interface;
 	my $ip_list = &getIpAddressList();
 
-	my $params = {
-				   "newfarmname" => {
-									  'valid_format' => 'farm_name',
-									  'non_blank'    => 'true',
-				   },
-				   "algorithm" => {
-									'values'    => ['prio', 'weight'],
-									'non_blank' => 'true',
-				   },
-				   "vip" => {
-							  'values'     => $ip_list,
-							  'non_blank'  => 'true',
-							  'format_msg' => 'expects an IP'
-				   },
-	};
+	my $params = &getZAPIModel( "farm_datalink-modify.json" );
+	$params->{ vip }->{ values } = $ip_list;
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -156,11 +143,11 @@ sub modify_datalink_farm    # ( $json_obj, $farmname )
 
 	my $body = {
 				 description => $desc,
-				 params      => $json_obj
+				 params      => $json_obj,
+				 message     => "Some parameters have been changed in farm $farmname."
 	};
 
 	&httpResponse( { code => 200, body => $body } );
 }
 
 1;
-

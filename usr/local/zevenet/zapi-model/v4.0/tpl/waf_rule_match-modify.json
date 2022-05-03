@@ -1,0 +1,29 @@
+{
+	"method": "PUT",
+	"url": "/ipds/waf/<name>/rules/<id>/matches/<id>",
+	"action": "set",
+	"description": "A matching rule extends a WAF action rule, modifying match conditions.",
+	"params": {
+		"not_match": {
+			"regex": "$boolean"
+		},
+		"variables": {
+			"non_blank": "true",
+			"ref": "array"
+		},
+		"operator": {
+			"non_blank": "true",
+			"dyn_values": "true"
+		},
+		"operating": {},
+		"transformations": {
+			"ref": "array"
+		},
+		"multi_match": {
+			"regex": "$boolean"
+		},
+		"capture": {
+			"regex": "$boolean"
+		}
+	}
+}

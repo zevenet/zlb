@@ -1,0 +1,16 @@
+{
+   "action" : "set",
+   "description" : "Show the configuration about HTTP/HTTPS remote services. This proxy will be used to the remote HTTP request from the load balancer (as downloading IPDS rules and getting packages updates).",
+   "method" : "POST",
+   "params" : {
+      "http_proxy" : {
+         "description" : "It is the URL to the remote proxy server to send the requests that use the HTTP protocol, without SSL encryption.",
+         "regex" : "(?^:\\S*)"
+      },
+      "https_proxy" : {
+         "description" : "It is the URL to the remote proxy server to send the requests that use the HTTPS protocol, with SSL encryption.",
+         "regex" : "(?^:\\S*)"
+      }
+   },
+   "url" : "/system/proxy"
+}

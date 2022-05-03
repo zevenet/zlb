@@ -42,19 +42,7 @@ sub new_vini    # ( $json_obj )
 	my $vlan_re        = &getValidFormat( 'vlan_interface' );
 	my $virtual_tag_re = &getValidFormat( 'virtual_tag' );
 
-	my $params = {
-		"name" => {
-			'valid_format' => 'virt_interface',
-			'required'     => 'true',
-			'non_blank'    => 'true',
-			"format_msg" =>
-			  "is a string formed with the parent interface name, colon (':') and a virtual interface tag. E.g. 'eth1:virt1'",
-		},
-		"ip" => {
-				  'valid_format' => 'ip_addr',
-				  'required'     => 'true',
-		},
-	};
+	my $params = &getZAPIModel( "virtual-create.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -138,7 +126,7 @@ sub new_vini    # ( $json_obj )
 	$if_ref->{ dhcp }    = 'false';
 
 	unless (
-		 &getNetValidate( $if_parent->{ addr }, $if_ref->{ mask }, $if_ref->{ addr } ) )
+		&validateGateway( $if_parent->{ addr }, $if_ref->{ mask }, $if_ref->{ addr } ) )
 	{
 		my $msg =
 		  "IP Address $json_obj->{ip} must be same net than the parent interface.";
@@ -184,14 +172,16 @@ sub new_vini    # ( $json_obj )
 	) if ( $eload );
 
 	my $body = {
-				 description => $desc,
-				 params      => {
-							 name    => $if_ref->{ name },
-							 ip      => $if_ref->{ addr },
-							 netmask => $if_ref->{ mask },
-							 gateway => $if_ref->{ gateway },
-							 mac     => $if_ref->{ mac },
-				 },
+			   description => $desc,
+			   params      => {
+						   name    => $if_ref->{ name },
+						   ip      => $if_ref->{ addr },
+						   netmask => $if_ref->{ mask },
+						   gateway => $if_ref->{ gateway },
+						   mac     => $if_ref->{ mac },
+			   },
+			   message =>
+				 "The $if_ref->{ name } Virtual interface has been created successfully"
 	};
 
 	&httpResponse( { code => 201, body => $body } );
@@ -245,21 +235,21 @@ sub delete_interface_virtual    # ( $virtual )
 		if ( $eload )
 		{
 			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['interface', 'stop', $if_ref->{ name }],
+			);
+
+			&eload(
 					module => 'Zevenet::Net::Routing',
-					func   => 'updateRoutingVirtualIfaces',
-					args   => [$if_ref->{ parent }, $if_ref->{ addr }, undef],
+					func   => 'delRoutingDependIfaceVirt',
+					args   => [$if_ref],
 			);
 		}
 
 		if ( $if_ref->{ status } eq 'up' )
 		{
 			# removing before in the remote node
-			&eload(
-					module => 'Zevenet::Cluster',
-					func   => 'runZClusterRemoteManager',
-					args   => ['interface', 'stop', $if_ref->{ name }],
-			) if ( $eload );
-
 			die if &delRoutes( "local", $if_ref );
 			die if &downIf( $if_ref, 'writeconf' );
 		}
@@ -355,13 +345,7 @@ sub actions_interface_virtual    # ( $json_obj, $virtual )
 	my $desc = "Action on virtual interface";
 	my $ip_v = 4;
 
-	my $params = {
-				   "action" => {
-								 'non_blank' => 'true',
-								 'required'  => 'true',
-								 'values'    => ['up', 'down'],
-				   },
-	};
+	my $params = &getZAPIModel( "virtual-action.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -405,6 +389,12 @@ sub actions_interface_virtual    # ( $json_obj, $virtual )
 		{
 			require Zevenet::Net::Route;
 			&applyRoutes( "local", $if_ref );
+
+			&eload(
+					module => 'Zevenet::Net::Routing',
+					func   => 'applyRoutingDependIfaceVirt',
+					args   => ['add', $if_ref]
+			) if $eload;
 		}
 		else
 		{
@@ -441,8 +431,9 @@ sub actions_interface_virtual    # ( $json_obj, $virtual )
 	}
 
 	my $body = {
-				 description => $desc,
-				 params      => { action => $json_obj->{ action } },
+		   description => $desc,
+		   params      => { action => $json_obj->{ action } },
+		   message => "The $if_ref->{ name } Virtual interface is $json_obj->{ action }"
 	};
 
 	&httpResponse( { code => 200, body => $body } );
@@ -463,15 +454,7 @@ sub modify_interface_virtual    # ( $json_obj, $virtual )
 	my $old_ip = $if_ref->{ addr };
 	my @farms;
 
-	my $params = {
-				   "ip" => {
-							 'valid_format' => 'ip_addr',
-				   },
-				   "force" => {
-								'non_blank' => 'true',
-								'values'    => ['true'],
-				   },
-	};
+	my $params = &getZAPIModel( "virtual-modify.json" );
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
@@ -525,10 +508,10 @@ sub modify_interface_virtual    # ( $json_obj, $virtual )
 	my $if_ref_parent = &getInterfaceConfig( $if_ref->{ parent } );
 
 	unless (
-			 &getNetValidate(
-							  $if_ref_parent->{ addr },
-							  $if_ref_parent->{ mask },
-							  $json_obj->{ ip }
+			 &validateGateway(
+							   $if_ref_parent->{ addr },
+							   $if_ref_parent->{ mask },
+							   $json_obj->{ ip }
 			 )
 	  )
 	{
@@ -598,11 +581,18 @@ sub modify_interface_virtual    # ( $json_obj, $virtual )
 				func   => 'runZClusterRemoteManager',
 				args   => ['interface', 'start', $if_ref->{ name }],
 		);
+		&eload(
+				module => 'Zevenet::Cluster',
+				func   => 'runZClusterRemoteManager',
+				args   => ['farm', 'restart_farms', @farms],
+		);
 	}
 
 	my $body = {
-				 description => $desc,
-				 params      => $json_obj,
+			   description => $desc,
+			   params      => $json_obj,
+			   message =>
+				 "The $if_ref->{ name } Virtual interface has been updated successfully"
 	};
 
 	&httpResponse( { code => 200, body => $body } );

@@ -1,0 +1,13 @@
+{
+	"method": "PUT",
+	"url": "/ipds/dos/<name>",
+	"action": "set",
+	"description": "Modify a Limit connection DoS rule. name is the DoS rule unique identifier.",
+	"params": {
+		"limit_conns": {
+			"description": "It is the maximum number of current connections from a source.",
+			"regex": "$integer",
+			"non_blank": "true"
+		}
+	}
+}

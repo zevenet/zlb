@@ -1,0 +1,30 @@
+{
+   "action" : "factory",
+   "description" : "Apply a factory reset in the system. It will delete all the user configuration. The root password, the hostname, one NIC interface and the certificate will not be modified. The system will be restarted while the process is going on.",
+   "method" : "POST",
+   "params" : {
+      "force" : {
+         "description" : "It is a confirmation about to apply the factory reset. This parameter has to be sent with true value for applying it.",
+         "non_blank" : "true",
+         "values" : [
+            "true",
+            "false"
+         ]
+      },
+      "interface" : {
+         "description" : "It is a NIC interface name. This interface will not be deleted in the factory reset process. The system will be available before factory reset through this interface.",
+         "dyn_values" : "true",
+         "non_blank" : "true",
+         "required" : "true"
+      },
+      "remove_backups" : {
+         "description" : "It is an option about remove all system backups. They will not be removed by default. If this parameter is set to true, the backups will be removed.",
+         "non_blank" : "true",
+         "values" : [
+            "true",
+            "false"
+         ]
+      }
+   },
+   "url" : "/system/factory"
+}

@@ -1,0 +1,37 @@
+{
+   "action" : "add",
+   "description" : "Create a new resource in a given zone in a GSLB Farm",
+   "method" : "POST",
+   "params" : {
+      "rdata" : {
+         "non_blank" : "true",
+         "required" : "true"
+      },
+      "rname" : {
+         "non_blank" : "true",
+         "regex" : "(?^:(?:[\\w\\-\\.]+|\\@))",
+         "required" : "true"
+      },
+      "ttl" : {
+         "regex" : "(?^:[1-9]\\d*)"
+      },
+      "type" : {
+         "non_blank" : "true",
+         "regex" : "(?^:(?:NS|A|AAAA|CNAME|DYNA|MX|SRV|TXT|PTR|NAPTR))",
+         "required" : "true",
+         "values" : [
+            "NS",
+            "A",
+            "AAAA",
+            "CNAME",
+            "DYNA",
+            "MX",
+            "SRV",
+            "TXT",
+            "PTR",
+            "NAPTR"
+         ]
+      }
+   },
+   "url" : "/farms/<farmname>/zones/<id>/resources"
+}

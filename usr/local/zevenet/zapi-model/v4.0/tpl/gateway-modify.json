@@ -1,0 +1,15 @@
+{
+	"method": "PUT",
+	"url": "/interfaces/gateway/<ip_version>",
+	"action": "set",
+	"description": "Modify the configuration of the gateway interface.",
+	"params": {
+		"interface": {
+			"non_blank": "true"
+		},
+		"address": {
+			"regex": "$ipv4v6",
+			"non_blank": "true"
+		}
+	}
+}

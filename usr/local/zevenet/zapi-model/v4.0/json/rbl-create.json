@@ -1,0 +1,23 @@
+{
+   "action" : "create",
+   "description" : "Create an RBL rule to be used on farms.",
+   "method" : "POST",
+   "params" : {
+      "copy_from" : {
+         "description" : "",
+         "non_blank" : "true",
+         "regex" : "(?^:[\\w]+)"
+      },
+      "name" : {
+         "description" : "RBL rule name. It is used as a unique identifier.",
+         "exceptions" : [
+            "domains",
+            "0"
+         ],
+         "non_blank" : "true",
+         "regex" : "(?^:[\\w]+)",
+         "required" : "true"
+      }
+   },
+   "url" : "/ipds/rbl"
+}

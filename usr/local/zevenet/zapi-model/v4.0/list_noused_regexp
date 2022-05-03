@@ -1,0 +1,37 @@
+#!/usr/bin/perl
+
+my $dir      = ".";
+my $regexp_f = "$dir/regexp";
+my $tpl_dir  = "$dir/tpl";
+
+open ( my $fh, '<', $regexp_f );
+
+my $var;
+my $flag;
+while ( my $l = <$fh> )
+{
+	if ( $l =~ /\s*our\s+\$([\w-]+)\s*=/ )
+	{
+		$var = $1;
+
+		#~ print "var  = $var\n";
+
+		#~ print  "grep -R '\$$var' $tpl_dir\n";
+		if ( !system ( "grep -R '\$$var' $tpl_dir >/dev/null" ) )
+		{
+			#~ print "found!\n";
+			#~ print  "\n";
+			next;
+		}
+
+		#~ print  "grep -P '\\\$$var\\s*[^=]+\$' $regexp_f\n";
+		if ( system ( "grep -P '\\\$$var\\s*[^=]+\$' $regexp_f >/dev/null" ) )
+		{
+			print "not used: $var\n";
+		}
+
+		#~ print  "\n";
+	}
+}
+
+close $fh;

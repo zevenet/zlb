@@ -1,0 +1,17 @@
+{
+   "action" : "status",
+   "description" : "Apply an action to a farm, see the Request parameters table for actions.",
+   "method" : "PUT",
+   "params" : {
+      "action" : {
+         "non_blank" : "true",
+         "required" : "true",
+         "values" : [
+            "stop",
+            "start",
+            "restart"
+         ]
+      }
+   },
+   "url" : "/farms/<farmname>/actions"
+}

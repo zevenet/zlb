@@ -34,3 +34,8 @@ fi
 if [ -f $zvn_stop ]; then
 	mv $zvn_stop $tmp_stop
 fi
+
+# Create the new GUI system group
+groupadd -f webgui;
+usermod -a -G webgui root;
+

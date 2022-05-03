@@ -160,7 +160,7 @@ sub delete_farm_certificate    # ( $farmname, $certfilename )
 	# Check if the farm exists
 	if ( !&getFarmExists( $farmname ) )
 	{
-		my $msg = "The farmname $farmname does not exists";
+		my $msg = "The farmname $farmname does not exist";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 

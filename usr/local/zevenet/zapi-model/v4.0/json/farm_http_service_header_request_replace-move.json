@@ -1,0 +1,13 @@
+{
+   "action" : "move",
+   "description" : "Move replaceHeader",
+   "method" : "PUT",
+   "params" : {
+      "position" : {
+         "non_blank" : "true",
+         "regex" : "(?^:\\d+)",
+         "required" : "true"
+      }
+   },
+   "url" : "/farms/<farmname>/service/<servicename>/replacerequestheader/<id>/actions"
+}
