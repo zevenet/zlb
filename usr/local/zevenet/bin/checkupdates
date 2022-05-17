@@ -55,12 +55,12 @@ case "$1" in
 ;;
 
 '-i')   # Install the non-updated packages
-	DEBIAN_FRONTEND=noninteractive $apt_bin --with-new-pkgs upgrade
+	DEBIAN_FRONTEND=noninteractive $apt_bin --with-new-pkgs upgrade -o Dir::Etc::sourcelist="$apt_source_zevenet"
 	#checkupdates
 	#do this in order to update the web GUI alerts after any installation
-	$aptget_bin update -o Dir::Etc::sourceparts="-" -o Dir::Etc::sourcelist="sources.list.d/zevenet.list" > /dev/null
+	$aptget_bin update -o Dir::Etc::sourceparts="-" -o Dir::Etc::sourcelist="$apt_source_zevenet" > /dev/null
 	echo "Zevenet Packages are up-to-date." > $apt_msg
-	$apt_bin list --upgradable -o Dir::Etc::sourceparts="-" -o Dir::Etc::sourcelist="sources.list.d/zevenet.list" 2>/dev/null | cut -d"/" -f 1  | sed '1d' | tr  '\n' ' ' > $apt_outdated_list
+	$apt_bin list --upgradable -o Dir::Etc::sourceparts="-" -o Dir::Etc::sourcelist="$apt_source_zevenet" 2>/dev/null | cut -d"/" -f 1  | sed '1d' | tr  '\n' ' ' > $apt_outdated_list
 
 ;;
 

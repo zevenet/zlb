@@ -611,6 +611,7 @@ sub _getL4FarmParseServers
 			$server->{ status } = "undefined" if ( $server->{ status } eq "config_error" );
 			$server->{ status } = "maintenance" if ( $server->{ status } eq "off" );
 			$server->{ status } = "fgDOWN" if ( $server->{ status } eq "down" );
+			$server->{ status } = "up" if ( $server->{ status } eq "available" );
 		}
 	}
 
