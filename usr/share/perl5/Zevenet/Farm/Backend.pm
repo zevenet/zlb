@@ -165,19 +165,19 @@ sub getFarmServers    # ($farm_name, $service)
 =begin nd
 Function: getFarmServer
 
-	Return the farm backend with the specified ID and its configuration
+	Return the backend with the specified value on the specified parameter.
 
 Parameters:
-	farmname - Farm name
-	service - service backends related (optional)
-	id - Backend ID to retrieve
+	backends_ref - Array ref of backends hashes.
+	value - Parameter value to match
+	param - Parameter to match. Default value "id"
 
 Returns:
 	hash ref - bachend hash reference or undef if there aren't backends
 
 =cut
 
-sub getFarmServer    # ($farm_name, $service)
+sub getFarmServer    # ( $bcks_ref, $value, $param )
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
@@ -187,7 +187,15 @@ sub getFarmServer    # ($farm_name, $service)
 
 	foreach my $server ( @{ $bcks_ref } )
 	{
-		return $server if ( $server->{ $param } eq "$value" );
+		# preserve type param number
+		if ( $param eq "id" )
+		{
+			return $server if ( $server->{ $param } == $value );
+		}
+		else
+		{
+			return $server if ( $server->{ $param } eq "$value" );
+		}
 	}
 
 	# Error, not found so return undef

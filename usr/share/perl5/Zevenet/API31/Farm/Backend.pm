@@ -139,9 +139,11 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		&zenlog( "New backend created in farm $farmname with IP $json_obj->{ip}.",
 				 "info", "FARMS" );
 
-		$json_obj->{ port }     += 0 if $json_obj->{ port };
-		$json_obj->{ weight }   += 0 if $json_obj->{ weight };
-		$json_obj->{ priority } += 0 if $json_obj->{ priority };
+		$json_obj->{ port }     += 0 if defined $json_obj->{ port };
+		$json_obj->{ weight }   += 0 if defined $json_obj->{ weight };
+		$json_obj->{ priority } += 0 if defined $json_obj->{ priority };
+		$json_obj->{ max_conns } += 0;
+		$id += 0;
 
 		my $message = "Backend added";
 		my $body = {
@@ -256,6 +258,7 @@ sub new_farm_backend    # ( $json_obj, $farmname )
 		  ( $json_obj->{ weight } ne '' ) ? $json_obj->{ weight } + 0 : undef;
 		my $prio =
 		  ( $json_obj->{ priority } ne '' ) ? $json_obj->{ priority } + 0 : undef;
+		$id += 0;
 
 		my $body = {
 					 description => $desc,
@@ -416,7 +419,7 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 	my $body = {
 				 description => $desc,
 				 params      => {
-							 id      => $id,
+							 id      => $id + 0,
 							 ip      => $json_obj->{ ip },
 							 port    => $json_obj->{ port } + 0,
 							 weight  => $json_obj->{ weight } + 0,
@@ -630,6 +633,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 			}
 
 			$backend->{ vport } = $json_obj->{ port };
+			$json_obj->{ port } += 0 if defined $json_obj->{ port };
 		}
 
 		if ( exists ( $json_obj->{ weight } ) )
@@ -642,6 +646,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 			}
 
 			$backend->{ weight } = $json_obj->{ weight };
+			$json_obj->{ weight } += 0 if defined $json_obj->{ weight };
 		}
 
 		if ( exists ( $json_obj->{ priority } ) )
@@ -655,6 +660,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 			}
 
 			$backend->{ priority } = $json_obj->{ priority };
+			$json_obj->{ priority } += 0 if defined $json_obj->{ priority };
 		}
 
 		if ( exists ( $json_obj->{ max_conns } ) )
@@ -667,6 +673,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 			}
 
 			$backend->{ max_conns } = $json_obj->{ max_conns };
+			$json_obj->{ max_conns } += 0;
 		}
 
 		my $status = &setL4FarmServer(
@@ -765,6 +772,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 			}
 
 			$be->{ weight } = $json_obj->{ weight };
+			$json_obj->{ weight } += 0;
 		}
 
 		if ( exists ( $json_obj->{ priority } ) )
@@ -776,6 +784,7 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 			}
 
 			$be->{ priority } = $json_obj->{ priority };
+			$json_obj->{ priority } += 0;
 		}
 
 		my $status =
@@ -911,7 +920,7 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 		$be->{ port } = $json_obj->{ port };
 	}
 
-	# validate BACKEND weigh
+	# validate BACKEND weight
 	if ( exists ( $json_obj->{ weight } ) )
 	{
 		unless ( $json_obj->{ weight } =~ /^[1-9]$/ )
@@ -921,6 +930,7 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 		}
 
 		$be->{ weight } = $json_obj->{ weight };
+		$json_obj->{ weight } += 0;
 	}
 
 	# validate BACKEND timeout
@@ -934,6 +944,7 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 		}
 
 		$be->{ timeout } = $json_obj->{ timeout };
+		$json_obj->{ timeout } += 0;
 	}
 
 	# apply BACKEND change

@@ -433,9 +433,7 @@ sub getZproxyHTTPFarmBackendsStats    # ($farm_name, $service_name)
 
 					#Checkstatusfile
 					$backendHash->{ "status" } =
-					  &getHTTPBackendStatusFromFile( $farm_name,
-													 $backendHash->{ id },
-													 $service->{ name } );
+					  &getHTTPBackendStatusFromFile( $farm_name, $bk->{ id }, $service->{ name } );
 
 					# not show fgDOWN status
 					$backendHash->{ "status" } = "down"

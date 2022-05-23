@@ -443,7 +443,8 @@ sub modify_backends    #( $json_obj, $farmname, $id_server )
 	  : &getZAPIModel( "farm_datalink_service_backend-modify.json" );
 
 	# Check allowed parameters
-	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
+	my %json_params = %{ $json_obj };
+	my $error_msg = &checkZAPIParams( \%json_params, $params, $desc );
 	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
 	  if ( $error_msg );
 
