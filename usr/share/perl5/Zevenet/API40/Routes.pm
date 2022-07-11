@@ -66,6 +66,9 @@ if ( $q->path_info =~ qr{^/certificates/letsencryptz} )
 	#  Modify LetsencryptZ config
 	PUT qr{^/certificates/letsencryptz/config$} => \&modify_le_conf;
 
+	#  Modify LetsencryptZ certificates
+	PUT qr{^/certificates/letsencryptz/($le_cert_re)$} => \&modify_le_certificate;
+
 }
 
 # SSL certificates

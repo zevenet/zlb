@@ -92,6 +92,27 @@ sub setLetsencryptConfig    # ( $le_conf_re )
 }
 
 =begin nd
+Function: getLetsencryptCronFile
+
+	Returns the Letsencrypt Cron Filepath
+
+Parameters:
+	none - .
+
+Returns:
+	 - Letsencrypt Cron filepath
+=cut
+
+sub getLetsencryptCronFile    # ( )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $rs = "";
+	$rs = &getGlobalConfiguration( 'le_cron_file' );
+	return $rs;
+}
+
+=begin nd
 Function: getLetsencryptCertificates
 
 	Returns Letsencrypt Certificates
@@ -246,6 +267,10 @@ sub getLetsencryptCertificateInfo    # ( $le_cert_name )
 		$cert_ref->{ expiration } = $x509->notAfter();
 		$cert_ref->{ domains }    = \@domains;
 	}
+
+	#add autorenewal
+	my $autorenewal = &getLetsencryptCron( $le_cert_name );
+	$cert_ref->{ autorenewal } = $autorenewal if $autorenewal;
 
 	return $cert_ref;
 }
@@ -756,7 +781,15 @@ Parameters:
 	test - if "true" the action simulates all the process but no certificate is created.
 
 Returns:
-	Integer - 0 on succesfull, otherwise on error.
+	error_ref - error object. code = 0, on success
+
+Variable: $error_ref.
+
+	A hashref that maps error code and description
+
+	$error_ref->{ code } - Integer. Error code
+	$error_ref->{ desc } - String. Description of the error.
+
 =cut
 
 sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
@@ -765,11 +798,22 @@ sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
 			 "debug", "PROFILING" );
 	my ( $le_cert_name, $farm_name, $vip, $force ) = @_;
 
-	return 1 if ( !$le_cert_name );
-	return 2 if ( !$vip && !$farm_name );
-
 	my $status;
-	my $rc = 0;
+	my $error_ref = { code => 0 };
+
+	if ( !$le_cert_name )
+	{
+		$error_ref->{ code } = 1;
+		$error_ref->{ desc } = "No 'certificate' param found";
+		return $error_ref;
+	}
+
+	if ( !$vip && !$farm_name )
+	{
+		$error_ref->{ code } = 1;
+		$error_ref->{ desc } = "No 'farm' param or 'vip' param found";
+		return $error_ref;
+	}
 
 	my $le_farm = &getGlobalConfiguration( 'le_farm' );
 	$farm_name = $le_farm if ( !$farm_name );
@@ -777,11 +821,21 @@ sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
 	# start local Web Server
 	$status = &runLetsencryptLocalWebserverStart();
 
-	return 1 if $status;
+	if ( $status )
+	{
+		$error_ref->{ code } = 1;
+		$error_ref->{ desc } = "Letsencrypt Local Webserver can not be created.";
+		return $error_ref;
+	}
 
 	# add le service
 	$status = &setLetsencryptFarmService( $farm_name, $vip );
-	return 2 if $status;
+	if ( $status )
+	{
+		$error_ref->{ code } = 2;
+		$error_ref->{ desc } = "Letsencrypt Service can not be created.";
+		return $error_ref;
+	}
 
 	# run le_binary command
 	my $test_opt = "--test-cert"
@@ -805,17 +859,44 @@ sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
 
 	if ( $status->{ stderr } )
 	{
-		&zenlog( "Letsencryptz renew command failed!", "error", "LetsencryptZ" );
-		$rc = 3;
+		my $error_response = "Error creating new order";
+		if ( my ( $le_msg ) = grep ( /$error_response/, @{ $status->{ stdout } } ) )
+		{
+			&zenlog( "$le_msg", "error", "LetsencryptZ" );
+			$error_ref->{ code } = 6;
+			$error_ref->{ desc } = $le_msg;
+		}
+		else
+		{
+			my $le_msg = "Letsencryptz renew command failed!";
+			&zenlog( $le_msg, "error", "LetsencryptZ" );
+			$error_ref->{ code } = 3;
+			$error_ref->{ desc } = $le_msg;
+		}
 	}
 	else
 	{
-		# create ZEVENET PEM cert
-		$status = &setLetsencryptCert( $le_cert_name );
-		if ( $status )
+		# check is not due to renewal response
+		my $renewal_response = "Cert not yet due for renewal";
+		if ( grep ( /$renewal_response/, @{ $status->{ stdout } } ) )
 		{
-			&zenlog( "Letsencryptz create PEM cert failed!", "error", "LetsencryptZ" );
-			$rc = 4;
+			my $le_msg =
+			  "Letsencryptz certificate '$le_cert_name' not yet due for renewal!";
+			&zenlog( $le_msg, "error", "LetsencryptZ" );
+			$error_ref->{ code } = 5;
+			$error_ref->{ desc } = $le_msg;
+		}
+		else
+		{
+			# create ZEVENET PEM cert
+			$status = &setLetsencryptCert( $le_cert_name );
+			if ( $status )
+			{
+				my $le_msg = "Letsencryptz create PEM cert failed!";
+				&zenlog( $le_msg, "error", "LetsencryptZ" );
+				$error_ref->{ code } = 4;
+				$error_ref->{ desc } = $le_msg;
+			}
 		}
 	}
 
@@ -825,7 +906,7 @@ sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
 	# stop local Web Server
 	&runLetsencryptLocalWebserverStop();
 
-	return $rc;
+	return $error_ref;
 }
 
 =begin nd
@@ -859,6 +940,139 @@ sub checkLetsencryptStaging    # ( $le_cert_name )
 		}
 	}
 	return $rc;
+}
+
+=begin nd
+Function: setLetsencryptCron
+
+	Set a cron entry for an automatic renewal Letsencrypt certificate
+
+Parameters:
+	le_cert_name - LE Cert Name
+	farm_name - Farm Name where Letsencrypt will connect.
+	VIP - VIP where the new Farm and service is created. The virtual Port will be 80.
+	force - if "true" forces a renew flag even the cert not yet due for renewal( over 30 days for expire ).
+	restart - if "true" forces a restart flag to restart farms affected by the certificate.
+
+Returns:
+	Integer - 0 on succesfull, otherwise on error.
+=cut
+
+sub setLetsencryptCron   # ( $le_cert_name, $farm_name, $nic, $force, $restart )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $le_cert_name, $farm_name, $vip, $force, $restart ) = @_;
+	my $rc = 0;
+
+	return 1 if ( !$le_cert_name );
+	return 2 if ( !$vip && !$farm_name ) or ( $vip && $farm_name );
+
+	my $le_cron_file   = &getLetsencryptCronFile();
+	my $le_renewal_bin = &getGlobalConfiguration( 'le_renewal_bin' );
+
+	require Zevenet::Lock;
+	&ztielock( \my @le_cron_list, $le_cron_file );
+	my $frequency = "0 22 * * * ";
+	my $command   = "root $le_renewal_bin --cert $le_cert_name";
+	@le_cron_list = grep ( !/ $command /, @le_cron_list );
+
+	$command .= " --farm $farm_name" if $farm_name;
+	$command .= " --vip $vip"        if $vip;
+	$command .= " --force"           if ( defined $force and ( $force eq "true" ) );
+	$command .= " --restart" if ( defined $restart and ( $restart eq "true" ) );
+
+	push @le_cron_list, "$frequency $command";
+	untie @le_cron_list;
+
+	return $rc;
+}
+
+=begin nd
+Function: unsetLetsencryptCron
+
+	Delete a cron entry for an automatic renewal Letsencrypt certificate
+
+Parameters:
+	le_cert_name - LE Cert Name
+
+Returns:
+	Integer - 0 on succesfull, otherwise on error.
+=cut
+
+sub unsetLetsencryptCron    # ( $le_cert_name )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $le_cert_name = shift;
+	my $rc           = 0;
+
+	return 1 if ( !$le_cert_name );
+
+	my $le_cron_file   = &getLetsencryptCronFile();
+	my $le_renewal_bin = &getGlobalConfiguration( 'le_renewal_bin' );
+
+	require Zevenet::Lock;
+	&ztielock( \my @le_cron_list, $le_cron_file );
+	my $command = "root $le_renewal_bin --cert $le_cert_name";
+	@le_cron_list = grep ( !/ $command /, @le_cron_list );
+	untie @le_cron_list;
+
+	return $rc;
+}
+
+=begin nd
+Function: getLetsencryptCron
+
+	get the cron entry for an automatic renewal Letsencrypt certificate
+
+Parameters:
+	le_cert_name - LE Cert Name
+
+Returns:
+	Hash - cron entry Hash ref with values on successful.
+=cut
+
+sub getLetsencryptCron    # ( $le_cert_name )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $le_cert_name = shift;
+	my $cron_ref = {
+					 status  => "disabled",
+					 farm    => undef,
+					 vip     => undef,
+					 force   => undef,
+					 restart => undef
+	};
+
+	my $le_cron_file   = &getLetsencryptCronFile();
+	my $le_renewal_bin = &getGlobalConfiguration( 'le_renewal_bin' );
+
+	open my $fd, '<', "$le_cron_file";
+	chomp ( my @le_cron_list = <$fd> );
+	close $fd;
+
+	my $command = "root $le_renewal_bin --cert $le_cert_name";
+	my @le_cron = grep / $command /, @le_cron_list;
+
+	if ( scalar @le_cron > 0 )
+	{
+		require Zevenet::Validate;
+		my $farm_name = &getValidFormat( 'farm_name' );
+		my $vip       = &getValidFormat( 'ip_addr' );
+		if ( $le_cron[0] =~
+			/$command(?: --farm ($farm_name))?(?: --vip ($vip))?(?:( --force))?(?:( --restart))?$/
+		  )
+		{
+			$cron_ref->{ status }  = "enabled";
+			$cron_ref->{ farm }    = $1;
+			$cron_ref->{ vip }     = $2;
+			$cron_ref->{ force }   = defined $3 ? "true" : "false";
+			$cron_ref->{ restart } = defined $4 ? "true" : "false";
+		}
+	}
+	return $cron_ref;
 }
 
 1;

@@ -282,6 +282,9 @@ sub delete_le_certificate    # ( $cert_filename )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
+	# delete autorenewal
+	&unsetLetsencryptCron( $le_cert_name );
+
 	# delete ZEVENET cert if exists
 	my $cert_dir = &getGlobalConfiguration( 'certdir' );
 	&delCert( $cert_name ) if ( -f "$cert_dir\/$cert_name" );
@@ -405,17 +408,16 @@ sub actions_le_certificate    # ( $le_cert_name )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	my $error = &runLetsencryptRenew(
-									  $le_cert_name,
-									  $json_obj->{ farmname },
-									  $json_obj->{ vip },
-									  $json_obj->{ force_renewal },
-									  $json_obj->{ test }
+	my $error_ref = &runLetsencryptRenew(
+										  $le_cert_name,
+										  $json_obj->{ farmname },
+										  $json_obj->{ vip },
+										  $json_obj->{ force_renewal },
+										  $json_obj->{ test }
 	);
-	if ( $error )
+	if ( $error_ref->{ code } )
 	{
-		my $msg = "The Letsencrypt certificate $le_cert_name can't be renewed";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		&httpErrorResponse( code => 400, desc => $desc, msg => $error_ref->{ desc } );
 	}
 
 	&zenlog( "Success, the Letsencrypt certificate has been renewed successfully.",
@@ -477,14 +479,186 @@ sub actions_le_certificate    # ( $le_cert_name )
 		  . join ( ", ", @farms_restarted_error );
 	}
 
+	my $msg =
+	  "The Let's Encrypt certificate $le_cert_name has been renewed successfully.";
 	my $out = &getLetsencryptCertificateInfo( $le_cert_name );
 	my $body = {
 				 description => $desc,
 				 params      => $out,
+				 message     => $msg
 	};
 	$body->{ warning } = $info_msg if defined $info_msg;
 	&httpResponse( { code => 200, body => $body } );
 
+}
+
+# PUT /certificates/letsencryptz/le_cert_re
+sub modify_le_certificate    # ( $le_cert_name )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $json_obj     = shift;
+	my $le_cert_name = shift;
+	my $desc         = "Modify Let's Encrypt certificate";
+
+	require Zevenet::Certificate;
+	require Zevenet::LetsencryptZ;
+
+	# check the certificate is a LE cert
+	my $le_cert = &getLetsencryptCertificates( $le_cert_name );
+	if ( !@{ $le_cert } )
+	{
+		my $msg = "Let's Encrypt certificate $le_cert_name not found!";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+
+	my $params = &getZAPIModel( "letsencryptz-modify.json" );
+
+	# dyn_values model
+	if ( defined $json_obj->{ vip } )
+	{
+		require Zevenet::Net::Interface;
+		my $ip_list = &getIpAddressList();
+		$params->{ vip }->{ values } = $ip_list;
+
+	}
+	if ( defined $json_obj->{ farmname } )
+	{
+		require Zevenet::Farm::Core;
+		my @farm_list = &getFarmsByType( "http" );
+		$params->{ farmname }->{ values } = \@farm_list;
+	}
+
+	# depends_on model
+	if ( defined $json_obj->{ farmname } )
+	{
+		delete $params->{ vip } if defined $json_obj->{ vip };
+	}
+
+	if (     ( defined $json_obj->{ autorenewal } )
+		 and ( $json_obj->{ autorenewal } eq "false" ) )
+	{
+		delete $params->{ force_renewal } if defined $params->{ force_renewal };
+		delete $params->{ restart }       if defined $params->{ restart };
+		delete $params->{ vip }           if defined $params->{ vip };
+		delete $params->{ farmname }      if defined $params->{ farmname };
+	}
+
+	# Check allowed parameters
+	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
+	if ( $error_msg )
+	{
+		&httpErrorResponse( code => 400, desc => $desc, msg => $error_msg );
+	}
+
+	# depends_on model
+	# vip or farmname has to be defined
+	if (     !$json_obj->{ vip }
+		 and !$json_obj->{ farmname }
+		 and $json_obj->{ autorenewal } eq "true" )
+	{
+		my $msg = "No 'vip' or 'farmname' param found.";
+		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+	}
+
+	# check farm has to be listening on port 80 and up
+	if ( defined $json_obj->{ farmname } )
+	{
+		require Zevenet::Farm::Base;
+		if ( &getFarmVip( 'vipp', $json_obj->{ farmname } ) ne 80 )
+		{
+			my $msg = "Farm $json_obj->{ farmname } must be listening on Port 80.";
+			&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+		}
+		if ( &getHTTPFarmStatus( $json_obj->{ farmname } ) ne "up" )
+		{
+			my $msg = "Farm $json_obj->{ farmname } must be up.";
+			&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+		}
+	}
+
+	# check any farm listening on vip and port 80 and up
+	my $le_farm_port = 80;
+	if ( defined $json_obj->{ vip } )
+	{
+		require Zevenet::Net::Validate;
+		if ( &validatePort( $json_obj->{ vip }, $le_farm_port, "tcp" ) == 0 )
+		{
+			#vip:port is in use
+			require Zevenet::Farm::Base;
+			foreach my $farm ( &getFarmListByVip( $json_obj->{ vip } ) )
+			{
+				if (     &getHTTPFarmVip( "vipp", $farm ) eq "$le_farm_port"
+					 and &getHTTPFarmStatus( $farm ) eq "up" )
+				{
+					my $msg =
+					  "Farm $farm is listening on 'vip' $json_obj->{ vip } and Port $le_farm_port.";
+					&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+				}
+			}
+			my $msg =
+			  "The system has a process listening on 'vip' $json_obj->{ vip } and Port $le_farm_port.";
+			&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
+		}
+	}
+
+	# check Email config
+	my $le_conf = &getLetsencryptConfig();
+	if ( !$le_conf->{ email } )
+	{
+		my $msg = "LetsencryptZ email is not configured.";
+		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	}
+
+	my $msg;
+	if ( $json_obj->{ autorenewal } eq "true" )
+	{
+		my $error = &setLetsencryptCron(
+										 $le_cert_name,
+										 $json_obj->{ farmname },
+										 $json_obj->{ vip },
+										 $json_obj->{ force_renewal },
+										 $json_obj->{ restart }
+		);
+
+		if ( $error )
+		{
+			my $msg =
+			  "The Auto Renewal for Let's Encrypt certificate $le_cert_name can't be enabled";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+
+		&zenlog(
+			"Success, the Auto Renewal for Letsencrypt certificate has been enabled successfully.",
+			"info", "LestencryptZ"
+		);
+		$msg =
+		  "The Auto Renewal for Let's Encrypt certificate $le_cert_name has been enabled successfully.";
+	}
+	else
+	{
+		my $error = &unsetLetsencryptCron( $le_cert_name );
+		if ( $error )
+		{
+			my $msg =
+			  "The Auto Renewal for Let's Encrypt certificate $le_cert_name can't be disabled";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+		&zenlog(
+			"Success, the Auto Renewal for Letsencrypt certificate has been disabled successfully.",
+			"info", "LestencryptZ"
+		);
+		$msg =
+		  "The Auto Renewal for Let's Encrypt certificate $le_cert_name has been disabled successfully.";
+	}
+
+	my $out = &getLetsencryptCertificateInfo( $le_cert_name );
+	my $body = {
+				 description => $desc,
+				 params      => $out,
+				 message     => $msg,
+	};
+	&httpResponse( { code => 200, body => $body } );
 }
 
 # GET /certificates/letsencryptz/config
