@@ -115,6 +115,22 @@ sub setZAPI    #($name,$value)
 	{
 		my $deluser_bin = &getGlobalConfiguration( 'deluser_bin' );
 		my $cmd         = "$deluser_bin zapi";
+
+		# delete zapikey
+		require Tie::File;
+		tie my @contents, 'Tie::File', "$globalcfg";
+
+		foreach my $line ( @contents )
+		{
+			if ( $line =~ /^\$zapikey/ )
+			{
+				$line =~ s/^\$zapikey.*/\$zapikey=""\;/g;
+			}
+		}
+		untie @contents;
+
+		# Update zapikey global configuration
+		&getGlobalConfiguration( 'zapikey', 1 );
 		return &logAndRun( $cmd );
 	}
 
