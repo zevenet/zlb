@@ -642,6 +642,45 @@ if ( $action eq "start" )
 		}
 	}
 
+	# Reload cron file
+	my $cron_conf = &getGlobalConfiguration( 'cron_conf' );
+	if ( !-e $cron_conf )
+	{
+		my $cron_tpl     = &getGlobalConfiguration( 'cron_tpl' );
+		my $cron_service = &getGlobalConfiguration( 'cron_service' );
+
+		use File::Copy;
+		copy( $cron_tpl, $cron_conf );
+		&logAndRun( "$cron_service reload" );
+	}
+
+	# Reload the notifications cron file
+	if ( $eload )
+	{
+		my $notif_license_status = &eload(
+										   module => "Zevenet::Notify",
+										   func   => "getNotifData",
+										   args   => ['alerts', 'License', 'Status'],
+		);
+		my $notif_package_status = &eload(
+										   module => "Zevenet::Notify",
+										   func   => "getNotifData",
+										   args   => ['alerts', 'Package', 'Status'],
+		);
+		my $notif_certificate_status = &eload(
+											   module => "Zevenet::Notify",
+											   func   => "getNotifData",
+											   args => ['alerts', 'Certificate', 'Status'],
+		);
+		if (    $notif_license_status eq 'on'
+			 || $notif_package_status eq 'on'
+			 || $notif_certificate_status eq 'on' )
+		{
+			&eload( module => "Zevenet::Notify",
+					func   => "setNotifCronConfig" );
+		}
+	}
+
 	# At this point every zevenet interface and farm is running
 	# now a personalized script can be executed
 	&printAndLog( "Running $configdir/zlb-start ..." );
