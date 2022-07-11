@@ -221,9 +221,9 @@ sub copyL4Farm    # ($farm_name, $new_farm_name)
 
 	foreach my $line ( @lines )
 	{
-		if ( $line =~ /(^\s+"name": )"$farm_name",/ )
+		if ( $line =~ /(^\s+"name": )"$farm_name(.*)",/ )
 		{
-			$line = $1 . "\"$new_farm_name\",";
+			$line = $1 . "\"$new_farm_name" . $2 . "\",";
 		}
 		if ( ( !$backend_block ) and ( $line =~ /^(\s+"state": )"\w+",/ ) )
 		{
@@ -237,6 +237,10 @@ sub copyL4Farm    # ($farm_name, $new_farm_name)
 		{
 			my $new_mark = &getNewMark( $new_farm_name );
 			$line = $1 . "\"$new_mark\",";
+		}
+		if ( $line =~ /(^\s+"log-prefix":)(.*)$farm_name ",/ )
+		{
+			$line = $1 . $2 . "$new_farm_name \",";
 		}
 	}
 
