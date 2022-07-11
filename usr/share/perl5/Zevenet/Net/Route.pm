@@ -439,7 +439,7 @@ sub isRoute
 }
 
 =begin nd
-Function: existsRoute
+Function: existRoute
 
 	Checks if any of the paths applied to the system has same properties to the input.
 	It receives the ip route command line options and it checks the system. Example. "src 1.1.12.5 dev eth3 table table_eth3".
@@ -903,31 +903,48 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 			{
 				my $routeparams = &getGlobalConfiguration( 'routeparams' );
 
-				my $action            = "replace";
-				my $system_default_gw = &getDefaultGW();
+				my $action = "replace";
+				my $system_default_gw;
+				if ( $$if_ref{ ip_v } == 4 )
+				{
+					$system_default_gw = &getDefaultGW();
+				}
+				elsif ( $$if_ref{ ip_v } == 6 )
+				{
+					$system_default_gw = &getIPv6DefaultGW();
+				}
+
 				if ( $system_default_gw eq "" )
 				{
 					$action = "add";
 				}
-				&zenlog(
-						 "Applying $table routes in stack IPv$$if_ref{ip_v} with gateway \""
-						   . &getGlobalConfiguration( 'defaultgw' ) . "\"",
-						 "info",
-						 "NETWORK"
-				);
-				my $ip_cmd =
-				  "$ip_bin -$$if_ref{ip_v} route $action default via $gateway dev $$if_ref{name} $routeparams";
-				$status = &logAndRun( "$ip_cmd" );
 
-				if ( $$if_ref{ ip_v } == 6 )
+				if ( &existRoute( "default via $gateway dev $$if_ref{name}", 1, 0 ) )
 				{
-					&setGlobalConfiguration( 'defaultgw6',   $gateway );
-					&setGlobalConfiguration( 'defaultgwif6', $$if_ref{ name } );
+					&zenlog(
+						"Gateway \"$gateway\" is already applied in $table routes in stack IPv$$if_ref{ip_v}",
+						"info", "NETWORK"
+					);
 				}
 				else
 				{
-					&setGlobalConfiguration( 'defaultgw',   $gateway );
-					&setGlobalConfiguration( 'defaultgwif', $$if_ref{ name } );
+					&zenlog(
+						  "Applying $table routes in stack IPv$$if_ref{ip_v} with gateway \"$gateway\"",
+						  "info", "NETWORK" );
+					my $ip_cmd =
+					  "$ip_bin -$$if_ref{ip_v} route $action default via $gateway dev $$if_ref{name} $routeparams";
+					$status = &logAndRun( "$ip_cmd" );
+
+					if ( $$if_ref{ ip_v } == 6 )
+					{
+						&setGlobalConfiguration( 'defaultgw6',   $gateway );
+						&setGlobalConfiguration( 'defaultgwif6', $$if_ref{ name } );
+					}
+					else
+					{
+						&setGlobalConfiguration( 'defaultgw',   $gateway );
+						&setGlobalConfiguration( 'defaultgwif', $$if_ref{ name } );
+					}
 				}
 			}
 		}
