@@ -341,6 +341,7 @@ $dmidecode_bin="/usr/sbin/dmidecode";
 $expect_bin="/usr/bin/expect";
 #Where is dig binary?
 $dig_bin="/usr/bin/dig";
+#Where is lshw?
 
 # zproxy
 #where is zproxy dir?

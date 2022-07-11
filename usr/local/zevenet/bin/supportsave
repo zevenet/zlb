@@ -214,6 +214,12 @@ if [ -f /usr/local/zevenet/bin/enterprise.bin ]; then
 	# copiar al dir
 fi
 
+echo "Saving keepalive data"
+pkill -USR1 keepalived
+if [ -f /tmp/keepalived.data ];
+then
+	cp /tmp/keepalived.data $backup_dir/keepalived.data
+fi
 
 echo "Packing supportsave"
 ##########################
