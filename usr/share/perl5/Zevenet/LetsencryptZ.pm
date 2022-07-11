@@ -763,7 +763,7 @@ sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
 {
 	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $le_cert_name, $farm_name, $vip, $force, $test ) = @_;
+	my ( $le_cert_name, $farm_name, $vip, $force ) = @_;
 
 	return 1 if ( !$le_cert_name );
 	return 2 if ( !$vip && !$farm_name );
@@ -784,7 +784,8 @@ sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
 	return 2 if $status;
 
 	# run le_binary command
-	my $test_opt = "--test-cert" if ( $test eq "true" );
+	my $test_opt = "--test-cert"
+	  unless ( &checkLetsencryptStaging( $le_cert_name ) );
 	my $force_opt = "--force-renewal --break-my-certs" if ( $force eq "true" );
 	my $fullchain_opt =
 	  "--fullchain-path " . &getGlobalConfiguration( 'le_fullchain_path' );
@@ -797,7 +798,7 @@ sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
 
 	my $le_binary = &getGlobalConfiguration( 'le_certbot_bin' );
 	my $cmd =
-	  "$le_binary renew $fullchain_opt $webroot_opt $configdir_opt $email_opt $test_opt $force_opt $opts";
+	  "$le_binary certonly -d $le_cert_name $fullchain_opt $webroot_opt $configdir_opt $email_opt $test_opt $force_opt $opts";
 	&zenlog( "Executing Letsencryptz renew command : $cmd",
 			 "Info", "LetsencryptZ" );
 	$status = &logRunAndGet( $cmd, "array" );
@@ -824,6 +825,39 @@ sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
 	# stop local Web Server
 	&runLetsencryptLocalWebserverStop();
 
+	return $rc;
+}
+
+=begin nd
+Function: checkLetsencryptStaging
+	check the LetsEncrypt Certificate API server.
+Parameters:
+	le_cert_name - Certificate Name.
+Returns:
+	Integer - 0 on using Stating server, otherwise 1.
+
+=cut
+
+sub checkLetsencryptStaging    # ( $le_cert_name )
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $le_cert_name   = shift;
+	my $le_config_path = &getLetsencryptConfigPath();
+
+	my $rc = 1;
+	return 1 if ( !$le_cert_name );
+	my $le_cert_renewal_file = "$le_config_path/renewal/$le_cert_name.conf";
+	if ( -f $le_cert_renewal_file )
+	{
+		require Zevenet::Config;
+		my $le_cert_renewal_conf = &getTiny( $le_cert_renewal_file );
+		my $le_api_server        = $le_cert_renewal_conf->{ renewalparams }->{ server };
+		if ( $le_api_server =~ /acme-staging/ )
+		{
+			$rc = 0;
+		}
+	}
 	return $rc;
 }
 
