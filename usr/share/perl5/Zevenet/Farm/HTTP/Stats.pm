@@ -62,7 +62,11 @@ sub getHTTPFarmEstConns    # ($farm_name)
 
 		if ( $resp )
 		{
-			$resp = &JSON::decode_json( $resp );
+			$resp = eval { &JSON::decode_json( $resp ) };
+			if ( $@ )
+			{
+				&zenlog( "Decoding json: $@", "error", "stats" );
+			}
 			$count = $resp->{ "connections" } if $resp;
 		}
 	}
@@ -121,7 +125,11 @@ sub getHTTPFarmSYNConns    # ($farm_name)
 
 		if ( $resp )
 		{
-			$resp  = &JSON::decode_json( $resp );
+			$resp = eval { &JSON::decode_json( $resp ) };
+			if ( $@ )
+			{
+				&zenlog( "Decoding json: $@", "error", "stats" );
+			}
 			$count = $resp->{ "pending-connections" };
 		}
 	}
@@ -189,7 +197,11 @@ sub getHTTPBackendEstConns    # ($farm_name,$backend_ip,$backend_port, $netstat)
 
 		if ( $resp )
 		{
-			$resp = &JSON::decode_json( $resp );
+			$resp = eval { &JSON::decode_json( $resp ) };
+			if ( $@ )
+			{
+				&zenlog( "Decoding json: $@", "error", "stats" );
+			}
 			my $services = $resp->{ services };
 			foreach my $service ( @$services )
 			{
@@ -265,7 +277,11 @@ sub getHTTPBackendSYNConns    # ($farm_name, $backend_ip, $backend_port)
 
 		if ( $resp )
 		{
-			$resp = &JSON::decode_json( $resp );
+			$resp = eval { &JSON::decode_json( $resp ) };
+			if ( $@ )
+			{
+				&zenlog( "Decoding json: $@", "error", "stats" );
+			}
 			my $services = $resp->{ services };
 			foreach my $service ( @$services )
 			{
@@ -367,6 +383,8 @@ Returns:
 				"ttl"          = $ttl				# time remaining to delete session
 			}
 		]
+
+	of -1 if error
 =cut
 
 sub getZproxyHTTPFarmBackendsStats    # ($farm_name, $service_name)
@@ -394,7 +412,12 @@ sub getZproxyHTTPFarmBackendsStats    # ($farm_name, $service_name)
 
 	if ( $resp )
 	{
-		$resp = &JSON::decode_json( $resp );
+		$resp = eval { &JSON::decode_json( $resp ) };
+		if ( $@ )
+		{
+			&zenlog( "Decoding json: $@", "error", "stats" );
+			return -1;
+		}
 		my $services = $resp->{ services };
 
 		my $alias;

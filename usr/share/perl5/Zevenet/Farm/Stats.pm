@@ -90,7 +90,7 @@ Parameters:
 	netstat      - reference to array with Conntrack -L output
 
 Returns:
-	unsigned integer - Return number of SYN conntrack lines for a backend of a farm
+	integer - Return number of SYN conntrack lines for a backend of a farm or -1 if error
 
 =cut
 
