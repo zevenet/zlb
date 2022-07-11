@@ -420,6 +420,12 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 
 	# no error found, return succesful response
 	$output_params = &getHTTPServiceStruct( $farmname, $service );
+	if ( $eload )
+	{
+		delete ( $output_params->{ sts_status } );
+		delete ( $output_params->{ sts_timeout } );
+		delete ( $output_params->{ redirect_code } );
+	}
 	delete ( $output_params->{ replacerequestheader } );
 	delete ( $output_params->{ replaceresponseheader } );
 	delete ( $output_params->{ rewritelocation } );
