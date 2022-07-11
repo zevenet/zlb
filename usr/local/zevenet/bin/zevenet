@@ -549,6 +549,8 @@ if ( $action eq "start" )
 		}
 	}
 
+	&configureDefaultGW();
+
 	if ( $eload )
 	{
 		print ( "* Starting VPNs:\n" );
@@ -819,6 +821,8 @@ if ( $action eq "stop" )
 
 	&eload( module => $mod, func => 'disable_cluster' ) if $eload;
 
+	&configureDefaultGW();
+
 	# At this point every zevenet interface and farm is stopped
 	# now a personalized script can be executed
 	&printAndLog( "Running $configdir/zlb-stop ..." );
@@ -830,6 +834,4 @@ if ( $action eq "stop" )
 
 	&printAndLog( "Stop process finished..." );
 }
-
-&configureDefaultGW();
 
