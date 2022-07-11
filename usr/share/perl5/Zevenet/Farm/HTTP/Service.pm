@@ -152,6 +152,123 @@ sub setFarmHTTPNewService    # ($farm_name,$service)
 }
 
 =begin nd
+Function: setFarmHTTPNewServiceFirst
+
+	Create a new Service in a HTTP farm on first position
+
+Parameters:
+	farmname - Farm name
+	service - Service name
+
+Returns:
+	Integer - Error code: 0 on success, other value on failure
+
+=cut
+
+sub setFarmHTTPNewServiceFirst    # ($farm_name,$service)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $service ) = @_;
+
+	use File::Grep 'fgrep';
+	require Tie::File;
+	require Zevenet::Lock;
+	require Zevenet::Farm::Config;
+
+	my $output = -1;
+
+	#first check if service name exist
+	if ( $service =~ /(?=)/ && $service =~ /^$/ )
+	{
+		#error 2 eq $service is empty
+		$output = 2;
+		return $output;
+	}
+
+	if ( !fgrep { /^\s*Service "$service"/ } "$configdir/$farm_name\_proxy.cfg" )
+	{
+		#create service
+		my @newservice;
+		my $sw       = 0;
+		my $count    = 0;
+		my $proxytpl = &getGlobalConfiguration( 'proxytpl' );
+		tie my @proxytpl, 'Tie::File', "$proxytpl";
+
+		foreach my $line ( @proxytpl )
+		{
+			if ( $line =~ /Service \"\[DESC\]\"/ )
+			{
+				$sw = 1;
+			}
+
+			if ( $sw eq "1" )
+			{
+				push ( @newservice, $line );
+			}
+
+			if ( $line =~ /End/ )
+			{
+				$count++;
+			}
+
+			if ( $count eq "4" )
+			{
+				last;
+			}
+		}
+		untie @proxytpl;
+
+		$newservice[0] =~ s/#//g;
+		$newservice[$#newservice] =~ s/#//g;
+
+		my $lock_file = &getLockFile( $farm_name );
+		my $lock_fh = &openlock( $lock_file, 'w' );
+
+		my @fileconf;
+		if ( !fgrep { /^\s*Service "$service"/ } "$configdir/$farm_name\_proxy.cfg" )
+		{
+			tie @fileconf, 'Tie::File', "$configdir/$farm_name\_proxy.cfg";
+			my $i         = 0;
+			my $farm_type = "";
+			$farm_type = &getFarmType( $farm_name );
+
+			foreach my $line ( @fileconf )
+			{
+				if ( $line =~ /#ZWACL-INI/ )
+				{
+					$output = 0;
+					foreach my $lline ( @newservice )
+					{
+						if ( $lline =~ /\[DESC\]/ )
+						{
+							$lline =~ s/\[DESC\]/$service/;
+						}
+						if (    $lline =~ /StrictTransportSecurity/
+							 && $farm_type eq "https" )
+						{
+							$lline =~ s/#//;
+						}
+						$i++;
+						splice @fileconf, $i, 0, "$lline";
+					}
+					last;
+				}
+				$i++;
+			}
+		}
+		untie @fileconf;
+		close $lock_fh;
+	}
+	else
+	{
+		$output = 1;
+	}
+
+	return $output;
+}
+
+=begin nd
 Function: delHTTPFarmService
 
 	Delete a service in a Farm
