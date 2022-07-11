@@ -366,7 +366,12 @@ sub sendL7ZproxyCmd
 
 	my $resp = &logAndGet( $cmd, 'string' );
 	return 1 unless ( defined $resp && $resp ne '' );
-	$resp = &JSON::decode_json( $resp );
+	$resp = eval { &JSON::decode_json( $resp ) };
+	if ( $@ )
+	{
+		&zenlog( "Decoding json: $@", "error", "HTTP" );
+		return 1;
+	}
 	return $resp;
 
 }

@@ -147,13 +147,27 @@ sub farm_stats    # ( $farmname, $servicename )
 		}
 
 		my $stats = &getHTTPFarmBackendsStats( $farmname, $servicename );
-		my $body = {
-					 description    => $desc,
-					 backends       => $stats->{ backends },
-					 sessions       => $stats->{ sessions },
-					 total_sessions => $#{ $stats->{ sessions } } + 1,
-		};
 
+		my $body;
+		if ( $stats eq -1 )
+		{
+			$body = {
+					  warning        => "It was not possible to extract the sessions.",
+					  description    => $desc,
+					  backends       => [],
+					  sessions       => [],
+					  total_sessions => 0,
+			};
+		}
+		else
+		{
+			$body = {
+					  description    => $desc,
+					  backends       => $stats->{ backends },
+					  sessions       => $stats->{ sessions },
+					  total_sessions => $#{ $stats->{ sessions } } + 1,
+			};
+		}
 		&httpResponse( { code => 200, body => $body } );
 	}
 
