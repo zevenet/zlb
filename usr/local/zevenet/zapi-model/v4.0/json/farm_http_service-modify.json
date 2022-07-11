@@ -108,7 +108,8 @@
          "is_regex" : "true"
       },
       "vhost" : {
-         "is_regex" : "true"
+         "is_regex" : "true",
+         "negated_regex" : "(?^:^\\^)"
       }
    },
    "url" : "/farms/<farmname>/services/<id>"

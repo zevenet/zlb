@@ -4,6 +4,9 @@
 	"action": "set",
 	"description": "Modify the configuration of a blacklist rule. name is the blacklist unique identifier.",
 	"params": {
+		"time": {
+			"ref": "hash"
+		},
 		"policy": {
 			"description": "Action to apply to a source. The options are: deny, block the input traffic from sources of the list; or allow accept the traffic from sources of the list.",
 			"values": [
