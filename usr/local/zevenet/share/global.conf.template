@@ -134,6 +134,8 @@ $le_acme_bin="/usr/local/zevenet/app/letsencryptz/acme/acme.sh";
 $le_acme_config_path="$le_config_path/acme";
 $le_acme_cert_path="$le_acme_config_path/live";
 $le_email="";
+$le_cron_file="/etc/cron.d/letsencryptz";
+$le_renewal_bin="$zbindir/letsencryptz-autorenew";
 
 #File configuration GUI
 $http_server_dir="$zdir/app/cherokee";

@@ -1,0 +1,239 @@
+#!/usr/bin/perl
+###############################################################################
+#
+#    Zevenet Software License
+#    This file is part of the Zevenet Load Balancer software package.
+#
+#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###############################################################################
+
+## letsencryptz-autorenew 1.0
+# Parameters:
+#	--cert <cert>		certificate for the autorenewal
+#	--farm <farm>		Farm name which a temporal Service “Let’s Encryptz” is configured in to renew the certificate.
+#	--vip <ip>		IP of the system, where a temporal Farm “Let’s Encryptz” is configured to renew the certificate.
+#	--force			force the certificate to be renewed even it is not due to be renewal
+#	--restart		all the farms using the certificate will be restarted
+#	-h			print help
+
+use strict;
+use warnings;
+use Getopt::Long;
+use Switch;
+use Zevenet::Config;
+use Zevenet::Log;
+use Zevenet::LetsencryptZ;
+
+my $eload;
+if ( eval { require Zevenet::ELoad; } )
+{
+	$eload = 1;
+}
+
+#local variables
+my $cert_name;
+my $farm_name;
+my $vip;
+my $force;
+my $restart;
+my $msg;
+
+GetOptions(
+			'cert=s'  => \$cert_name,
+			'farm=s'  => \$farm_name,
+			'vip=s'   => \$vip,
+			'force'   => \$force,
+			'restart' => \$restart,
+			'help'    => \&help,
+);
+
+# check params
+
+if ( ( !defined $vip && !defined $farm_name ) )
+{
+	$msg = "No 'vip' or 'farm' param found.";
+	&zenlog( $msg, "ERROR", "Letsencryptz-renewal" );
+
+	#&help;
+}
+
+if ( !defined $cert_name )
+{
+	$msg = "No 'cert' param found.";
+	&zenlog( $msg, "ERROR", "Letsencryptz-renewal" );
+
+	#&help;
+}
+
+# checks
+my $le_cert = &getLetsencryptCertificates( $cert_name );
+if ( !@{ $le_cert } )
+{
+	my $msg = "Let's Encrypt certificate $cert_name not found!";
+	&zenlog( $msg, "ERROR", "Letsencryptz-renewal" );
+	exit 2;
+}
+
+if ( defined $farm_name )
+{
+	require Zevenet::Farm::Core;
+	my @farm_list = &getFarmsByType( "http" );
+
+	# avoid farmname when no HTTP Farm exists
+	my $msg;
+	if ( !@farm_list )
+	{
+		$msg = "There is no HTTP Farms in the system, use 'vip' param instead.";
+	}
+	else
+	{
+		# check farm has to be listening on port 80 and up
+		require Zevenet::Farm::Base;
+		if ( &getFarmVip( 'vipp', $farm_name ) ne 80 )
+		{
+			$msg = "Farm $farm_name must be listening on Port 80.";
+		}
+		elsif ( &getHTTPFarmStatus( $farm_name ) ne "up" )
+		{
+			$msg = "Farm $farm_name must be up.";
+		}
+	}
+	if ( $msg )
+	{
+		&zenlog( $msg, "ERROR", "Letsencryptz-renewal" );
+		exit 1;
+	}
+}
+
+if ( defined $vip )
+{
+	require Zevenet::Net::Interface;
+	my $ip_list = &getIpAddressList();
+
+	# check any farm listening on vip and port 80 and up
+	my $msg;
+	my $le_farm_port = 80;
+	require Zevenet::Net::Validate;
+	if ( &validatePort( $vip, $le_farm_port, "tcp" ) == 0 )
+	{
+		#vip:port is in use
+		require Zevenet::Farm::Base;
+		foreach my $farm ( &getFarmListByVip( $vip ) )
+		{
+			if (     &getHTTPFarmVip( "vipp", $farm ) eq "$le_farm_port"
+				 and &getHTTPFarmStatus( $farm ) eq "up" )
+			{
+				$msg = "Farm $farm is listening on 'vip' $vip and Port $le_farm_port.";
+			}
+		}
+		$msg =
+		  "The system has a process listening on 'vip' $vip and Port $le_farm_port.";
+		&zenlog( $msg, "ERROR", "Letsencryptz-renewal" );
+		exit 1;
+	}
+}
+
+# check Email config
+my $le_conf = &getLetsencryptConfig();
+if ( !$le_conf->{ email } )
+{
+	my $msg = "LetsencryptZ email is not configured.";
+	&zenlog( $msg, "ERROR", "Letsencryptz-renewal" );
+	exit 1;
+}
+
+$force = $force ? "true" : "false";
+
+my $error_ref = &runLetsencryptRenew( $cert_name, $farm_name, $vip, $force );
+
+if ( $error_ref->{ code } )
+{
+	&zenlog( $error_ref->{ desc }, "ERROR", "Letsencryptz-renewal" );
+	exit $error_ref->{ code };
+}
+&zenlog(
+	"Success, the Letsencrypt certificate $cert_name has been renewed successfully.",
+	"info", "Letsencryptz-renewal"
+);
+
+my @farms_restarted;
+my @farms_restarted_error;
+
+if ( defined $restart )
+{
+	my $cert = $cert_name;
+	$cert =~ s/\./\_/g;
+	$cert .= ".pem";
+
+	my $error;
+	require Zevenet::Farm::Action;
+	require Zevenet::Farm::Base;
+	require Zevenet::Certificate;
+
+	foreach my $farm ( @{ &getCertFarmsUsed( $cert ) } )
+	{
+		# restart farm used and up
+		if ( &getFarmStatus( $farm ) ne 'down' )
+		{
+			&zenlog( "Restarting farm '$farm' using certificate '$cert_name'.",
+					 "info", "Letsencryptz-renewal" );
+			$error = &runFarmStop( $farm, "" );
+			if ( $error )
+			{
+				push @farms_restarted_error, $farm;
+				next;
+			}
+			$error = &runFarmStart( $farm, "" );
+			if ( $error )
+			{
+				push @farms_restarted_error, $farm;
+				next;
+			}
+			push @farms_restarted, $farm;
+		}
+	}
+
+	if ( $eload )
+	{
+		if ( @farms_restarted )
+		{
+			&eload(
+					module => 'Zevenet::Cluster',
+					func   => 'runZClusterRemoteManager',
+					args   => ['farm', 'restart_farms', @farms_restarted],
+			);
+		}
+	}
+
+	my $info_msg;
+	if ( @farms_restarted )
+	{
+		$info_msg =
+		  "The following farms were been restarted: " . join ( ", ", @farms_restarted );
+
+	}
+	if ( @farms_restarted_error )
+	{
+		$info_msg .= "The following farms could not been restarted: "
+		  . join ( ", ", @farms_restarted_error );
+	}
+
+	&zenlog( "$info_msg.", "info", "Letsencryptz-renewal" ) if defined $info_msg;
+
+}
+exit 0;
+
