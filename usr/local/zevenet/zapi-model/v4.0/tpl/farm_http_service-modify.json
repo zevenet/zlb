@@ -5,7 +5,8 @@
 	"description": "Modify the parameters of a service in an HTTP profile.",
 	"params": {
 		"vhost": {
-			"is_regex": "true"
+			"is_regex": "true",
+			"negated_regex": "$startline"
 		},
 		"urlp": {
 			"is_regex": "true"

@@ -1,39 +1,47 @@
 {
-   "action" : "action",
-   "description" : "Apply an action in a Letsencrypt certificate by first domain.",
-   "method" : "POST",
+   "action" : "set",
+   "description" : "Modify the Auto Renewal parameters of a Letsencrypt certificate.",
+   "method" : "PUT",
    "params" : {
-      "action" : {
+      "autorenewal" : {
+         "description" : "true,the autorenewal will be configured.false, the autorenewal will be removed.",
          "non_blank" : "true",
          "required" : "true",
          "values" : [
-            "renew"
+            "true",
+            "false"
          ]
       },
       "farmname" : {
+         "depend_on" : "autorenewal==true && vip!=defined",
          "description" : "Farm name which a temporal Service “Letsencryptz” is configured in. Required if param vip is not sent.",
          "dyn_values" : "true",
          "non_blank" : "true"
       },
       "force_renewal" : {
+         "depend_on" : "autorenewal==true",
          "description" : "true, force the certificate to be renewed even it is not expired, false, the certificate will be renewed if it is due to be renewed ( less than 30 days to expire ).",
+         "required" : "true",
          "values" : [
             "true",
             "false"
          ]
       },
       "restart" : {
+         "depend_on" : "autorenewal==true",
          "description" : "true, all the farms using the certificate will be restarted. false, no farms using the certificate will be restarted.",
+         "required" : "true",
          "values" : [
             "true",
             "false"
          ]
       },
       "vip" : {
+         "depend_on" : "autorenewal==true && farmname!=defined",
          "description" : "IP of the system, where a temporal Farm “Letsencryptz” is configured. Required true if param vip is not sent.",
          "dyn_values" : "true",
          "non_blank" : "true"
       }
    },
-   "url" : "/certificates/letsencryptz/<domain>/actions"
+   "url" : "/certificates/letsencryptz/<domain>"
 }

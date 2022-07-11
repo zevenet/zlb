@@ -816,7 +816,10 @@ sub loadL4Modules
 
 	if ( $protocol =~ /sip|tftp|ftp|amanda|h323|irc|netbios-ns|pptp|sane|snmp/ )
 	{
-		$status = &loadNfModule( "nf_conntrack_$protocol", "" );
+		my $params = "";
+		$params = &getGlobalConfiguration( "l4xnat_sip_params" )
+		  if ( $protocol eq "sip" );
+		$status = &loadNfModule( "nf_conntrack_$protocol", $params );
 		$status = $status || &loadNfModule( "nf_nat_$protocol", "" );
 	}
 

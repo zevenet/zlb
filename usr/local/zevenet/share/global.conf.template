@@ -410,6 +410,8 @@ $ipv6_enabled="false";
 ## L4xNat - netfilter
 # Maximum recent ip list
 # Recent ip hash
+# SIP Module Parameters
+$l4xnat_sip_params="";#update
 
 
 #FarmGuardian binary, create advanced check for backend servers
