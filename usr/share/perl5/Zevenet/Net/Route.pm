@@ -934,17 +934,16 @@ sub applyRoutes    # ($table,$if_ref,$gateway)
 					my $ip_cmd =
 					  "$ip_bin -$$if_ref{ip_v} route $action default via $gateway dev $$if_ref{name} $routeparams";
 					$status = &logAndRun( "$ip_cmd" );
-
-					if ( $$if_ref{ ip_v } == 6 )
-					{
-						&setGlobalConfiguration( 'defaultgw6',   $gateway );
-						&setGlobalConfiguration( 'defaultgwif6', $$if_ref{ name } );
-					}
-					else
-					{
-						&setGlobalConfiguration( 'defaultgw',   $gateway );
-						&setGlobalConfiguration( 'defaultgwif', $$if_ref{ name } );
-					}
+				}
+				if ( $$if_ref{ ip_v } == 6 )
+				{
+					&setGlobalConfiguration( 'defaultgw6',   $gateway );
+					&setGlobalConfiguration( 'defaultgwif6', $$if_ref{ name } );
+				}
+				else
+				{
+					&setGlobalConfiguration( 'defaultgw',   $gateway );
+					&setGlobalConfiguration( 'defaultgwif', $$if_ref{ name } );
 				}
 			}
 		}

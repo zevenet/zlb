@@ -121,32 +121,6 @@ sub local_http_service
 	&logAndRunBG( "/etc/init.d/cherokee $command" );
 }
 
-# Compare and rewrite the zna version in the zevenet_version file if they are different.
-sub zna_version
-{
-	my $file          = &getGlobalConfiguration( 'applianceVersionFile' );
-	my $dmidecode_bin = &getGlobalConfiguration( 'dmidecode_bin' );
-	my $grep          = &getGlobalConfiguration( 'grep_bin' );
-
-	# get ZNA version from dmidecode
-	my $zna_version = &logAndGet( "$dmidecode_bin -t1 | $grep 'ZNA-6[5,7]08'" );
-	$zna_version =~ s/\sVersion: //;
-	$zna_version =~ s/-/ /;
-
-	# get version from zevenet_version file
-	my $fh = &openlock( $file, '<' );
-	my $file_version = <$fh>;
-	close ( $fh );
-
-	if ( $zna_version and $zna_version ne $file_version )
-	{
-		# rewriting zna version
-		my $fh = &openlock( $file, '>' );
-		print $fh "$zna_version";
-		close ( $fh );
-	}
-}
-
 if ( $action eq "restart" )
 {
 	# do not use 'logAndRun' function, it is necessary to print the stdoutput
@@ -171,7 +145,13 @@ if ( $action eq "start" )
 	if ( -e $migration_flag )
 	{
 		my $rm = &getGlobalConfiguration( 'rm' );
-		&zna_version;
+
+		if ( $eload )
+		{
+			require Zevenet::ELoad;
+			&eload( module => 'Zevenet::Hw',
+					func   => 'setHwZNAVersion', );
+		}
 
 		# Migrating config files
 		&migrateConfigFiles();
