@@ -29,6 +29,27 @@ function die() {
 	exit 1
 }
 
+# Gets version
+function getVersion() {
+	# Include aliases.
+	bash_aliases_file="/root/.bash_aliases"
+	if [ -f $bash_aliases_file ]; then
+		shopt -s expand_aliases
+		source $bash_aliases_file
+		# alias
+		version=`zevenet-tag_master-5.12`
+	else
+		echo "It has not been possible to obtain the version automatically."
+		echo "Please enter the version manually. Example: 5.12.2"
+		read manual_version
+		if [ -z $manual_version ]; then
+			echo "*** aborted ***"
+			exit 1
+		else
+			version=$manual_version
+		fi
+	fi
+}
 
 ##### Parse command arguments #####
 
@@ -60,7 +81,7 @@ rsync -a --exclude "/$(basename "$BASE_DIR")" ../* workdir/
 cd workdir
 
 # Set version and package name
-version=$(grep "Version:" DEBIAN/control | cut -d " " -f 2)
+getVersion
 pkgname_prefix="zevenet_${version}_${arch}"
 
 if [[ "$devel" == "false" ]]; then
