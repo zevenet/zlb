@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,7 +22,7 @@
 ###############################################################################
 
 use strict;
-
+use warnings;
 my %conntrack_proto = (
 						icmp => 1,
 						tcp  => 6,
@@ -49,7 +49,7 @@ Returns:
 
 sub getConntrack    # ($orig_src, $orig_dst, $reply_src, $reply_dst, $protocol)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $orig_src, $orig_dst, $reply_src, $reply_dst, $protocol ) = @_;
 
@@ -97,7 +97,7 @@ Returns:
 # Returns array execution of netstat
 sub getNetstatFilter    # ($proto,$state,$ninfo,$fpid,$netstat)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $proto, $state, $ninfo, $fpid, $netstat ) = @_;
 
@@ -109,13 +109,13 @@ sub getNetstatFilter    # ($proto,$state,$ninfo,$fpid,$netstat)
 		$lfpid = "\ $lfpid\/";
 	}
 
-	if ( $proto ne "tcp" && $proto ne "udp" )
+	if ( $proto ne "tcp" and $proto ne "udp" )
 	{
 		$proto = "";
 	}
 
 	my $filter = "${proto}.* ${ninfo} .* ${state}.*${lfpid}";
-	my @output = grep ( /$filter/, @{ $netstat } );
+	my @output = grep { /$filter/ } @{ $netstat };
 	my $output = \@output;
 
 # my $conns_count = scalar @output;
@@ -251,11 +251,10 @@ Returns:
 
 sub getConntrackParams    # ($filter)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $filter ) = @_;
 
-	my $conntrack_bin    = &getGlobalConfiguration( 'conntrack' );
 	my $conntrack_params = '';
 
 	# define protocol first
@@ -281,7 +280,7 @@ sub getConntrackParams    # ($filter)
 
 sub getConntrackCount
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $conntrack_params ) = @_;
 

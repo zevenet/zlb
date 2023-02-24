@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,10 +22,11 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 sub get_gateway
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	require Zevenet::Net::Route;
 
@@ -41,11 +42,12 @@ sub get_gateway
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 sub modify_gateway    # ( $json_obj )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj = shift;
 
@@ -65,7 +67,7 @@ sub modify_gateway    # ( $json_obj )
 	if ( $default_gw )
 	{
 		# verify AT LEAST ONE parameter received
-		unless ( exists $json_obj->{ address } || exists $json_obj->{ interface } )
+		unless ( exists $json_obj->{ address } or exists $json_obj->{ interface } )
 		{
 			my $msg = "No parameter received to be configured";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -73,7 +75,7 @@ sub modify_gateway    # ( $json_obj )
 	}
 	else
 	{
-		unless ( exists $json_obj->{ address } && exists $json_obj->{ interface } )
+		unless ( exists $json_obj->{ address } and exists $json_obj->{ interface } )
 		{
 			my $msg = "Gateway requires address and interface to be configured";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -84,7 +86,7 @@ sub modify_gateway    # ( $json_obj )
 	if ( exists $json_obj->{ address } )
 	{
 		unless ( defined ( $json_obj->{ address } )
-				 && &getValidFormat( 'IPv4_addr', $json_obj->{ address } ) )
+				 and &getValidFormat( 'IPv4_addr', $json_obj->{ address } ) )
 		{
 			my $msg = "Gateway address is not valid.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -140,11 +142,12 @@ sub modify_gateway    # ( $json_obj )
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 sub delete_gateway
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	require Zevenet::Net::Route;
 	require Zevenet::Net::Interface;
@@ -173,6 +176,7 @@ sub delete_gateway
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 1;

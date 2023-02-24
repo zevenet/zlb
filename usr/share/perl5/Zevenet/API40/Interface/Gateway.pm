@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,10 +22,11 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 sub get_gateway
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $ip_ver ) = @_;
 
@@ -49,11 +50,12 @@ sub get_gateway
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 sub modify_gateway    # ( $json_obj )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $ip_ver   = shift;
@@ -68,7 +70,7 @@ sub modify_gateway    # ( $json_obj )
 	my $params = &getZAPIModel( "gateway-modify.json" );
 
 	# if default gateway is not configured requires address and interface
-	if ( !$default_gw )
+	if ( not $default_gw )
 	{
 		$params->{ interface }->{ required } = "true";
 		$params->{ address }->{ required }   = "true";
@@ -77,8 +79,10 @@ sub modify_gateway    # ( $json_obj )
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
-	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
-	  if ( $error_msg );
+	if ( $error_msg )
+	{
+		&httpErrorResponse( code => 400, desc => $desc, msg => $error_msg );
+	}
 
 	# validate INTERFACE
 	if ( exists $json_obj->{ interface } )
@@ -134,11 +138,12 @@ sub modify_gateway    # ( $json_obj )
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 sub delete_gateway
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $ip_ver ) = @_;
 
@@ -175,6 +180,7 @@ sub delete_gateway
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 1;

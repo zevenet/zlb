@@ -1,4 +1,25 @@
 #!/bin/bash
+###############################################################################
+#
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
+#
+#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###############################################################################
 
 # Exit at the first error
 set -e
@@ -11,9 +32,10 @@ arch="amd64"
 devel="false"
 
 function print_usage_and_exit() {
-	echo "Usage: $(basename "$0") <distribution> [options]
+	echo "Usage: $(basename "$0") <distribution> [options]"
 
-	--devel		Debug logs"
+	echo "	-d		Debug logs"
+	echo "	-v		Indicate package version"
 	exit 1
 }
 
@@ -33,20 +55,23 @@ function die() {
 function getVersion() {
 	# Include aliases.
 	bash_aliases_file="/root/.bash_aliases"
-	if [ -f $bash_aliases_file ]; then
-		shopt -s expand_aliases
-		source $bash_aliases_file
-		# alias
-		version=`zevenet-tag_master-5.12`
-	else
-		echo "It has not been possible to obtain the version automatically."
-		echo "Please enter the version manually. Example: 5.12.2"
-		read manual_version
-		if [ -z $manual_version ]; then
-			echo "*** aborted ***"
-			exit 1
+
+	if [ -z ${version} ]; then
+		if [ -f $bash_aliases_file ]; then
+			shopt -s expand_aliases
+			source $bash_aliases_file
+			# alias
+			version=`zevenet-tag_devel-5.13`
 		else
-			version=$manual_version
+			echo "It has not been possible to obtain the version automatically."
+			echo "Please enter the version manually. Example: 5.13.0"
+			read manual_version
+			if [ -z $manual_version ]; then
+				echo "*** aborted ***"
+				exit 1
+			else
+				version=$manual_version
+			fi
 		fi
 	fi
 }
@@ -55,19 +80,24 @@ function getVersion() {
 
 # Distribution parameter (-i or -u) is not optional show
 # how to use the command if no distribution was selected
-while [ $# -gt 0 ]; do
-	case $1 in
-	--devel)
+# Parse parameters.
+while getopts "d:v:h" arg; do
+	case $arg in
+		d)
 		devel="true"
 		;;
-	*)
-		echo "Invalid option: $1"
+		v)
+		version=$OPTARG
+		;;
+		h)
+		print_usage_and_exit
+		;;
+		*)
 		print_usage_and_exit
 		;;
 	esac
-
-	shift
 done
+
 
 
 #### Initial setup ####

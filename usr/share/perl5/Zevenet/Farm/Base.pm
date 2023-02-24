@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,15 +22,12 @@
 ###############################################################################
 
 use strict;
+use warnings;
 use Zevenet::Config;
 use Zevenet::Farm::Core;
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
+
 
 =begin nd
 Function: getFarmVip
@@ -50,14 +47,14 @@ See Also:
 
 sub getFarmVip    # ($info,$farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $info, $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my $output    = -1;
 
-	if ( $farm_type eq "http" || $farm_type eq "https" )
+	if ( $farm_type eq "http" or $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Config;
 		$output = &getHTTPFarmVip( $info, $farm_name );
@@ -71,14 +68,6 @@ sub getFarmVip    # ($info,$farm_name)
 	{
 		require Zevenet::Farm::Datalink::Config;
 		$output = &getDatalinkFarmVip( $info, $farm_name );
-	}
-	elsif ( $farm_type eq "gslb" && $eload )
-	{
-		$output = &eload(
-						  module => 'Zevenet::Farm::GSLB::Config',
-						  func   => 'getGSLBFarmVip',
-						  args   => [$info, $farm_name],
-		);
 	}
 
 	return $output;
@@ -102,12 +91,12 @@ NOTE:
 
 sub getFarmStatus    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $output = -1;
-	return $output if !defined ( $farm_name );    # farm name cannot be empty
+	return $output if not defined ( $farm_name );    # farm name cannot be empty
 
 	my $farm_type = &getFarmType( $farm_name );
 
@@ -125,14 +114,6 @@ sub getFarmStatus    # ($farm_name)
 	{
 		require Zevenet::Farm::HTTP::Config;
 		return &getHTTPFarmStatus( $farm_name );
-	}
-	elsif ( $farm_type eq "gslb" && $eload )
-	{
-		$output = &eload(
-						  module => 'Zevenet::Farm::GSLB::Config',
-						  func   => 'getGSLBFarmStatus',
-						  args   => [$farm_name],
-		);
 	}
 
 	return $output;
@@ -165,13 +146,13 @@ NOTE:
 
 sub getFarmVipStatus    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $output     = -1;
 	my $farmStatus = &getFarmStatus( $farm_name );
-	return $output if !defined ( $farm_name );    # farm name cannot be empty
+	return $output if not defined ( $farm_name );    # farm name cannot be empty
 
 	$output = "problem";
 
@@ -205,6 +186,7 @@ sub getFarmVipStatus    # ($farm_name)
 	{
 		require Zevenet::Farm::HTTP::Backend;
 		my $status = &getHTTPFarmBackendsStatusInfo( $farm_name );
+
 		foreach my $service ( keys %{ $status } )
 		{
 			if ( defined $status->{ $service }->{ backends } )
@@ -218,15 +200,6 @@ sub getFarmVipStatus    # ($farm_name)
 	}
 
 	# GSLB
-	elsif ( $type eq "gslb" && $eload )
-	{
-		my $stats = &eload(
-							module => 'Zevenet::Farm::GSLB::Stats',
-							func   => 'getGSLBFarmBackendsStats',
-							args   => [$farm_name],
-		);
-		$backends = $stats->{ backends };
-	}
 	else
 	{
 		$backends = &getFarmServers( $farm_name );
@@ -238,7 +211,7 @@ sub getFarmVipStatus    # ($farm_name)
 		$up_flag          = 1 if $be->{ 'status' } eq "up";
 		$maintenance_flag = 1 if $be->{ 'status' } eq "maintenance";
 		$down_flag        = 1
-		  if ( $be->{ 'status' } eq "down" || $be->{ 'status' } eq "fgDOWN" );
+		  if ( $be->{ 'status' } eq "down" or $be->{ 'status' } eq "fgDOWN" );
 
 		# if there is a backend up and another down, the status is 'problem'
 		last if ( $down_flag and $up_flag );
@@ -259,7 +232,7 @@ sub getFarmVipStatus    # ($farm_name)
 	}
 
 	# Decision logic
-	if ( !$up_flag )
+	if ( not $up_flag )
 	{
 		$output = "critical";
 	}
@@ -294,14 +267,14 @@ Returns:
 
 sub getFarmPid    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my @output    = ();
 
-	if ( $farm_type eq "http" || $farm_type eq "https" )
+	if ( $farm_type eq "http" or $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Config;
 		if ( &getGlobalConfiguration( "proxy_ng" ) eq 'true' )
@@ -312,15 +285,6 @@ sub getFarmPid    # ($farm_name)
 		{
 			@output = &getHTTPFarmPidPound( $farm_name );
 		}
-	}
-	elsif ( $farm_type eq "gslb" && $eload )
-	{
-		my $pid = &eload(
-						  module => 'Zevenet::Farm::GSLB::Config',
-						  func   => 'getGSLBFarmPid',
-						  args   => [$farm_name],
-		);
-		push @output, $pid;
 	}
 
 	return @output;
@@ -340,7 +304,7 @@ Returns:
 
 sub getFarmBootStatus    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
@@ -361,14 +325,6 @@ sub getFarmBootStatus    # ($farm_name)
 	{
 		require Zevenet::Farm::L4xNAT::Config;
 		$output = &getL4FarmParam( 'bootstatus', $farm_name );
-	}
-	elsif ( $farm_type eq "gslb" && $eload )
-	{
-		$output = &eload(
-						  module => 'Zevenet::Farm::GSLB::Config',
-						  func   => 'getGSLBFarmBootStatus',
-						  args   => [$farm_name],
-		);
 	}
 
 	return $output;
@@ -394,7 +350,7 @@ FIXME:
 
 sub getFarmProto    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
@@ -432,21 +388,22 @@ Returns:
 
 sub getNumberOfFarmTypeRunning
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $type = shift;    # input value
 
 	my $counter = 0;     # return value
-
 	foreach my $farm_name ( &getFarmNameList() )
 	{
 		# count if requested farm type and running
-		my $current_type   = &getFarmType( $farm_name );
-		my $current_status = &getFarmStatus( $farm_name );
-
-		if ( $current_type eq $type && $current_status eq 'up' )
+		my $current_type = &getFarmType( $farm_name );
+		if ( $current_type eq $type )
 		{
-			$counter++;
+			my $current_status = &getFarmStatus( $farm_name );
+			if ( $current_status eq 'up' )
+			{
+				$counter++;
+			}
 		}
 	}
 
@@ -470,7 +427,7 @@ Returns:
 
 sub getFarmListByVip
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $ip   = shift;
 	my $port = shift;
@@ -484,8 +441,8 @@ sub getFarmListByVip
 		{
 			next
 			  if ( defined ( $port )
-				and !
-				grep ( /^$port$/, @{ &getMultiporExpanded( &getFarmVip( 'vipp', $farm ) ) } ) );
+				   and not grep { /^$port$/ }
+				   @{ &getMultiporExpanded( &getFarmVip( 'vipp', $farm ) ) } );
 			push @out, $farm;
 		}
 	}
@@ -507,7 +464,7 @@ Returns:
 
 sub getFarmRunning
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my @out = ();
 

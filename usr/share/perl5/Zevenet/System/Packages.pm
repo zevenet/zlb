@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,14 +22,10 @@
 ###############################################################################
 
 use strict;
+use warnings;
 require Zevenet::Log;
 use Zevenet::SystemInfo;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 =begin nd
 Function: setSystemPackagesRepo
@@ -45,23 +41,14 @@ Returns:
 
 sub setSystemPackagesRepo
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-
-	if ( $eload )
-	{
-		return
-		  &eload( module => 'Zevenet::Apt',
-				  func   => 'setAPTRepo', );
-	}
-
 	# Variables
 	my $host         = &getGlobalConfiguration( 'repo_url_zevenet' );
 	my $file         = &getGlobalConfiguration( 'apt_source_zevenet' );
 	my $aptget_bin   = &getGlobalConfiguration( 'aptget_bin' );
 	my $distribution = "buster";
-	my $kernel       = "4.19-amd64";
-	my $error        = 0;
+	my $error;
 
 	&zenlog( "Configuring the APT repository", "info", "SYSTEM" );
 
@@ -69,7 +56,14 @@ sub setSystemPackagesRepo
 	my $kernelversion = &getKernelVersion();
 
 	# configuring repository
-	open ( my $FH, '>', $file ) or die "Could not open file '$file' $!";
+
+	$error = open ( my $FH, '>', $file );
+
+	if ( not $error )
+	{
+		&zenlog( "Could not open file '$file' $!", "error" );
+		return 1;
+	}
 
 	if ( $kernelversion =~ /^4.19/ )
 	{
@@ -83,7 +77,7 @@ sub setSystemPackagesRepo
 
 	close $FH;
 
-	if ( !$error )
+	if ( not $error )
 	{
 		# update repositories
 		$error = &logAndRun(
@@ -116,7 +110,7 @@ Returns:
 
 sub getSystemPackagesUpdatesList
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	require Zevenet::Lock;
@@ -128,19 +122,9 @@ sub getSystemPackagesUpdatesList
 	my $date   = "";
 	my $status = "unknown";
 	my $install_msg;
-	if ( $eload )
-	{
-		my $install_msg =
-		  "To upgrade the system, please, execute in a shell the following command:
-			'checkupgrades -i'";
-	}
-	else
-	{
-		my $install_msg =
+		$install_msg =
 		  "To upgrade the system, please, execute in a shell the following command:
 			'checkupdates -i'";
-	}
-
 	my $fh = &openlock( $package_list, '<' );
 	if ( $fh )
 	{

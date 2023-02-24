@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,9 +22,8 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
-my $eload;
-$eload = 1 if ( eval { require Zevenet::ELoad; } );
 
 =begin nd
 Function: getZAPI
@@ -45,7 +44,7 @@ See Also:
 
 sub getZAPI    #($name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $name ) = @_;
 
@@ -97,7 +96,7 @@ See Also:
 
 sub setZAPI    #($name,$value)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $name, $value ) = @_;
 
@@ -153,15 +152,6 @@ sub setZAPI    #($name,$value)
 	#Set ZAPI KEY
 	if ( $name eq "key" )
 	{
-		if ( $eload )
-		{
-			$value = &eload(
-							 module => 'Zevenet::Code',
-							 func   => 'setCryptString',
-							 args   => [$value],
-			);
-		}
-
 		require Tie::File;
 		tie my @contents, 'Tie::File', "$globalcfg";
 
@@ -177,6 +167,7 @@ sub setZAPI    #($name,$value)
 		# Update zapikey global configuration
 		&getGlobalConfiguration( 'zapikey', 1 );
 	}
+	return;
 }
 
 =begin nd
@@ -196,20 +187,20 @@ See Also:
 
 sub setZAPIKey    #()
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $passwordsize = shift;
 
 	my @alphanumeric = ( 'a' .. 'z', 'A' .. 'Z', 0 .. 9 );
-	my $randpassword = join '', map $alphanumeric[rand @alphanumeric],
-	  0 .. $passwordsize;
+	my $randpassword = join '',
+	  map { $alphanumeric[rand @alphanumeric] } 0 .. $passwordsize;
 
 	return $randpassword;
 }
 
 sub validZapiKey    # ()
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $validKey = 0;                 # output
@@ -219,26 +210,12 @@ sub validZapiKey    # ()
 	if ( exists $ENV{ $key } )        # zapi key was provided
 	{
 		if (
-			 &getZAPI( "status" ) eq "true"              # zapi user is enabled
-			 && &getZAPI( "zapikey" ) eq $ENV{ $key }    # matches key
+			 &getZAPI( "status" ) eq "true"               # zapi user is enabled
+			 and &getZAPI( "zapikey" ) eq $ENV{ $key }    # matches key
 		  )
 		{
 			&setUser( 'root' );
 			$validKey = 1;
-		}
-		elsif ( $eload )
-		{
-			# get a RBAC user
-			my $user = &eload(
-							   module => 'Zevenet::RBAC::User::Core',
-							   func   => 'validateRBACUserZapi',
-							   args   => [$ENV{ $key }],
-			);
-			if ( $user )
-			{
-				&setUser( $user );
-				$validKey = 1;
-			}
 		}
 	}
 
@@ -248,15 +225,16 @@ sub validZapiKey    # ()
 sub listZapiVersions
 {
 	my $version_st = &getGlobalConfiguration( "zapi_versions" );
-	my @versions = split ( ' ', $version_st );
+	my @versions = sort split ( ' ', $version_st );
 
-	return sort @versions;
+	return @versions;
 }
 
 sub setZapiVersion
 {
 	my $version = shift;
 	$ENV{ ZAPI_VERSION } = $version;
+	return;
 }
 
 sub getZapiVersion

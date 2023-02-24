@@ -1,7 +1,8 @@
-###############################################################################
+#!/usr/bin/perl
+#################################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,19 +23,15 @@
 
 use strict;
 use Zevenet::Config;
+use warnings;
 use Zevenet::Farm::Core;
 use Zevenet::Farm::Base;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 #GET /farms
 sub farms    # ()
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	require Zevenet::Farm::Base;
 
@@ -65,12 +62,13 @@ sub farms    # ()
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # GET /farms/LSLBFARM
 sub farms_lslb    # ()
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	require Zevenet::Farm::Base;
 
@@ -102,12 +100,13 @@ sub farms_lslb    # ()
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # GET /farms/DATALINKFARM
 sub farms_dslb    # ()
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	require Zevenet::Farm::Base;
 
@@ -138,18 +137,19 @@ sub farms_dslb    # ()
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 #GET /farms/<name>/summary
 sub farms_name_summary    # ( $farmname )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farmname = shift;
 	my $desc     = "Show farm $farmname";
 
 	# Check if the farm exists
-	if ( !&getFarmExists( $farmname ) )
+	if ( not &getFarmExists( $farmname ) )
 	{
 		my $msg = "Farm not found.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -165,19 +165,20 @@ sub farms_name_summary    # ( $farmname )
 	{
 		&farms_name( $farmname );
 	}
+	return;
 }
 
 #GET /farms/<name>
 sub farms_name    # ( $farmname )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farmname = shift;
 
 	my $desc = "Show farm $farmname";
 
 	# Check if the farm exists
-	if ( !&getFarmExists( $farmname ) )
+	if ( not &getFarmExists( $farmname ) )
 	{
 		my $msg = "Farm not found.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -200,20 +201,15 @@ sub farms_name    # ( $farmname )
 		require Zevenet::API31::Farm::Get::Datalink;
 		&farms_name_datalink( $farmname );
 	}
-	if ( $type eq 'gslb' && $eload )
-	{
-		&eload(
-				module => 'Zevenet::API31::Farm::Get::GSLB',
-				func   => 'farms_name_gslb',
-				args   => [$farmname],
-		) if ( $eload );
-	}
+
+
+	return;
 }
 
 # function to standarizate the backend output
 sub getAPIFarmBackends
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $out_b        = shift;
 	my $type         = shift;
@@ -224,7 +220,11 @@ sub getAPIFarmBackends
 	require Zevenet::Farm::Backend;
 
 	# Backends
-	die "Waiting a hash input" if ( !ref $out_b );
+	if ( not ref $out_b )
+	{
+		&zenlog( "Waiting a hash input", "error" );
+		return 2;
+	}
 
 	# filters:
 	if ( $type eq 'l4xnat' )

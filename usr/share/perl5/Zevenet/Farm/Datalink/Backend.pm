@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,12 +22,8 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
@@ -46,7 +42,7 @@ Returns:
 
 sub getDatalinkFarmBackends    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
@@ -65,7 +61,7 @@ sub getDatalinkFarmBackends    # ($farm_name)
 		chomp ( $line );
 
 		# ;server;45.2.2.3;eth0;1;1;up
-		if ( $line ne "" && $line =~ /^\;server\;/ && $first ne "true" )
+		if ( $line ne "" and $line =~ /^\;server\;/ and $first ne "true" )
 		{
 			my @aux = split ( ';', $line );
 			my $status = $aux[6];
@@ -114,7 +110,7 @@ FIXME:
 
 sub setDatalinkFarmServer    # ($ids,$rip,$iface,$weight,$priority,$farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $ids, $rip, $iface, $weight, $priority, $farm_name ) = @_;
 
@@ -126,14 +122,14 @@ sub setDatalinkFarmServer    # ($ids,$rip,$iface,$weight,$priority,$farm_name)
 	my $l             = 0;
 
 	# default value
-	$weight   ||= 1;
-	$priority ||= 1;
+	$weight   = ( $weight   or 1 );
+	$priority = ( $priority or 1 );
 
 	tie my @contents, 'Tie::File', "$configdir\/$farm_filename";
 
 	foreach my $line ( @contents )
 	{
-		if ( $line =~ /^\;server\;/ && $end ne "true" )
+		if ( $line =~ /^\;server\;/ and $end ne "true" )
 		{
 			# modify a backend
 			if ( $i eq $ids )
@@ -186,7 +182,7 @@ Returns:
 
 sub runDatalinkFarmServerDelete    # ($ids,$farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $ids, $farm_name ) = @_;
 
@@ -201,7 +197,7 @@ sub runDatalinkFarmServerDelete    # ($ids,$farm_name)
 
 	foreach my $line ( @contents )
 	{
-		if ( $line =~ /^\;server\;/ && $end ne "true" )
+		if ( $line =~ /^\;server\;/ and $end ne "true" )
 		{
 			if ( $i eq $ids )
 			{
@@ -233,7 +229,7 @@ sub runDatalinkFarmServerDelete    # ($ids,$farm_name)
 
 sub getDatalinkFarmBackendAvailableID
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farmname = shift;
 
@@ -242,7 +238,7 @@ sub getDatalinkFarmBackendAvailableID
 
 	foreach my $l_serv ( @{ $backends } )
 	{
-		if ( $l_serv->{ id } > $id && $l_serv->{ ip } ne "0.0.0.0" )
+		if ( $l_serv->{ id } > $id and $l_serv->{ ip } ne "0.0.0.0" )
 		{
 			$id = $l_serv->{ id };
 		}

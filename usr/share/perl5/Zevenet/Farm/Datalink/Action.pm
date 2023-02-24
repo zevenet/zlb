@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,7 +22,7 @@
 ###############################################################################
 
 use strict;
-
+use warnings;
 require Zevenet::Net::Route;
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
@@ -43,7 +43,7 @@ Returns:
 
 sub _runDatalinkFarmStart    # ($farm_name, $writeconf)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $writeconf ) = @_;
 
@@ -64,7 +64,7 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf)
 	my $cron_file = &getGlobalConfiguration( "cron_conf" );
 
 	tie my @cron_file, 'Tie::File', $cron_file;
-	if ( !grep ( /$cron_tag/, @cron_file ) )
+	if ( not grep { /$cron_tag/ } @cron_file )
 	{
 		my $libexec_path = &getGlobalConfiguration( 'libexec_dir' );
 		push ( @cron_file,
@@ -107,9 +107,9 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf)
 		my $bestprio = 100;
 		foreach my $serv ( @{ $backends } )
 		{
-			if (    $serv->{ priority } > 0
-				 && $serv->{ priority } < 10
-				 && $serv->{ priority } < $bestprio )
+			if (     $serv->{ priority } > 0
+				 and $serv->{ priority } < 10
+				 and $serv->{ priority } < $bestprio )
 			{
 				$routes   = "nexthop via $serv->{ ip } dev $serv->{ interface } weight 1";
 				$bestprio = $serv->{ priority };
@@ -132,14 +132,14 @@ sub _runDatalinkFarmStart    # ($farm_name, $writeconf)
 	# Set policies to the local network
 	my $ip = &iponif( $iface );
 
-	if ( $ip && $ip =~ /\./ )
+	if ( $ip and $ip =~ /\./ )
 	{
 		use Net::IPv4Addr qw(ipv4_network);    # Does not support 'require'
 
 		my $ipmask = &maskonif( $iface );
 		my ( $net, $mask ) = ipv4_network( "$ip / $ipmask" );
 
-		if ( !$net or !$mask )
+		if ( not $net or not $mask )
 		{
 			&zenlog( "Interface $iface has to be up to boot the farm $farm_name" );
 			return -1;
@@ -182,7 +182,7 @@ Returns:
 
 sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $writeconf ) = @_;
 
@@ -199,7 +199,7 @@ sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
 	my $cron_path = &getGlobalConfiguration( "cron_conf" );
 
 	tie my @cron_file, 'Tie::File', $cron_path;
-	@cron_file = grep !/$cron_tag/, @cron_file;
+	@cron_file = grep { not /$cron_tag/ } @cron_file;
 	untie @cron_file;
 
 	my $iface = &getDatalinkFarmInterface( $farm_name );
@@ -210,7 +210,7 @@ sub _runDatalinkFarmStop    # ($farm_name,$writeconf)
 	my $ip_bin = &getGlobalConfiguration( 'ip_bin' );
 
 	# Disable policies to the local network
-	if ( defined ( $if_cfg ) && $if_cfg->{ addr } )
+	if ( defined ( $if_cfg ) and $if_cfg->{ addr } )
 	{
 		my ( $net, $mask ) = ipv4_network( "$if_cfg->{addr} / $if_cfg->{mask}" );
 
@@ -261,7 +261,7 @@ Returns:
 
 sub copyDatalinkFarm    # ($farm_name,$new_farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $new_farm_name, $rm ) = @_;
 

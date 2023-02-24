@@ -1,7 +1,8 @@
-###############################################################################
+#!/usr/bin/perl
+################################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -21,17 +22,13 @@
 ###############################################################################
 
 use strict;
+use warnings;
 use Zevenet::Farm::HTTP::Config;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 sub get_farm_struct
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farmname = shift;
 	my $output_params;
@@ -52,7 +49,7 @@ sub get_farm_struct
 	elsif ( $httpverb == 5 ) { $httpverb = "optionsHTTP"; }
 
 	my $type = &getFarmType( $farmname );
-	my $certname;
+
 	my $cipher  = '';
 	my $ciphers = 'all';
 	my @cnames;
@@ -60,20 +57,7 @@ sub get_farm_struct
 	if ( $type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::HTTPS;
-
-		if ( $eload )
-		{
-			@cnames = &eload(
-							  module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
-							  func   => 'getFarmCertificatesSNI',
-							  args   => [$farmname],
-			);
-		}
-		else
-		{
 			@cnames = ( &getFarmCertificate( $farmname ) );
-		}
-
 		for ( my $i = 0 ; $i < scalar @cnames ; $i++ )
 		{
 			push @out_cn, { file => $cnames[$i], id => $i + 1 };
@@ -112,33 +96,22 @@ sub get_farm_struct
 
 	my $status = &getFarmVipStatus( $farmname );
 
-	my $output_params = {
-						  status          => $status,
-						  restimeout      => $timeout,
-						  contimeout      => $connto,
-						  resurrectime    => $alive,
-						  reqtimeout      => $client,
-						  rewritelocation => $rewritelocation,
-						  httpverb        => $httpverb,
-						  listener        => $type,
-						  vip             => $vip,
-						  vport           => $vport,
-						  error500        => $err500,
-						  error414        => $err414,
-						  error501        => $err501,
-						  error503        => $err503
+	$output_params = {
+					   status          => $status,
+					   restimeout      => $timeout,
+					   contimeout      => $connto,
+					   resurrectime    => $alive,
+					   reqtimeout      => $client,
+					   rewritelocation => $rewritelocation,
+					   httpverb        => $httpverb,
+					   listener        => $type,
+					   vip             => $vip,
+					   vport           => $vport,
+					   error500        => $err500,
+					   error414        => $err414,
+					   error501        => $err501,
+					   error503        => $err503
 	};
-
-	if ( $eload )
-	{
-		my $flag = &eload(
-						   module => 'Zevenet::Farm::HTTP::Ext',
-						   func   => 'getHTTPFarm100Continue',
-						   args   => [$farmname],
-		);
-		$output_params->{ ignore_100_continue } = ( $flag ) ? "true" : "false";
-	}
-
 	if ( $type eq "https" )
 	{
 		$output_params->{ certlist } = \@out_cn;
@@ -162,7 +135,7 @@ sub get_farm_struct
 # GET /farms/<farmname> Request info of a http|https Farm
 sub farms_name_http    # ( $farmname )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farmname = shift;
 
@@ -209,34 +182,21 @@ sub farms_name_http    # ( $farmname )
 				 params      => $farm_st,
 				 services    => \@out_s,
 	};
-
-	if ( $eload )
-	{
-
-		$body->{ ipds } = &eload(
-								  module => 'Zevenet::IPDS::Core',
-								  func   => 'getIPDSfarmsRules',
-								  args   => [$farmname],
-		);
-		for my $blacklist ( @{ $body->{ ipds }->{ blacklists } } )
-		{
-			delete $blacklist->{ id };
-		}
-	}
-
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # GET /farms/<farmname>/summary
 sub farms_name_http_summary
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farmname = shift;
 
 	require Zevenet::Farm::HTTP::Service;
 
 	my $farm_st = &get_farm_struct( $farmname );
+
 	my @out_s;
 
 	# Services
@@ -252,26 +212,13 @@ sub farms_name_http_summary
 				 params      => $farm_st,
 				 services    => \@out_s,
 	};
-
-	if ( $eload )
-	{
-		$body->{ ipds } = &eload(
-								  module => 'Zevenet::IPDS::Core',
-								  func   => 'getIPDSfarmsRules',
-								  args   => [$farmname],
-		);
-		for my $blacklist ( @{ $body->{ ipds }->{ blacklists } } )
-		{
-			delete $blacklist->{ id };
-		}
-	}
-
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 sub getZapiHTTPServiceStruct
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farmname, $service_name ) = @_;
 
@@ -312,10 +259,10 @@ sub getZapiHTTPServiceStruct
 	my $fglog     = $fgconfig[4];
 
 	# Default values for farm guardian parameters
-	if ( !$fgttcheck ) { $fgttcheck = 5; }
-	if ( !$fguse )     { $fguse     = "false"; }
-	if ( !$fglog )     { $fglog     = "false"; }
-	if ( !$fgscript )  { $fgscript  = ""; }
+	if ( not $fgttcheck ) { $fgttcheck = 5; }
+	if ( not $fguse )     { $fguse     = "false"; }
+	if ( not $fglog )     { $fglog     = "false"; }
+	if ( not $fgscript )  { $fgscript  = ""; }
 
 	$fgscript =~ s/\n//g;
 	$fguse =~ s/\n//g;
@@ -342,16 +289,6 @@ sub getZapiHTTPServiceStruct
 					 fgenabled    => $fguse,
 					 fgscript     => $fgscript,
 	};
-
-	if ( $eload )
-	{
-		&eload(
-				module => 'Zevenet::Farm::HTTP::Service::Ext',
-				func   => 'add_service_cookie_insertion',
-				args   => [$farmname, $service_ref],
-		);
-	}
-
 	return $service_ref;
 }
 

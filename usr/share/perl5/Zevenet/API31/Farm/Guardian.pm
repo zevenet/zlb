@@ -1,7 +1,8 @@
-###############################################################################
+#!/usr/bin/perl
+################################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,17 +23,14 @@
 
 use strict;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
+use warnings;
+
 
 #  PUT /farms/<farmname>/fg Modify the parameters of the farm guardian in a Farm
 #  PUT /farms/<farmname>/fg Modify the parameters of the farm guardian in a Service
 sub modify_farmguardian    # ( $json_obj, $farmname )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $farmname = shift;
@@ -49,21 +47,21 @@ sub modify_farmguardian    # ( $json_obj, $farmname )
 	#~ my @fgKeys = ( "fg_time", "fg_log", "fg_enabled", "fg_type" );
 
 	# validate FARM NAME
-	if ( !&getFarmExists( $farmname ) )
+	if ( not &getFarmExists( $farmname ) )
 	{
 		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
 	# validate FARM TYPE
-	unless ( $type eq 'l4xnat' || $type =~ /^https?$/ || $type eq 'gslb' )
+	unless ( $type eq 'l4xnat' or $type =~ /^https?$/ or $type eq 'gslb' )
 	{
 		my $msg = "Farm guardian is not supported for the requested farm profile.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
 	# check if no service is declared for l4xnat farms
-	if ( $type eq 'l4xnat' && $service )
+	if ( $type eq 'l4xnat' and $service )
 	{
 		my $msg = "L4xNAT profile farms do not have services.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -77,7 +75,7 @@ sub modify_farmguardian    # ( $json_obj, $farmname )
 	{
 		require Zevenet::Farm::HTTP::Service;
 
-		if ( !grep ( /^$service$/, &getHTTPFarmServices( $farmname ) ) )
+		if ( not grep { /^$service$/ } &getHTTPFarmServices( $farmname ) )
 		{
 			my $msg = "Invalid service name, please insert a valid value.";
 			&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -86,14 +84,14 @@ sub modify_farmguardian    # ( $json_obj, $farmname )
 
 	# check farmguardian time interval
 	if ( exists ( $json_obj->{ fgtimecheck } )
-		 && !&getValidFormat( 'fg_time', $json_obj->{ fgtimecheck } ) )
+		 and not &getValidFormat( 'fg_time', $json_obj->{ fgtimecheck } ) )
 	{
 		my $msg = "Invalid format, please insert a valid fgtimecheck.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
 	# check farmguardian command
-	elsif ( exists ( $json_obj->{ fgscript } ) && $json_obj->{ fgscript } eq '' )
+	elsif ( exists ( $json_obj->{ fgscript } ) and $json_obj->{ fgscript } eq '' )
 	{
 		my $msg = "Invalid fgscript, can't be blank.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -101,7 +99,7 @@ sub modify_farmguardian    # ( $json_obj, $farmname )
 
 	# check farmguardian enabled
 	elsif ( exists ( $json_obj->{ fgenabled } )
-			&& !&getValidFormat( 'fg_enabled', $json_obj->{ fgenabled } ) )
+			and not &getValidFormat( 'fg_enabled', $json_obj->{ fgenabled } ) )
 	{
 		my $msg = "Invalid format, please insert a valid fgenabled.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -109,7 +107,7 @@ sub modify_farmguardian    # ( $json_obj, $farmname )
 
 	# check farmguardian log
 	elsif ( exists ( $json_obj->{ fglog } )
-			&& !&getValidFormat( 'fg_log', $json_obj->{ fglog } ) )
+			and not &getValidFormat( 'fg_log', $json_obj->{ fglog } ) )
 	{
 		my $msg = "Invalid format, please insert a valid fglog.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -136,17 +134,7 @@ sub modify_farmguardian    # ( $json_obj, $farmname )
 		}
 	}
 
-	if ( $type eq 'gslb' && $eload )
-	{
-		&eload(
-				module => 'Zevenet::API31::Farm::GSLB',
-				func   => 'modify_gslb_farmguardian',
-				args   => [$json_obj, $farmname, $service]
-		);
-	}
 
-	else
-	{
 		# HTTP or L4xNAT
 		# get current farmguardian configuration
 		my @fgconfig = &getFarmGuardianConf( $farmname, $service );
@@ -156,7 +144,7 @@ sub modify_farmguardian    # ( $json_obj, $farmname )
 		  @fgconfig;
 
 		$timetocheck += 0;
-		$timetocheck = 5 if !$timetocheck;
+		$timetocheck = 5 if not $timetocheck;
 
 		$check_script =~ s/\"/\'/g;
 
@@ -195,11 +183,11 @@ sub modify_farmguardian    # ( $json_obj, $farmname )
 		}
 
 		# get current farmguardian configuration
-		my ( undef, $timetocheck, $check_script, $usefarmguardian, $farmguardianlog ) =
+		( undef, $timetocheck, $check_script, $usefarmguardian, $farmguardianlog ) =
 		  &getFarmGuardianConf( $farmname, $service );
 
 		$timetocheck += 0;
-		$timetocheck = 5 if !$timetocheck;
+		$timetocheck = 5 if not $timetocheck;
 
 		# no error found, return successful response
 		my $msg =
@@ -216,7 +204,8 @@ sub modify_farmguardian    # ( $json_obj, $farmname )
 		};
 
 		&httpResponse( { code => 200, body => $body } );
-	}
+
+	return;
 }
 
 1;

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,6 +22,7 @@
 ###############################################################################
 
 use strict;
+use warnings;
 use feature 'state';
 
 =begin nd
@@ -45,7 +46,7 @@ See Also:
 
 sub getDate
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	return scalar CORE::localtime ();
 }
@@ -75,7 +76,7 @@ See Also:
 
 sub getHostname
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $uname = &getGlobalConfiguration( 'uname' );
@@ -103,14 +104,14 @@ See Also:
 
 sub getApplianceVersion
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $version;
 	my $hyperv;
 	my $applianceFile = &getGlobalConfiguration( 'applianceVersionFile' );
 	my $lsmod         = &getGlobalConfiguration( 'lsmod' );
 	my @packages      = @{ &logAndGet( "$lsmod", "array" ) };
-	my @hypervisor    = grep ( /(xen|vm|hv|kvm)_/, @packages );
+	my @hypervisor    = grep { /(xen|vm|hv|kvm)_/ } @packages;
 
 	# look for appliance vesion
 	if ( -f $applianceFile )
@@ -124,7 +125,7 @@ sub getApplianceVersion
 	}
 
 	# generate appliance version
-	if ( !$version )
+	if ( not $version )
 	{
 		my $kernel = &getKernelVersion();
 
@@ -135,7 +136,7 @@ sub getApplianceVersion
 		my @ifaces = @{ &logAndGet( "$ifconfig -s | $awk '{print $1}'", "array" ) };
 
 		# Network appliance
-		if ( grep ( /mgmt/, @ifaces ) )
+		if ( grep { /mgmt/ } @ifaces )
 		{
 			$version = "ZNA 3300";
 		}
@@ -170,7 +171,7 @@ sub getApplianceVersion
 	}
 
 	# virtual appliance
-	if ( @hypervisor && $hypervisor[0] =~ /(xen|vm|hv|kvm)_/ )
+	if ( @hypervisor and $hypervisor[0] =~ /(xen|vm|hv|kvm)_/ )
 	{
 		$hyperv = $1;
 		$hyperv = 'HyperV' if ( $hyperv eq 'hv' );
@@ -180,7 +181,7 @@ sub getApplianceVersion
 	}
 
 # before zevenet versions had hypervisor in appliance version file, so not inclue it in the chain
-	if ( $hyperv && $version !~ /hypervisor/ )
+	if ( $hyperv and $version !~ /hypervisor/ )
 	{
 		$version = "$version, hypervisor: $hyperv";
 	}
@@ -205,7 +206,7 @@ See Also:
 
 sub getCpuCores
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $cpuinfo_filename = '/proc/stat';
 	my $cores            = 1;
@@ -239,7 +240,7 @@ Returns:
 
 sub getCPUSecondToJiffy
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $sec = shift // 1;
 	my $ticks = &getCPUTicks();
@@ -264,13 +265,13 @@ Returns:
 
 sub getCPUJiffiesNow
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $jiffies = -1;
 	my $file    = '/proc/timer_list';
 	open my $fh, '<', $file or return -1;
 
-	foreach my $line ( <$fh> )
+	while ( my $line = <$fh> )
 	{
 		if ( $line =~ /^jiffies: ([\d]+)/ )
 		{
@@ -299,7 +300,7 @@ Returns:
 
 sub getCPUTicks
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $ticks = -1;
 	my $file  = '/boot/config-';    # end file with the kernel version
@@ -308,7 +309,7 @@ sub getCPUTicks
 
 	open my $fh, '<', "${file}$kernel" or return -1;
 
-	foreach my $line ( <$fh> )
+	while ( my $line = <$fh> )
 	{
 		if ( $line =~ /^CONFIG_HZ[=: ](\d+)/ )
 		{
@@ -337,7 +338,7 @@ Returns:
 
 sub setEnv
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	use Zevenet::Config;
 	$ENV{ http_proxy }  = &getGlobalConfiguration( 'http_proxy' )  // "";
@@ -350,11 +351,12 @@ sub setEnv
 		  &getGlobalConfiguration( 'aws_credentials' ) // "";
 		$ENV{ AWS_CONFIG_FILE } = &getGlobalConfiguration( 'aws_config' ) // "";
 	}
+	return;
 }
 
 sub getKernelVersion
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	require Zevenet::Config;
 

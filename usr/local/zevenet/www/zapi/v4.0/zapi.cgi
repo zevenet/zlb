@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -86,8 +86,8 @@ require Zevenet::Zapi;
 require Zevenet::API40::Session if ( $q->path_info eq '/session' );
 
 # Verify authentication
-unless (    ( exists $ENV{ HTTP_ZAPI_KEY } && &validZapiKey() )
-		 or ( exists $ENV{ HTTP_COOKIE } && &validCGISession() ) )
+unless (    ( exists $ENV{ HTTP_ZAPI_KEY } and &validZapiKey() )
+		 or ( exists $ENV{ HTTP_COOKIE } and &validCGISession() ) )
 {
 	&httpResponse(
 				   { code => 401, body => { message => 'Authorization required' } } );

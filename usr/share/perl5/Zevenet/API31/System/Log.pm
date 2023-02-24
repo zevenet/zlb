@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,23 +22,27 @@
 ###############################################################################
 
 use strict;
+use warnings;
 use Zevenet::System::Log;
 
 #	GET	/system/logs
 sub get_logs
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $desc    = "Get logs";
 	my $backups = &getLogs;
 
 	&httpResponse(
-		 { code => 200, body => { description => $desc, params => $backups } } );
+				{ code => 200, body => { description => $desc, params => $backups } } );
+	return;
 }
 
 #	GET	/system/logs/LOG
 sub download_logs
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $logFile = shift;
 
 	my $desc     = "Download log file '$logFile'";
@@ -46,11 +50,11 @@ sub download_logs
 	my $error    = 1;
 
 	# check if the file exists
-	foreach my $file ( @{$logfiles} )
+	foreach my $file ( @{ $logfiles } )
 	{
-		if ( $file->{file} eq $logFile )
+		if ( $file->{ file } eq $logFile )
 		{
-			$error=0;
+			$error = 0;
 			last;
 		}
 	}
@@ -61,23 +65,25 @@ sub download_logs
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
-	# Download function ends communication if itself finishes successful. It is not necessary send "200 OK" msg
+# Download function ends communication if itself finishes successful. It is not necessary send "200 OK" msg
 	my $logdir = &getGlobalConfiguration( 'logdir' );
 
 	&httpDownloadResponse( desc => $desc, dir => $logdir, file => $logFile );
+	return;
 }
 
 #	GET	/system/logs/LOG/lines/LINES
 sub show_logs
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $logFile      = shift;
-	my $lines_number = shift; # number of lines to show
+	my $lines_number = shift;    # number of lines to show
 
 	my $desc     = "Show a log file";
 	my $logfiles = &getLogs;
 	my $error    = 1;
-	
+
 	# check if the file exists
 	foreach my $file ( @{ $logfiles } )
 	{
@@ -98,6 +104,7 @@ sub show_logs
 	my $body = { description => $desc, log => $lines };
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 1;

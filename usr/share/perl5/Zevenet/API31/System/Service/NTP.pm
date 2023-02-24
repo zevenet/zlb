@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,22 +22,30 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 # GET /system/ntp
 sub get_ntp
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $desc = "Get ntp";
 	my $ntp  = &getGlobalConfiguration( 'ntp' );
 
 	&httpResponse(
-			 { code => 200, body => { description => $desc, params => { "server" => $ntp } } } );
+				   {
+					 code => 200,
+					 body => { description => $desc, params => { "server" => $ntp } }
+				   }
+	);
+	return;
 }
 
 #  POST /system/ntp
 sub set_ntp
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $json_obj = shift;
 
 	my $desc = "Post ntp";
@@ -50,7 +58,7 @@ sub set_ntp
 		&httpErrorResponse( code => 400, desc => $desc, msg => $param_msg );
 	}
 
-	if ( !&getValidFormat( "ntp", $json_obj->{ 'server' } ) )
+	if ( not &getValidFormat( "ntp", $json_obj->{ 'server' } ) )
 	{
 		my $msg = "NTP hasn't a correct format.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -65,7 +73,9 @@ sub set_ntp
 	}
 
 	my $ntp = &getGlobalConfiguration( 'ntp' );
-	&httpResponse( { code => 200, body => { description => $desc, params => $ntp } } );
+	&httpResponse(
+				   { code => 200, body => { description => $desc, params => $ntp } } );
+	return;
 }
 
 1;

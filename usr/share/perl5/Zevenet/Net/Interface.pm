@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,19 +22,15 @@
 ###############################################################################
 
 use strict;
+use warnings;
 use feature 'state';
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 my $ip_bin = &getGlobalConfiguration( 'ip_bin' );
 
 sub getInterfaceConfigFile
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $if_name   = shift;
 	my $configdir = &getGlobalConfiguration( 'configdir' );
@@ -74,10 +70,9 @@ Function: getInterfaceConfig
 
 Parameters:
 	if_name - Interface name.
-	ip_version - Interface stack or IP version. 4 or 6 (Default: 4).
 
 Returns:
-	scalar - Reference to a network interface hash ($if_ref). undef if the network interface was not found.
+	Hash ref - Reference to a network interface hash ($if_ref). undef if the network interface was not found.
 
 Bugs:
 	The configuration file exists but there isn't the requested stack.
@@ -90,7 +85,7 @@ See Also:
 
 sub getInterfaceConfig    # \%iface ($if_name, $ip_version)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $if_name ) = @_;
 
@@ -111,12 +106,12 @@ sub getInterfaceConfig    # \%iface ($if_name, $ip_version)
 	  if ( -f $config_filename );
 
 	#Return undef if the file doesn't exists and the iface is not a NIC
-	return undef
-	  if ( !-f $config_filename and $if_name =~ /\.|\:/ );
+	return
+	  if ( not -f $config_filename and $if_name =~ /[\.\:]/ );
 
 	#Return undef if the file doesn't exists and the iface is a gre Tunnel
-	return undef
-	  if ( !-f $config_filename and &getInterfaceType( $if_name ) eq 'gre' );
+	return
+	  if ( not -f $config_filename and &getInterfaceType( $if_name ) eq 'gre' );
 
 	require IO::Socket;
 	my $socket = IO::Socket::INET->new( Proto => 'udp' );
@@ -141,17 +136,12 @@ sub getInterfaceConfig    # \%iface ($if_name, $ip_version)
 	  ( $iface->{ addr } =~ /:/ ) ? '6' : ( $iface->{ addr } =~ /\./ ) ? '4' : 0;
 	$iface->{ net } =
 	  &getAddressNetwork( $iface->{ addr }, $iface->{ mask }, $iface->{ ip_v } );
-	$iface->{ dhcp } = $fileHandler->{ $if_name }->{ dhcp } // 'false'
-	  if ( $eload );
-	$iface->{ isolate } = $fileHandler->{ $if_name }->{ isolate } // 'false'
-	  if ( $eload );
-
 	if ( $iface->{ dev } =~ /:/ )
 	{
 		( $iface->{ dev }, $iface->{ vini } ) = split ':', $iface->{ dev };
 	}
 
-	if ( !$iface->{ name } )
+	if ( not $iface->{ name } )
 	{
 		$iface->{ name } = $if_name;
 	}
@@ -163,7 +153,7 @@ sub getInterfaceConfig    # \%iface ($if_name, $ip_version)
 	}
 
 	$iface->{ mac } = $socket->if_hwaddr( $iface->{ dev } )
-	  if ( !defined $iface->{ mac } );
+	  if ( not defined $iface->{ mac } );
 
 	# Interfaces without ip do not get HW addr via socket,
 	# in those cases get the MAC from the OS.
@@ -174,43 +164,7 @@ sub getInterfaceConfig    # \%iface ($if_name, $ip_version)
 		close $fh;
 	}
 
-	if ( $eload )
-	{
-		# complex check to avoid warnings
-		if (
-			 (
-			      !exists ( $iface->{ vini } )
-			   || !defined ( $iface->{ vini } )
-			   || $iface->{ vini } eq ''
-			 )
-			 && $iface->{ addr }
-		  )
-		{
-			require Config::Tiny;
-			my $float = Config::Tiny->read( &getGlobalConfiguration( 'floatfile' ) );
-			$iface->{ float } = $float->{ _ }->{ $iface->{ name } } // '';
-		}
-	}
-
 	state $saved_bond_slaves = 0;
-
-	if ( $eload && $iface->{ type } eq 'nic' )
-	{
-		# not die if the appliance has not a certificate
-		eval {
-			unless ( $saved_bond_slaves )
-			{
-				@TMP::bond_slaves = &eload( module => 'Zevenet::Net::Bonding',
-											func   => 'getAllBondsSlaves', );
-
-				$saved_bond_slaves = 1;
-			}
-		};
-
-		$iface->{ is_slave } =
-		  ( grep { $iface->{ name } eq $_ } @TMP::bond_slaves ) ? 'true' : 'false';
-	}
-
 	# for virtual interface, overwrite mask and gw with parent values
 	if ( $iface->{ type } eq 'vini' )
 	{
@@ -221,8 +175,55 @@ sub getInterfaceConfig    # \%iface ($if_name, $ip_version)
 
 	#~ &zenlog(
 	#~ "getInterfaceConfig( $if_name ) returns " . Dumper \%iface );
-
 	return $iface;
+}
+
+=begin nd
+Function: getInterfaceConfigParam
+
+	Gets a hash reference of configuration params of a network interface.
+
+Parameters:
+	if_name - Interface name.
+	params_ref - Array ref of params
+
+Returns:
+	config_ref - Hash ref - Reference to a network interface config params hash ($config_ref).
+
+=cut
+
+sub getInterfaceConfigParam    # ($if_name, $params_ref)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $if_name, $params_ref ) = @_;
+	my $config_ref;
+
+	my $config_filename = &getInterfaceConfigFile( $if_name );
+
+	#Return undef if the file doesn't exists and the iface is not a NIC
+	return if ( not -f $config_filename and $if_name =~ /[\.\:]/ );
+
+	#Return undef if the file doesn't exists and the iface is a gre Tunnel
+	return
+	  if ( not -f $config_filename and &getInterfaceType( $if_name ) eq 'gre' );
+
+	require Zevenet::Config;
+	my $if_config = &getTiny( $config_filename );
+
+	foreach my $param ( @{ $params_ref } )
+	{
+		if ( defined $if_config->{ $if_name }->{ $param } )
+		{
+			$config_ref->{ $param } = $if_config->{ $if_name }->{ $param };
+		}
+		else
+		{
+			$config_ref->{ $param } = undef;
+		}
+	}
+	$config_ref->{ name } = $if_name if not $config_ref->{ name };
+	return $config_ref;
 }
 
 =begin nd
@@ -245,7 +246,7 @@ See Also:
 
 sub setInterfaceConfig    # $bool ($if_ref)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $if_ref = shift;
 	require Config::Tiny;
@@ -258,14 +259,13 @@ sub setInterfaceConfig    # $bool ($if_ref)
 	use Data::Dumper;
 	&zenlog( "setInterfaceConfig: " . Dumper( $if_ref ), "debug", "NETWORK" )
 	  if &debug() > 2;
-	my @if_params =
-	  ( 'status', 'name', 'addr', 'mask', 'gateway', 'mac', 'dhcp', 'isolate' );
+	my @if_params = qw(status name addr mask gateway mac dhcp isolate);
 
 	my $configdir       = &getGlobalConfiguration( 'configdir' );
 	my $config_filename = "$configdir/if_$$if_ref{ name }_conf";
 
 	# create file if it is not exist
-	if ( !-f $config_filename )
+	if ( not -f $config_filename )
 	{
 		require Zevenet::File;
 		return 0 if ( &createFile( $config_filename ) );
@@ -278,7 +278,7 @@ sub setInterfaceConfig    # $bool ($if_ref)
 		$fileHandle->{ $if_ref->{ name } }->{ $field } = $if_ref->{ $field };
 	}
 
-	if ( !exists $fileHandle->{ status } )
+	if ( not exists $fileHandle->{ status } )
 	{
 		$fileHandle->{ $if_ref->{ name } }->{ status } = $if_ref->{ status } // "up";
 	}
@@ -305,14 +305,14 @@ Returns:
 
 sub cleanInterfaceConfig
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $if_ref    = shift;
 	my $configdir = &getGlobalConfiguration( 'configdir' );
 	my $file      = "$configdir/if_$$if_ref{name}\_conf";
 	my $err       = 0;
 
-	if ( !-f $file )
+	if ( not -f $file )
 	{
 		&zenlog( "The file $file has not been found", "info", "NETWORK" );
 		return 1;
@@ -359,7 +359,7 @@ See Also:
 
 sub getDevVlanVini    # ($if_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my %if;
 	$if{ dev } = shift;
@@ -383,7 +383,7 @@ Function: getConfigInterfaceList
 	Get a reference to an array of all the interfaces saved in files.
 
 Parameters:
-	none - .
+	params_ref - Array ref of params. undef means all params
 
 Returns:
 	scalar - reference to array of configured interfaces.
@@ -395,8 +395,9 @@ See Also:
 
 sub getConfigInterfaceList
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
+	my ( $params_ref ) = @_;
 	my @configured_interfaces;
 	my $configdir = &getGlobalConfiguration( 'configdir' );
 
@@ -409,7 +410,14 @@ sub getConfigInterfaceList
 				my $if_name = $1;
 				my $if_ref;
 
-				$if_ref = &getInterfaceConfig( $if_name );
+				if ( defined $params_ref )
+				{
+					$if_ref = &getInterfaceConfigParam( $if_name, $params_ref );
+				}
+				else
+				{
+					$if_ref = &getInterfaceConfig( $if_name );
+				}
 				if ( defined $if_ref )
 				{
 					push @configured_interfaces, $if_ref;
@@ -444,7 +452,7 @@ See Also:
 
 sub getInterfaceSystemStatus    # ($if_ref)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $if_ref = shift;
 
@@ -466,7 +474,7 @@ sub getInterfaceSystemStatus    # ($if_ref)
 		my ( $flags ) = $ip_output =~ /<(.+)>/;
 		my @flags = split ( ',', $flags );
 
-		if ( grep ( /^UP$/, @flags ) )
+		if ( grep { /^UP$/ } @flags )
 		{
 			$if_status = 'up';
 		}
@@ -474,32 +482,105 @@ sub getInterfaceSystemStatus    # ($if_ref)
 		{
 			$if_status = 'down';
 		}
+
 	}
 
 	# Set as down vinis not available
-	$ip_output = &logAndGet( "$ip_bin addr show $status_if_name" );
-
-	if ( $ip_output !~ /$$if_ref{ addr }/ && $if_ref->{ vini } ne '' )
+	if ( $if_ref->{ vini } ne '' )
 	{
-		$$if_ref{ status } = 'down';
-		return $$if_ref{ status };
+		$ip_output = &logAndGet( "$ip_bin addr show $status_if_name" );
+		if ( $ip_output !~ /$if_ref->{ addr }/ )
+		{
+			return "down";
+		}
 	}
 
-	unless ( $if_ref->{ vini } ne '' && $if_ref->{ status } eq 'down' )    # vini
+	unless ( $if_ref->{ vini } ne '' and $if_ref->{ status } eq 'down' )    # vini
 	{
 		$if_ref->{ status } = $if_status;
 	}
 
 	return $if_ref->{ status } if $if_ref->{ status } eq 'down';
 
-	return $if_ref->{ status } if !$parent_if_name;
+	return $if_ref->{ status } if not $parent_if_name;
 
-	my $parent_if_ref = &getInterfaceConfig( $parent_if_name, $if_ref->{ ip_v } );
+	my $params = ["name", "addr", "status"];
+	my $parent_if_ref = &getInterfaceConfigParam( $parent_if_name, $params );
 
 	# vlans do not require the parent interface to be configured
-	return $if_ref->{ status } if !$parent_if_ref;
+	return $if_ref->{ status } if not $parent_if_ref;
 
 	return &getInterfaceSystemStatus( $parent_if_ref );
+}
+
+=begin nd
+Function: getInterfaceSystemStatusAll
+
+	Get a hash of the status of all network interfaces in the system.
+
+Parameters:
+
+Returns:
+	Hash ref - Hash with name and status values.
+
+=cut
+
+sub getInterfaceSystemStatusAll    # ()
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $ip_bin = &getGlobalConfiguration( 'ip_bin' );
+	my $ip_output = &logAndGet( "$ip_bin -o link", "array" );
+	my $links_ref;
+	foreach my $link ( @{ $ip_output } )
+	{
+		if ( $link =~
+			/^\d+: ([a-zA-Z0-9\-]+(?:\.\d{1,4})?)(?:@[a-zA-Z0-9\-]+)?: <(.+)> .+ state (\w+) /
+		  )
+		{
+			my $interface = $1;
+			my $flag      = $2;
+			my $status    = lc $3;
+
+			if ( $status ne "up" and $status ne "down" )
+			{
+				my @flags     = split ( ',', $flag );
+				my $flag_up   = 0;
+				my $flag_down = 0;
+				foreach my $flag ( @flags )
+				{
+					$flag_up++   if ( $flag eq "UP" );
+					$flag_down++ if ( $flag eq "NO-CARRIER" );
+				}
+				if ( $flag_up and not $flag_down )
+				{
+					$status = 'up';
+				}
+				else
+				{
+					$status = 'down';
+				}
+			}
+			$links_ref->{ $interface } = $status;
+		}
+	}
+
+	$ip_output = &logAndGet( "$ip_bin -o addr", "array" );
+	my $addr_ref;
+	foreach my $addr ( @{ $ip_output } )
+	{
+		if ( $addr =~
+			/^\d+: ([a-zA-Z0-9\-]+)(?:\.\d{1,4})?\s+(inet(?:\d)? (.*) (?:brd .*)?) scope .+ ([a-zA-Z0-9\-]+(?:\.\d{1,4})?:[a-zA-Z0-9\-]+)\\ /
+		  )
+		{
+			my $parent  = $1;
+			my $virtual = $4;
+			$addr_ref->{ $virtual } = $links_ref->{ $parent };
+		}
+
+	}
+	$links_ref = { %{ $links_ref }, %{ $addr_ref } } if $addr_ref;
+	return $links_ref;
 }
 
 =begin nd
@@ -519,36 +600,36 @@ See Also:
 
 sub getParentInterfaceName    # ($if_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $if_name = shift;
 
 	my $if_ref = &getDevVlanVini( $if_name );
 	my $parent_if_name;
 
-	my $is_vlan    = defined $if_ref->{ vlan } && length $if_ref->{ vlan };
-	my $is_virtual = defined $if_ref->{ vini } && length $if_ref->{ vini };
+	my $is_vlan    = ( defined $if_ref->{ vlan } and length $if_ref->{ vlan } );
+	my $is_virtual = ( defined $if_ref->{ vini } and length $if_ref->{ vini } );
 
 	# child interface: eth0.100:virtual => eth0.100
-	if ( $is_virtual && $is_vlan )
+	if ( $is_virtual and $is_vlan )
 	{
 		$parent_if_name = "$$if_ref{dev}.$$if_ref{vlan}";
 	}
 
 	# child interface: eth0:virtual => eth0
-	elsif ( $is_virtual && !$is_vlan )
+	elsif ( $is_virtual and not $is_vlan )
 	{
 		$parent_if_name = $if_ref->{ dev };
 	}
 
 	# child interface: eth0.100 => eth0
-	elsif ( !$is_virtual && $is_vlan )
+	elsif ( not $is_virtual and $is_vlan )
 	{
 		$parent_if_name = $if_ref->{ dev };
 	}
 
 	# child interface: eth0 => undef
-	elsif ( !$is_virtual && !$is_vlan )
+	elsif ( not $is_virtual and not $is_vlan )
 	{
 		$parent_if_name = undef;
 	}
@@ -573,7 +654,7 @@ See Also:
 
 sub getActiveInterfaceList
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my @configured_interfaces = @{ &getConfigInterfaceList() };
 
@@ -634,19 +715,38 @@ See Also:
 
 sub getSystemInterfaceList
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	use IO::Interface qw(:flags);
 
 	my @interfaces;    # output
-	my @configured_interfaces = @{ &getConfigInterfaceList() };
+
+	my @configured_interfaces;
+	my $interface_ref = &getInterfaceNameStruct( "vlan", "array" );
+	foreach my $vlan ( @{ $interface_ref } )
+	{
+		my $if_ref = &getInterfaceConfig( $vlan );
+		push @configured_interfaces, $if_ref if $if_ref;
+	}
+	$interface_ref = &getInterfaceNameStruct( "virtual", "array" );
+	foreach my $virtual ( @{ $interface_ref } )
+	{
+		my $if_ref = &getInterfaceConfig( $virtual );
+		push @configured_interfaces, $if_ref if $if_ref;
+	}
 
 	my $socket = IO::Socket::INET->new( Proto => 'udp' );
 	my @system_interfaces = &getInterfaceList();
 
+	my $all_status = &getInterfaceSystemStatusAll();
+
 	## Build system device "tree"
 	for my $if_name ( @system_interfaces )    # list of interface names
 	{
+		# ignore vlans and vinis
+		next if $if_name =~ /\./;
+		next if $if_name =~ /:/;
+
 		# ignore loopback device
 		next if $if_name =~ /^lo$/;
 
@@ -663,87 +763,50 @@ sub getSystemInterfaceList
 		#next if $if_name =~ /^ip_vti0$/;
 		# ignore fallback device from ipip module
 		#next if $if_name =~ /^tunl0$/;
-		# ignore vlans and vinis
-		next if $if_name =~ /\./;
-		next if $if_name =~ /:/;
-
-		my %if_parts = %{ &getDevVlanVini( $if_name ) };
 
 		my $if_ref;
 		my $if_flags = $socket->if_flags( $if_name );
 
+		my %if_parts = %{ &getDevVlanVini( $if_name ) };
+
 		# run for IPv4 and IPv6
-		#~ for my $ip_stack ( 4, 6 )
+		$if_ref = &getInterfaceConfig( $if_name );
+
+		if ( !$$if_ref{ addr } )
 		{
-			#~ $if_ref = &getInterfaceConfig( $if_name, $ip_stack );
-			$if_ref = &getInterfaceConfig( $if_name );
+			# populate not configured interface
+			$$if_ref{ status } = ( $if_flags & IFF_UP ) ? "up" : "down";
+			$$if_ref{ mac }    = $socket->if_hwaddr( $if_name );
+			$$if_ref{ name }   = $if_name;
+			$$if_ref{ addr }   = '';
+			$$if_ref{ mask }   = '';
+			$$if_ref{ dev }    = $if_parts{ dev };
+			$$if_ref{ vlan }   = $if_parts{ vlan };
+			$$if_ref{ vini }   = $if_parts{ vini };
+			$$if_ref{ ip_v }   = '';
+			$$if_ref{ type }   = &getInterfaceType( $if_name );
+		}
 
-			if ( !$$if_ref{ addr } )
-			{
-				# populate not configured interface
-				$$if_ref{ status } = ( $if_flags & IFF_UP ) ? "up" : "down";
-				$$if_ref{ mac }    = $socket->if_hwaddr( $if_name );
-				$$if_ref{ name }   = $if_name;
-				$$if_ref{ addr }   = '';
-				$$if_ref{ mask }   = '';
-				$$if_ref{ dev }    = $if_parts{ dev };
-				$$if_ref{ vlan }   = $if_parts{ vlan };
-				$$if_ref{ vini }   = $if_parts{ vini };
-				$$if_ref{ ip_v }   = '';
-				$$if_ref{ type }   = &getInterfaceType( $if_name );
-			}
+		if ( !( $if_flags & IFF_RUNNING ) && ( $if_flags & IFF_UP ) )
+		{
+			$$if_ref{ link } = "off";
+		}
 
-			if ( !( $if_flags & IFF_RUNNING ) && ( $if_flags & IFF_UP ) )
-			{
-				$$if_ref{ link } = "off";
-			}
+		$if_ref->{ status } = $all_status->{ $if_ref->{ name } };
 
-			# add interface to the list
-			push ( @interfaces, $if_ref );
+		# add interface to the list
+		push ( @interfaces, $if_ref );
 
-			# add vlans
-			for my $vlan_if_conf ( @configured_interfaces )
-			{
-				next if $$vlan_if_conf{ dev } ne $$if_ref{ dev };
-				next if $$vlan_if_conf{ vlan } eq '';
-				next if $$vlan_if_conf{ vini } ne '';
+		# add vlans and virtuals belonging the dev
+		for my $if_conf ( @configured_interfaces )
+		{
+			next if $if_conf->{ dev } ne $if_ref->{ dev };
+			next if not $if_conf->{ parent };
 
-				#~ if ( $$vlan_if_conf{ ip_v } == $ip_stack )
-				{
-					push ( @interfaces, $vlan_if_conf );
-
-					# add vini of vlan
-					for my $vini_if_conf ( @configured_interfaces )
-					{
-						next if $$vini_if_conf{ dev } ne $$if_ref{ dev };
-						next if $$vini_if_conf{ vlan } ne $$vlan_if_conf{ vlan };
-						next if $$vini_if_conf{ vini } eq '';
-
-						#~ if ( $$vini_if_conf{ ip_v } == $ip_stack )
-						{
-							push ( @interfaces, $vini_if_conf );
-						}
-					}
-				}
-			}
-
-			# add vini of nic
-			for my $vini_if_conf ( @configured_interfaces )
-			{
-				next if $$vini_if_conf{ dev } ne $$if_ref{ dev };
-				next if $$vini_if_conf{ vlan } ne '';
-				next if $$vini_if_conf{ vini } eq '';
-
-				#~ if ( $$vini_if_conf{ ip_v } == $ip_stack )
-				{
-					push ( @interfaces, $vini_if_conf );
-				}
-			}
+			$if_conf->{ status } = $all_status->{ $if_conf->{ name } };
+			push ( @interfaces, $if_conf );
 		}
 	}
-
-	@interfaces = sort { $a->{ name } cmp $b->{ name } } @interfaces;
-	$_->{ status } = &getInterfaceSystemStatus( $_ ) for @interfaces;
 
 	return \@interfaces;
 }
@@ -765,7 +828,7 @@ See Also:
 
 sub getSystemInterface    # ($if_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $if_ref = {};
 	$$if_ref{ name } = shift;
@@ -789,24 +852,6 @@ sub getSystemInterface    # ($if_name)
 	$$if_ref{ parent } = &getParentInterfaceName( $$if_ref{ name } );
 
 	state $saved_bond_slaves = 0;
-
-	if ( $eload && $$if_ref{ type } eq 'nic' )
-	{
-		# not die if the appliance has not a certificate
-		eval {
-			unless ( $saved_bond_slaves )
-			{
-				@TMP::bond_slaves = &eload( module => 'Zevenet::Net::Bonding',
-											func   => 'getAllBondsSlaves', );
-
-				$saved_bond_slaves = 1;
-			}
-		};
-
-		$$if_ref{ is_slave } =
-		  ( grep { $$if_ref{ name } eq $_ } @TMP::bond_slaves ) ? 'true' : 'false';
-	}
-
 	return $if_ref;
 }
 
@@ -838,13 +883,13 @@ See Also:
 # Interface types: nic, virtual, vlan, bond
 sub getInterfaceType
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $if_name = shift;
 
 	my $type;
 
-	return if $if_name eq '' || !defined $if_name;
+	return if $if_name eq '' or not defined $if_name;
 
 	# interface for cluster when is in maintenance mode
 	return 'dummy' if $if_name eq 'cl_maintenance';
@@ -869,19 +914,19 @@ sub getInterfaceType
 	# interfaces added by ipip module
 	#return 'ipip_fallback' if $if_name eq 'tunl0';
 
-	if ( !-d "/sys/class/net/$if_name" )
+	if ( not -d "/sys/class/net/$if_name" )
 	{
 		my ( $parent_if ) = split ( ':', $if_name );
 		my $quoted_if     = quotemeta $if_name;
 		my $ip_bin        = &getGlobalConfiguration( 'ip_bin' );
 		my @out = @{ &logAndGet( "$ip_bin addr show $parent_if", "array" ) };
 		my $found =
-		  grep ( /inet .+ $quoted_if$/, @out );
+		  grep { /inet .+ $quoted_if$/ } @out;
 
-		if ( !$found )
+		if ( not $found )
 		{
 			my $configdir = &getGlobalConfiguration( 'configdir' );
-			$found = ( -f "$configdir/if_${if_name}_conf" && $if_name =~ /^.+\:.+$/ );
+			$found = ( -f "$configdir/if_${if_name}_conf" and $if_name =~ /^.+\:.+$/ );
 		}
 
 		if ( $found )
@@ -898,8 +943,12 @@ sub getInterfaceType
 	{
 		my $if_type_filename = "/sys/class/net/$if_name/type";
 
-		open ( my $type_file, '<', $if_type_filename )
-		  or die "Could not open file $if_type_filename: $!";
+		my $error = open ( my $type_file, '<', $if_type_filename );
+		if ( not $error )
+		{
+			&zenlog( "Could not open file $if_type_filename: $!" );
+			return 1;
+		}
 		chomp ( $code = <$type_file> );
 		close $type_file;
 	}
@@ -918,7 +967,7 @@ sub getInterfaceType
 			$type = 'bond';
 		}
 
-#elsif ( -d "/sys/class/net/$if_name/wireless" || -l "/sys/class/net/$if_name/phy80211" )
+#elsif ( -d "/sys/class/net/$if_name/wireless" or -l "/sys/class/net/$if_name/phy80211" )
 #{
 #	$type = 'wlan';
 #}
@@ -999,7 +1048,7 @@ sub getInterfaceType
 	my $msg = "Could not recognize the type of the interface $if_name.";
 
 	&zenlog( $msg, "error", "NETWORK" );
-	die ( $msg );    # This should not happen
+	return 1;    # This should not happen
 }
 
 =begin nd
@@ -1011,6 +1060,7 @@ Function: getInterfaceTypeList
 
 Parameters:
 	list_type - Network interface type.
+	iface_name - Interface name
 
 Returns:
 	list - list of network interfaces hashrefs.
@@ -1021,22 +1071,33 @@ See Also:
 
 sub getInterfaceTypeList
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $list_type = shift;
+	my $list_type  = shift;
+	my $iface_name = shift;
 
 	my @interfaces = ();
 
 	if ( $list_type =~ /^(?:nic|bond|vlan|gre)$/ )
 	{
-		my @system_interfaces = sort &getInterfaceList();
+		my @system_interfaces;
+		if ( $iface_name )
+		{
+			push @system_interfaces, $iface_name;
+		}
+		else
+		{
+			@system_interfaces = sort &getInterfaceList();
+		}
 
 		for my $if_name ( @system_interfaces )
 		{
 			if ( $list_type eq &getInterfaceType( $if_name ) )
 			{
 				my $output_if = &getInterfaceConfig( $if_name );
-				if ( !$output_if || !$output_if->{ mac } || $output_if->{ is_slave } eq 'true' )
+				if (    not $output_if
+					 or not $output_if->{ mac }
+					 or $output_if->{ is_slave } eq 'true' )
 				{
 					$output_if = &getSystemInterface( $if_name );
 				}
@@ -1052,18 +1113,26 @@ sub getInterfaceTypeList
 		opendir my $conf_dir, &getGlobalConfiguration( 'configdir' );
 		my $virt_if_re = &getValidFormat( 'virt_interface' );
 
+		my $parents_list;
 		for my $file_name ( sort readdir $conf_dir )
 		{
 			if ( $file_name =~ /^if_($virt_if_re)_conf$/ )
 			{
-				my $iface = &getInterfaceConfig( $1 );
-				$iface->{ status } = &getInterfaceSystemStatus( $iface );
+				my $if_name = $1;
+				next if ( $iface_name and ( $iface_name ne $if_name ) );
+				my $iface = &getInterfaceConfig( $if_name );
+
+				#$iface->{ status } = &getInterfaceSystemStatus( $iface );
 
 				# put the mac, gateway and netmask of the parent interface
-				my $parent_if = &getInterfaceConfig( $iface->{ parent } );
-				$iface->{ mask }    = $parent_if->{ mask };
-				$iface->{ mac }     = $parent_if->{ mac };
-				$iface->{ gateway } = $parent_if->{ gateway };
+				if ( not defined $parents_list->{ $iface->{ parent } } )
+				{
+					$parents_list->{ $iface->{ parent } } =
+					  &getInterfaceConfig( $iface->{ parent } );
+				}
+				$iface->{ mask }    = $parents_list->{ $iface->{ parent } }->{ mask };
+				$iface->{ mac }     = $parents_list->{ $iface->{ parent } }->{ mac };
+				$iface->{ gateway } = $parents_list->{ $iface->{ parent } }->{ gateway };
 				push ( @interfaces, $iface );
 			}
 		}
@@ -1072,7 +1141,7 @@ sub getInterfaceTypeList
 	{
 		my $msg = "Interface type '$list_type' is not supported.";
 		&zenlog( $msg, "error", "NETWORK" );
-		die ( $msg );
+		return 1;
 	}
 
 	return @interfaces;
@@ -1099,7 +1168,7 @@ See Also:
 # Get vlan or virtual interfaces appended from a interface
 sub getAppendInterfaces    # ( $iface_name, $type )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $if_parent, $type ) = @_;
 	my @output = ();
@@ -1143,7 +1212,7 @@ See Also:
 
 sub getInterfaceList
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my @if_list = ();
 
@@ -1170,7 +1239,7 @@ Returns:
 
 sub getVirtualInterfaceNameList
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	require Zevenet::Validate;
 
@@ -1202,7 +1271,7 @@ Returns:
 
 sub getLinkNameList
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $sys_net_dir = &getGlobalConfiguration( 'sys_net_dir' );
 
@@ -1212,6 +1281,95 @@ sub getLinkNameList
 	closedir $if_dir;
 
 	return @if_list;
+}
+
+=begin nd
+Function: getInterfaceNameStruct
+
+	Get a struct configured interfaces names.
+
+Parameters:
+	$if_type - Type of interface. nic, bonding, vlan,virtual.
+
+Returns:
+	Hash ref - Struct of every interface name divided by type or List if type param is defined.
+=cut
+
+sub getInterfaceNameStruct
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my $if_type = shift;
+
+	my $interfaces_ref;
+
+
+	opendir ( my $conf_dir, &getGlobalConfiguration( 'configdir' ) );
+	foreach my $filename ( readdir ( $conf_dir ) )
+	{
+		if ( $filename =~
+			 /^if_([a-zA-Z0-9\-]+)(?:\.(\d{1,4}))?(?:\:([a-zA-Z0-9\-]+))?_conf$/ )
+		{
+			my $interface = $1;
+			my $tag       = $2;
+			my $virtual   = $3;
+
+			my $type = "nic";
+			if ( defined $virtual )
+			{
+				if ( defined $if_type )
+				{
+					$interface .= ".$tag" if ( defined $tag );
+					push @{ $interfaces_ref }, "$interface:$virtual" if ( $if_type eq "virtual" );
+				}
+				elsif ( defined $tag )
+				{
+					$interfaces_ref->{ $type }->{ $interface }->{ vlan }->{ $tag }->{ virtual }
+					  ->{ $virtual } = undef;
+				}
+				else
+				{
+					if (
+						 not
+						 exists $interfaces_ref->{ $type }->{ $interface }->{ virtual }->{ $virtual } )
+					{
+						$interfaces_ref->{ $type }->{ $interface }->{ virtual }->{ $virtual } = undef;
+					}
+				}
+			}
+			else
+			{
+				if ( defined $tag )
+				{
+					if ( defined $if_type )
+					{
+						push @{ $interfaces_ref }, "$interface.$tag" if ( $if_type eq "vlan" );
+						next;
+					}
+					elsif (
+							not exists $interfaces_ref->{ $type }->{ $interface }->{ vlan }->{ $tag } )
+					{
+						$interfaces_ref->{ $type }->{ $interface }->{ vlan }->{ $tag } = undef;
+					}
+				}
+				else
+				{
+					if ( defined $if_type )
+					{
+						push @{ $interfaces_ref }, $interface if ( $if_type eq $type );
+						next;
+					}
+					elsif ( not exists $interfaces_ref->{ $type }->{ $interface } )
+					{
+						$interfaces_ref->{ $type }->{ $interface } = undef;
+					}
+				}
+			}
+		}
+	}
+	closedir ( $conf_dir );
+
+	return $interfaces_ref;
 }
 
 =begin nd
@@ -1229,27 +1387,33 @@ Returns:
 
 sub getInterfaceByIp
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $ip = shift;
 
 	require Zevenet::Net::Validate;
 
-	my $output   = "";
-	my $ip_ver   = &ipversion( $ip );
-	my $addr_ref = NetAddr::IP->new( $ip );
+	my $output         = "";
+	my $ip_ver         = &ipversion( $ip );
+	my $addr_ref       = NetAddr::IP->new( $ip );
+	my $params         = ["name", "addr"];
+	my $interface_list = &getConfigInterfaceList( $params );
 
-	foreach my $if_ref ( @{ &getConfigInterfaceList() } )
+	if ( $ip_ver == 4 )
 	{
-		# IPv4
-		if ( $ip_ver == 4 && $if_ref->{ ip_v } == 4 && $if_ref->{ addr } eq $ip )
+		foreach my $if_ref ( @{ $interface_list } )
 		{
-			$output = $if_ref->{ name };
-			last;
+			if (     ( $if_ref->{ addr } eq $ip )
+				 and ( &ipversion( $if_ref->{ addr } ) eq $ip_ver ) )
+			{
+				$output = $if_ref->{ name };
+				last;
+			}
 		}
-
-		# IPv6
-		if ( $ip_ver == 6 && $if_ref->{ ip_v } == 6 )
+	}
+	elsif ( $ip_ver == 6 )
+	{
+		foreach my $if_ref ( @{ $interface_list } )
 		{
 			if ( NetAddr::IP->new( $if_ref->{ addr } ) eq $addr_ref )
 			{
@@ -1277,27 +1441,32 @@ Returns:
 
 sub getIpAddressExists
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $ip = shift;
 
 	require Zevenet::Net::Validate;
 
-	my $output   = 0;
-	my $ip_ver   = &ipversion( $ip );
-	my $addr_ref = NetAddr::IP->new( $ip );
-
-	foreach my $if_ref ( @{ &getConfigInterfaceList() } )
+	my $output         = 0;
+	my $ip_ver         = &ipversion( $ip );
+	my $params         = ["addr"];
+	my $interface_list = &getConfigInterfaceList( $params );
+	if ( $ip_ver == 4 )
 	{
-		# IPv4
-		if ( $ip_ver == 4 && $if_ref->{ ip_v } == 4 && $if_ref->{ addr } eq $ip )
+		foreach my $if_ref ( @{ $interface_list } )
 		{
-			$output = 1;
-			last;
+			if (     ( $if_ref->{ addr } eq $ip )
+				 and ( &ipversion( $if_ref->{ addr } ) eq $ip_ver ) )
+			{
+				$output = 1;
+				last;
+			}
 		}
-
-		# IPv6
-		if ( $ip_ver == 6 && $if_ref->{ ip_v } == 6 )
+	}
+	elsif ( $ip_ver == 6 )
+	{
+		my $addr_ref = NetAddr::IP->new( $ip );
+		foreach my $if_ref ( @{ $interface_list } )
 		{
 			if ( NetAddr::IP->new( $if_ref->{ addr } ) eq $addr_ref )
 			{
@@ -1325,11 +1494,12 @@ Returns:
 
 sub getIpAddressList
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my @out = ();
 
-	foreach my $if_ref ( @{ &getConfigInterfaceList() } )
+	my $params = ["addr"];
+	foreach my $if_ref ( @{ &getConfigInterfaceList( $params ) } )
 	{
 		if ( defined $if_ref->{ addr } )
 		{
@@ -1362,35 +1532,24 @@ See Also:
 
 sub getInterfaceChild
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $if_name = shift;
 
 	my @output      = ();
-	my $if_ref      = &getInterfaceConfig( $if_name );
+	my $if_type     = &getInterfaceType( $if_name );
 	my $virtual_tag = &getValidFormat( 'virtual_tag' );
 
 	# show floating interfaces used by this virtual interface
-	if ( $if_ref->{ 'type' } eq 'virtual' )
+	if ( $if_type eq 'virtual' )
 	{
-		if ( $eload )
-		{
-			require Config::Tiny;
-			my $float = Config::Tiny->read( &getGlobalConfiguration( 'floatfile' ) );
-
-			foreach my $iface ( keys %{ $float->{ _ } } )
-			{
-				push @output, $iface if ( $float->{ _ }->{ $iface } eq $if_name );
-			}
-		}
 	}
 
 	# the other type of interfaces can have virtual interfaces as child
 	# vlan, bond and nic
 	else
 	{
-		push @output,
-		  grep ( /^$if_name:$virtual_tag$/, &getVirtualInterfaceNameList() );
+		push @output, grep { /^$if_name:$virtual_tag$/ } &getVirtualInterfaceNameList();
 	}
 
 	return @output;
@@ -1398,7 +1557,7 @@ sub getInterfaceChild
 
 sub getAddressNetwork
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $addr, $mask, $ip_v ) = @_;
 
@@ -1426,7 +1585,7 @@ sub getAddressNetwork
 
 sub get_interface_list_struct
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	require Zevenet::User;
 
@@ -1437,32 +1596,13 @@ sub get_interface_list_struct
 
 	# get cluster interfaces
 	my $cluster_if;
-
-	if ( $eload )
-	{
-		$cluster_if = &eload(
-							  module => 'Zevenet::Cluster',
-							  func   => 'getZClusterInterfaces',          # 100
-		);
-	}
-
 	my $rbac_mod;
 	my $rbac_if_list = [];
 	my $user         = &getUser();
-
-	if ( $eload && ( $user ne 'root' ) )
-	{
-		$rbac_mod = 1;
-		$rbac_if_list = &eload(
-								module => 'Zevenet::RBAC::Group::Core',     # 100
-								func   => 'getRBACUsersResources',
-								args   => [$user, 'interfaces'],
-		);
-	}
-
 	# to include 'has_vlan' to nics
-	my @vlans = &getInterfaceTypeList( 'vlan' );        # 70
+	my $interfaces_ref = &getInterfaceNameStruct();
 
+	my $all_status = &getInterfaceSystemStatusAll();
 	for my $if_ref ( @interfaces )
 	{
 		# Exclude cluster maintenance interface
@@ -1470,19 +1610,19 @@ sub get_interface_list_struct
 
 		# Exclude no user's virtual interfaces
 		next
-		  if (    $rbac_mod
-			   && !grep ( /^$if_ref->{ name }$/, @{ $rbac_if_list } )
-			   && ( $if_ref->{ type } eq 'virtual' ) );
+		  if (     $rbac_mod
+			   and not grep { /^$if_ref->{ name }$/ } @{ $rbac_if_list }
+			   and ( $if_ref->{ type } eq 'virtual' ) );
 
-		$if_ref->{ status } = &getInterfaceSystemStatus( $if_ref );
+		$if_ref->{ status } = $all_status->{ $if_ref->{ name } };
 
 		# Any key must cotain a value or "" but can't be null
-		if ( !defined $if_ref->{ name } )    { $if_ref->{ name }    = ""; }
-		if ( !defined $if_ref->{ addr } )    { $if_ref->{ addr }    = ""; }
-		if ( !defined $if_ref->{ mask } )    { $if_ref->{ mask }    = ""; }
-		if ( !defined $if_ref->{ gateway } ) { $if_ref->{ gateway } = ""; }
-		if ( !defined $if_ref->{ status } )  { $if_ref->{ status }  = ""; }
-		if ( !defined $if_ref->{ mac } )     { $if_ref->{ mac }     = ""; }
+		if ( not defined $if_ref->{ name } )    { $if_ref->{ name }    = ""; }
+		if ( not defined $if_ref->{ addr } )    { $if_ref->{ addr }    = ""; }
+		if ( not defined $if_ref->{ mask } )    { $if_ref->{ mask }    = ""; }
+		if ( not defined $if_ref->{ gateway } ) { $if_ref->{ gateway } = ""; }
+		if ( not defined $if_ref->{ status } )  { $if_ref->{ status }  = ""; }
+		if ( not defined $if_ref->{ mac } )     { $if_ref->{ mac }     = ""; }
 
 		my $if_conf = {
 			name    => $if_ref->{ name },
@@ -1495,128 +1635,85 @@ sub get_interface_list_struct
 
 			#~ ipv     => $if_ref->{ ip_v },
 		};
-
-		$if_conf->{ dhcp } = $if_ref->{ dhcp }
-		  if ( $eload and $if_ref->{ type } ne 'virtual' );
-
 		if ( $if_ref->{ type } eq 'nic' )
 		{
 			my @bond_slaves = ();
-
-			@bond_slaves = &eload(
-								   module => 'Zevenet::Net::Bonding',
-								   func   => 'getAllBondsSlaves',
-			) if ( $eload );
-
 			$if_conf->{ is_slave } =
 			  ( grep { $$if_ref{ name } eq $_ } @bond_slaves ) ? 'true' : 'false';
 
-			# include 'has_vlan'
-			for my $vlan_ref ( @vlans )
+			if (
+				exists $interfaces_ref->{ $if_ref->{ type } }->{ $if_ref->{ name } }->{ vlan } )
 			{
-				if ( $vlan_ref->{ parent } eq $if_ref->{ name } )
-				{
-					$if_conf->{ has_vlan } = 'true';
-					last;
-				}
+				$if_conf->{ has_vlan } = 'true';
 			}
-
 			$if_conf->{ has_vlan } = 'false' unless $if_conf->{ has_vlan };
 		}
 
-		if ( $cluster_if && ( grep { $if_ref->{ name } eq $_ } @{ $cluster_if } ) )
+		if ( $cluster_if and ( grep { $if_ref->{ name } eq $_ } @{ $cluster_if } ) )
 		{
 			$if_conf->{ is_cluster } = 'true';
 		}
 
 		push @output_list, $if_conf;
 	}
-
-	if ( $eload )
-	{
-		my $out = \@output_list;
-		$out = &eload(
-					   module => 'Zevenet::Alias',
-					   func   => 'addAliasInterfaceStruct',
-					   args   => [$out],
-		);
-	}
 	return \@output_list;
 }
 
 sub get_nic_struct
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $nic = shift;
 
 	my $interface;
 
-	for my $if_ref ( &getInterfaceTypeList( 'nic' ) )
-	{
-		next unless $if_ref->{ name } eq $nic;
+	my @nic_list = &getInterfaceTypeList( 'nic', $nic );
+	my $if_ref = $nic_list[0];
 
-		$if_ref->{ status } = &getInterfaceSystemStatus( $if_ref );
+	$if_ref->{ status } = &getInterfaceSystemStatus( $if_ref );
 
-		# Any key must contain a value or "" but can't be null
-		if ( !defined $if_ref->{ name } )    { $if_ref->{ name }    = ""; }
-		if ( !defined $if_ref->{ addr } )    { $if_ref->{ addr }    = ""; }
-		if ( !defined $if_ref->{ mask } )    { $if_ref->{ mask }    = ""; }
-		if ( !defined $if_ref->{ gateway } ) { $if_ref->{ gateway } = ""; }
-		if ( !defined $if_ref->{ status } )  { $if_ref->{ status }  = ""; }
-		if ( !defined $if_ref->{ mac } )     { $if_ref->{ mac }     = ""; }
+	# Any key must contain a value or "" but can't be null
+	if ( not defined $if_ref->{ name } )    { $if_ref->{ name }    = ""; }
+	if ( not defined $if_ref->{ addr } )    { $if_ref->{ addr }    = ""; }
+	if ( not defined $if_ref->{ mask } )    { $if_ref->{ mask }    = ""; }
+	if ( not defined $if_ref->{ gateway } ) { $if_ref->{ gateway } = ""; }
+	if ( not defined $if_ref->{ status } )  { $if_ref->{ status }  = ""; }
+	if ( not defined $if_ref->{ mac } )     { $if_ref->{ mac }     = ""; }
 
-		$interface = {
-					   name    => $if_ref->{ name },
-					   ip      => $if_ref->{ addr },
-					   netmask => $if_ref->{ mask },
-					   gateway => $if_ref->{ gateway },
-					   status  => $if_ref->{ status },
-					   mac     => $if_ref->{ mac },
-		};
-
-		$interface->{ is_slave } = $if_ref->{ is_slave } if $eload;
-		$interface->{ dhcp }     = $if_ref->{ dhcp }     if $eload;
-		if ( $eload )
-		{
-			$interface = &eload(
-								 module => 'Zevenet::Alias',
-								 func   => 'addAliasInterfaceStruct',
-								 args   => [$interface],
-			);
-		}
-	}
+	$interface = {
+				   name    => $if_ref->{ name },
+				   ip      => $if_ref->{ addr },
+				   netmask => $if_ref->{ mask },
+				   gateway => $if_ref->{ gateway },
+				   status  => $if_ref->{ status },
+				   mac     => $if_ref->{ mac },
+	};
 
 	return $interface;
 }
 
 sub get_nic_list_struct
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my @output_list;
 
-	my @vlans = &getInterfaceTypeList( 'vlan' );
+	my $interface_ref = &getInterfaceNameStruct();
 
 	# get cluster interfaces
 	my $cluster_if;
-	if ( $eload )
-	{
-		$cluster_if = &eload( module => 'Zevenet::Cluster',
-							  func   => 'getZClusterInterfaces' );
-	}
-
+	my $all_status = &getInterfaceSystemStatusAll();
 	for my $if_ref ( &getInterfaceTypeList( 'nic' ) )
 	{
-		$if_ref->{ status } = &getInterfaceSystemStatus( $if_ref );
+		$if_ref->{ status } = $all_status->{ $if_ref->{ name } };
 
 		# Any key must cotain a value or "" but can't be null
-		if ( !defined $if_ref->{ name } )    { $if_ref->{ name }    = ""; }
-		if ( !defined $if_ref->{ addr } )    { $if_ref->{ addr }    = ""; }
-		if ( !defined $if_ref->{ mask } )    { $if_ref->{ mask }    = ""; }
-		if ( !defined $if_ref->{ gateway } ) { $if_ref->{ gateway } = ""; }
-		if ( !defined $if_ref->{ status } )  { $if_ref->{ status }  = ""; }
-		if ( !defined $if_ref->{ mac } )     { $if_ref->{ mac }     = ""; }
+		if ( not defined $if_ref->{ name } )    { $if_ref->{ name }    = ""; }
+		if ( not defined $if_ref->{ addr } )    { $if_ref->{ addr }    = ""; }
+		if ( not defined $if_ref->{ mask } )    { $if_ref->{ mask }    = ""; }
+		if ( not defined $if_ref->{ gateway } ) { $if_ref->{ gateway } = ""; }
+		if ( not defined $if_ref->{ status } )  { $if_ref->{ status }  = ""; }
+		if ( not defined $if_ref->{ mac } )     { $if_ref->{ mac }     = ""; }
 
 		my $if_conf = {
 						name    => $if_ref->{ name },
@@ -1626,28 +1723,12 @@ sub get_nic_list_struct
 						status  => $if_ref->{ status },
 						mac     => $if_ref->{ mac },
 		};
-
-		if ( $eload )
-		{
-			$if_conf = &eload(
-							   module => 'Zevenet::Alias',
-							   func   => 'addAliasInterfaceStruct',
-							   args   => [$if_conf],
-			);
-		}
-		$if_conf->{ is_slave } = $if_ref->{ is_slave } if $eload;
-		$if_conf->{ dhcp } = $if_ref->{ dhcp } // 'false' if $eload;
 		$if_conf->{ is_cluster } = 'true'
 		  if ( $cluster_if and ( grep { $if_ref->{ name } eq $_ } @{ $cluster_if } ) );
 
-		# include 'has_vlan'
-		for my $vlan_ref ( @vlans )
+		if ( exists $interface_ref->{ nic }->{ $if_ref->{ name } }->{ vlan } )
 		{
-			if ( $vlan_ref->{ parent } eq $if_ref->{ name } )
-			{
-				$if_conf->{ has_vlan } = 'true';
-				last;
-			}
+			$if_conf->{ has_vlan } = 'true';
 		}
 
 		$if_conf->{ has_vlan } = 'false' unless $if_conf->{ has_vlan };
@@ -1660,30 +1741,24 @@ sub get_nic_list_struct
 
 sub get_vlan_struct
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $vlan ) = @_;
 
-	my $interface;
-
-	for my $if_ref ( &getInterfaceTypeList( 'vlan' ) )
-	{
-		next unless $if_ref->{ name } eq $vlan;
-
-		$interface = $if_ref;
-	}
+	my @vlan_list = &getInterfaceTypeList( 'vlan', $vlan );
+	my $interface = $vlan_list[0];
 
 	return unless $interface;
 
 	$interface->{ status } = &getInterfaceSystemStatus( $interface );
 
 	# Any key must contain a value or "" but can't be null
-	if ( !defined $interface->{ name } )    { $interface->{ name }    = ""; }
-	if ( !defined $interface->{ addr } )    { $interface->{ addr }    = ""; }
-	if ( !defined $interface->{ mask } )    { $interface->{ mask }    = ""; }
-	if ( !defined $interface->{ gateway } ) { $interface->{ gateway } = ""; }
-	if ( !defined $interface->{ status } )  { $interface->{ status }  = ""; }
-	if ( !defined $interface->{ mac } )     { $interface->{ mac }     = ""; }
+	if ( not defined $interface->{ name } )    { $interface->{ name }    = ""; }
+	if ( not defined $interface->{ addr } )    { $interface->{ addr }    = ""; }
+	if ( not defined $interface->{ mask } )    { $interface->{ mask }    = ""; }
+	if ( not defined $interface->{ gateway } ) { $interface->{ gateway } = ""; }
+	if ( not defined $interface->{ status } )  { $interface->{ status }  = ""; }
+	if ( not defined $interface->{ mac } )     { $interface->{ mac }     = ""; }
 
 	my $output = {
 				   name    => $interface->{ name },
@@ -1693,46 +1768,28 @@ sub get_vlan_struct
 				   status  => $interface->{ status },
 				   mac     => $interface->{ mac },
 	};
-
-	if ( $eload )
-	{
-		$output = &eload(
-						  module => 'Zevenet::Alias',
-						  func   => 'addAliasInterfaceStruct',
-						  args   => [$output],
-		);
-	}
-	$output->{ dhcp } = $interface->{ dhcp } // 'false' if $eload;
-
 	return $output;
 }
 
 sub get_vlan_list_struct
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my @output_list;
 	my $cluster_if;
-
-	if ( $eload )
-	{
-		# get cluster interfaces
-		$cluster_if = &eload( module => 'Zevenet::Cluster',
-							  func   => 'getZClusterInterfaces', );
-	}
-
+	my $all_status = &getInterfaceSystemStatusAll();
 	for my $if_ref ( &getInterfaceTypeList( 'vlan' ) )
 	{
-		$if_ref->{ status } = &getInterfaceSystemStatus( $if_ref );
+		$if_ref->{ status } = $all_status->{ $if_ref->{ name } };
 
 		# Any key must cotain a value or "" but can't be null
-		if ( !defined $if_ref->{ name } )    { $if_ref->{ name }    = ""; }
-		if ( !defined $if_ref->{ addr } )    { $if_ref->{ addr }    = ""; }
-		if ( !defined $if_ref->{ mask } )    { $if_ref->{ mask }    = ""; }
-		if ( !defined $if_ref->{ gateway } ) { $if_ref->{ gateway } = ""; }
-		if ( !defined $if_ref->{ status } )  { $if_ref->{ status }  = ""; }
-		if ( !defined $if_ref->{ mac } )     { $if_ref->{ mac }     = ""; }
+		if ( not defined $if_ref->{ name } )    { $if_ref->{ name }    = ""; }
+		if ( not defined $if_ref->{ addr } )    { $if_ref->{ addr }    = ""; }
+		if ( not defined $if_ref->{ mask } )    { $if_ref->{ mask }    = ""; }
+		if ( not defined $if_ref->{ gateway } ) { $if_ref->{ gateway } = ""; }
+		if ( not defined $if_ref->{ status } )  { $if_ref->{ status }  = ""; }
+		if ( not defined $if_ref->{ mac } )     { $if_ref->{ mac }     = ""; }
 
 		my $if_conf = {
 						name    => $if_ref->{ name },
@@ -1743,18 +1800,8 @@ sub get_vlan_list_struct
 						mac     => $if_ref->{ mac },
 						parent  => $if_ref->{ parent },
 		};
-
-		if ( $eload )
-		{
-			$if_conf = &eload(
-							   module => 'Zevenet::Alias',
-							   func   => 'addAliasInterfaceStruct',
-							   args   => [$if_conf],
-			);
-		}
-		$if_conf->{ dhcp } = $if_ref->{ dhcp } // 'false' if $eload;
 		$if_conf->{ is_cluster } = 'true'
-		  if $cluster_if && ( grep { $if_ref->{ name } eq $_ } @{ $cluster_if } );
+		  if $cluster_if and ( grep { $if_ref->{ name } eq $_ } @{ $cluster_if } );
 
 		push @output_list, $if_conf;
 	}
@@ -1764,30 +1811,24 @@ sub get_vlan_list_struct
 
 sub get_virtual_struct
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $virtual ) = @_;
 
-	my $interface;
-
-	for my $if_ref ( &getInterfaceTypeList( 'virtual' ) )
-	{
-		next unless $if_ref->{ name } eq $virtual;
-
-		$interface = $if_ref;
-	}
+	my @virtual_list = &getInterfaceTypeList( 'virtual', $virtual );
+	my $interface = $virtual_list[0];
 
 	return unless $interface;
 
 	$interface->{ status } = &getInterfaceSystemStatus( $interface );
 
 	# Any key must contain a value or "" but can't be null
-	if ( !defined $interface->{ name } )    { $interface->{ name }    = ""; }
-	if ( !defined $interface->{ addr } )    { $interface->{ addr }    = ""; }
-	if ( !defined $interface->{ mask } )    { $interface->{ mask }    = ""; }
-	if ( !defined $interface->{ gateway } ) { $interface->{ gateway } = ""; }
-	if ( !defined $interface->{ status } )  { $interface->{ status }  = ""; }
-	if ( !defined $interface->{ mac } )     { $interface->{ mac }     = ""; }
+	if ( not defined $interface->{ name } )    { $interface->{ name }    = ""; }
+	if ( not defined $interface->{ addr } )    { $interface->{ addr }    = ""; }
+	if ( not defined $interface->{ mask } )    { $interface->{ mask }    = ""; }
+	if ( not defined $interface->{ gateway } ) { $interface->{ gateway } = ""; }
+	if ( not defined $interface->{ status } )  { $interface->{ status }  = ""; }
+	if ( not defined $interface->{ mac } )     { $interface->{ mac }     = ""; }
 
 	my $output = {
 				   name    => $interface->{ name },
@@ -1797,36 +1838,26 @@ sub get_virtual_struct
 				   status  => $interface->{ status },
 				   mac     => $interface->{ mac },
 	};
-
-	if ( $eload )
-	{
-		$output = &eload(
-						  module => 'Zevenet::Alias',
-						  func   => 'addAliasInterfaceStruct',
-						  args   => [$output],
-		);
-	}
-
 	return $output;
 }
 
 sub get_virtual_list_struct
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my @output_list = ();
-
+	my $all_status  = &getInterfaceSystemStatusAll();
 	for my $if_ref ( &getInterfaceTypeList( 'virtual' ) )
 	{
-		$if_ref->{ status } = &getInterfaceSystemStatus( $if_ref );
+		$if_ref->{ status } = $all_status->{ $if_ref->{ name } };
 
 		# Any key must cotain a value or "" but can't be null
 		if ( !defined $if_ref->{ name } )    { $if_ref->{ name }    = ""; }
 		if ( !defined $if_ref->{ addr } )    { $if_ref->{ addr }    = ""; }
 		if ( !defined $if_ref->{ mask } )    { $if_ref->{ mask }    = ""; }
 		if ( !defined $if_ref->{ gateway } ) { $if_ref->{ gateway } = ""; }
-		if ( !defined $if_ref->{ status } )  { $if_ref->{ status }  = ""; }
+		if ( !defined $if_ref->{ status } )  { $if_ref->{ status }  = "down"; }
 		if ( !defined $if_ref->{ mac } )     { $if_ref->{ mac }     = ""; }
 
 		push @output_list,
@@ -1840,24 +1871,13 @@ sub get_virtual_list_struct
 			parent  => $if_ref->{ parent },
 		  };
 	}
-
-	if ( $eload )
-	{
-		my $out = \@output_list;
-		$out = &eload(
-					   module => 'Zevenet::Alias',
-					   func   => 'addAliasInterfaceStruct',
-					   args   => [$out],
-		);
-	}
-
 	return \@output_list;
 }
 
 =begin nd
-Function: setInterfaceConfig
+Function: setVlan
 
-	Store a network interface configuration.
+	Set a vlan network interface configuration.
 
 Parameters:
 	if_ref - Reference to a network interface hash.
@@ -1870,7 +1890,7 @@ Returns:
 
 sub setVlan    # if_ref
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $if_ref = shift;
 	my $params = shift;
@@ -1898,7 +1918,7 @@ sub setVlan    # if_ref
 	}
 
 	# Creating a new interface
-	if ( !defined $oldIf_ref )
+	if ( not defined $oldIf_ref )
 	{
 		$err = &createVlan( $if_ref );
 		return 1 if ( $err );
@@ -1923,7 +1943,7 @@ sub setVlan    # if_ref
 		$state = &upIf( $if_ref, 'writeconf' );
 	}
 
-	return 1 if ( !&setInterfaceConfig( $if_ref ) );
+	return 1 if ( not &setInterfaceConfig( $if_ref ) );
 
 	if ( $state == 0 )
 	{
@@ -1934,19 +1954,6 @@ sub setVlan    # if_ref
 			return 1 if &applyRoutes( "local", $if_ref );
 		}
 	}
-
-	if ( $eload && exists $params->{ mac } )
-	{
-		return 1
-		  if (
-			   &eload(
-					   module => 'Zevenet::Net::Mac',
-					   func   => 'addMAC',
-					   args   => [$if_ref->{ name }, $if_ref->{ mac }]
-			   )
-		  );
-	}
-
 	# if the GW is changed, change it in all appending virtual interfaces
 	if ( exists $if_ref->{ gateway } and length $if_ref->{ gateway } > 0 )
 	{
@@ -1973,7 +1980,7 @@ sub setVlan    # if_ref
 
 	# put all dependant interfaces up
 	require Zevenet::Net::Util;
-	&setIfacesUp( $if_ref->{ name }, "vini" );
+	return 1 if &setIfacesUp( $if_ref->{ name }, "vini" );
 
 	if ( $oldAddr )
 	{
@@ -1993,7 +2000,7 @@ sub setVlan    # if_ref
 
 sub createVlan
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $if_ref = shift;
 
@@ -2004,14 +2011,14 @@ sub createVlan
 
 	$err = &createIf( $if_ref );    # Create interface
 
-	if ( !$err )
+	if ( not $err )
 	{
 		&writeRoutes( $if_ref->{ name } );
 	}
 
-	if ( !$err )
+	if ( not $err )
 	{
-		$err = 2 if ( !&setInterfaceConfig( $if_ref ) );
+		$err = 2 if ( not &setInterfaceConfig( $if_ref ) );
 	}
 
 	if ( $err )

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -28,11 +28,6 @@ use Zevenet::Farm::Base;
 use Zevenet::Farm::Stats;
 use Zevenet::Net::ConnStats;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 my $rrdap_dir = &getGlobalConfiguration( 'rrdap_dir' );
 my $rrd_dir   = &getGlobalConfiguration( 'rrd_dir' );
@@ -57,11 +52,6 @@ foreach my $farmfile ( &getFarmList() )
 	if ( $ftype eq 'gslb' )
 	{
 		my $stats;
-		$stats = &eload(
-						 module => 'Zevenet::Farm::GSLB::Stats',
-						 func   => 'getGSLBFarmStats',
-						 args   => [$farm],
-		) if $eload;
 
 		$synconns    = $stats->{ syn };
 		$globalconns = $stats->{ est };

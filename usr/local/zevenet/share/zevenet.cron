@@ -1,3 +1,25 @@
+###############################################################################
+#
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
+#
+#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###############################################################################
+
 */5  * * * *	root	/usr/local/zevenet/bin/zenrrd &>/dev/null
 */10 * * * *	root	/usr/local/zevenet/bin/zenntp &>/dev/null
 */30 * * * *    root    /usr/bin/find /tmp/ -name "cgisess_*" -mmin +60 -exec rm -f {} \;  &>/dev/null

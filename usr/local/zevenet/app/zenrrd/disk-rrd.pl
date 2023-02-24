@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -28,8 +28,8 @@ use Zevenet::Config;
 use Zevenet::Stats;
 
 my $rrdap_dir = &getGlobalConfiguration( 'rrdap_dir' );
-my $rrd_dir = &getGlobalConfiguration( 'rrd_dir' );
-my $db_hd = "hd.rrd";
+my $rrd_dir   = &getGlobalConfiguration( 'rrd_dir' );
+my $db_hd     = "hd.rrd";
 my $ERROR;
 
 my @disks = getDiskSpace();
@@ -37,12 +37,12 @@ my @disks = getDiskSpace();
 while ( @disks )
 {
 	my $total_ref = shift @disks;
-	my $used_ref = shift @disks;
-	my $free_ref = shift @disks;
+	my $used_ref  = shift @disks;
+	my $free_ref  = shift @disks;
 
-	my ($partition) = split("\ ",$total_ref->[0]);
+	my ( $partition ) = split ( "\ ", $total_ref->[0] );
 
-	my $tot = $total_ref->[1];
+	my $tot  = $total_ref->[1];
 	my $used = $used_ref->[1];
 	my $free = $free_ref->[1];
 
@@ -53,34 +53,35 @@ while ( @disks )
 		next;
 	}
 
-	if ( ! -f "$rrdap_dir/$rrd_dir/$partition$db_hd" )
+	if ( !-f "$rrdap_dir/$rrd_dir/$partition$db_hd" )
 	{
-		print "$0: Info: Creating the rrd database $rrdap_dir/$rrd_dir/$partition$db_hd ...\n";
+		print
+		  "$0: Info: Creating the rrd database $rrdap_dir/$rrd_dir/$partition$db_hd ...\n";
 		RRDs::create "$rrdap_dir/$rrd_dir/$partition$db_hd",
-			"--step", "300",
-			"DS:tot:GAUGE:600:0:U",
-			"DS:used:GAUGE:600:0:U",
-			"DS:free:GAUGE:600:0:U",
-			"RRA:LAST:0.5:1:288",		# daily - every 5 min - 288 reg
-			"RRA:MIN:0.5:1:288",		# daily - every 5 min - 288 reg
-			"RRA:AVERAGE:0.5:1:288",	# daily - every 5 min - 288 reg
-			"RRA:MAX:0.5:1:288",		# daily - every 5 min - 288 reg
-			"RRA:LAST:0.5:12:168",		# weekly - every 1 hour - 168 reg
-			"RRA:MIN:0.5:12:168",		# weekly - every 1 hour - 168 reg
-			"RRA:AVERAGE:0.5:12:168",	# weekly - every 1 hour - 168 reg
-			"RRA:MAX:0.5:12:168",		# weekly - every 1 hour - 168 reg
-			"RRA:LAST:0.5:96:93",		# monthly - every 8 hours - 93 reg
-			"RRA:MIN:0.5:96:93",		# monthly - every 8 hours - 93 reg
-			"RRA:AVERAGE:0.5:96:93",	# monthly - every 8 hours - 93 reg
-			"RRA:MAX:0.5:96:93",		# monthly - every 8 hours - 93 reg
-			"RRA:LAST:0.5:288:372",		# yearly - every 1 day - 372 reg
-			"RRA:MIN:0.5:288:372",		# yearly - every 1 day - 372 reg
-			"RRA:AVERAGE:0.5:288:372",	# yearly - every 1 day - 372 reg
-			"RRA:MAX:0.5:288:372";		# yearly - every 1 day - 372 reg
+		  "--step", "300",
+		  "DS:tot:GAUGE:600:0:U",
+		  "DS:used:GAUGE:600:0:U",
+		  "DS:free:GAUGE:600:0:U", "RRA:LAST:0.5:1:288", # daily - every 5 min - 288 reg
+		  "RRA:MIN:0.5:1:288",          # daily - every 5 min - 288 reg
+		  "RRA:AVERAGE:0.5:1:288",      # daily - every 5 min - 288 reg
+		  "RRA:MAX:0.5:1:288",          # daily - every 5 min - 288 reg
+		  "RRA:LAST:0.5:12:168",        # weekly - every 1 hour - 168 reg
+		  "RRA:MIN:0.5:12:168",         # weekly - every 1 hour - 168 reg
+		  "RRA:AVERAGE:0.5:12:168",     # weekly - every 1 hour - 168 reg
+		  "RRA:MAX:0.5:12:168",         # weekly - every 1 hour - 168 reg
+		  "RRA:LAST:0.5:96:93",         # monthly - every 8 hours - 93 reg
+		  "RRA:MIN:0.5:96:93",          # monthly - every 8 hours - 93 reg
+		  "RRA:AVERAGE:0.5:96:93",      # monthly - every 8 hours - 93 reg
+		  "RRA:MAX:0.5:96:93",          # monthly - every 8 hours - 93 reg
+		  "RRA:LAST:0.5:288:372",       # yearly - every 1 day - 372 reg
+		  "RRA:MIN:0.5:288:372",        # yearly - every 1 day - 372 reg
+		  "RRA:AVERAGE:0.5:288:372",    # yearly - every 1 day - 372 reg
+		  "RRA:MAX:0.5:288:372";        # yearly - every 1 day - 372 reg
 
 		if ( $ERROR = RRDs::error )
 		{
-			print "$0: Error: Unable to generate the rrd database for partition $partition: $ERROR\n";
+			print
+			  "$0: Error: Unable to generate the rrd database for partition $partition: $ERROR\n";
 		}
 	}
 
@@ -92,11 +93,12 @@ while ( @disks )
 	print "$0: Info: Updating data in $rrdap_dir/$rrd_dir/$partition$db_hd ...\n";
 
 	RRDs::update "$rrdap_dir/$rrd_dir/$partition$db_hd",
-		"-t", "tot:used:free",
-		"N:$tot:$used:$free";
+	  "-t", "tot:used:free",
+	  "N:$tot:$used:$free";
 
 	if ( $ERROR = RRDs::error )
 	{
-		print "$0: Error: Unable to update the rrd database for partition $partition: $ERROR\n";
+		print
+		  "$0: Error: Unable to update the rrd database for partition $partition: $ERROR\n";
 	}
 }

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,13 +22,11 @@
 ###############################################################################
 
 use strict;
-
+use warnings;
 use Zevenet::Log;
 use Zevenet::Config;
 use Config::Tiny;
 
-my $eload;
-$eload = 1 if ( eval { require Zevenet::ELoad; } );
 
 # TODO
 # ipds-rbl-domains
@@ -40,7 +38,7 @@ my $FIN = undef;
 
 sub getIdsTree
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	require Zevenet::Farm::Core;
@@ -92,72 +90,9 @@ sub getIdsTree
 			if ( $type =~ /http/ )
 			{
 				my @cnames;
-				if ( $eload )
-				{
-					@cnames = &eload(
-									  module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
-									  func   => 'getFarmCertificatesSNI',
-									  args   => [$f],
-					);
-				}
-				else
-				{
 					require Zevenet::Farm::HTTP::HTTPS;
 					@cnames = ( &getFarmCertificate( $f ) );
-				}
 				$tree->{ 'farms' }->{ $f }->{ 'certificates' } = &addIdsArrays( \@cnames );
-			}
-
-			if ( $eload )
-			{
-				# add zones
-				if ( $type eq 'gslb' )
-				{
-					my @zones = &eload(
-										module => 'Zevenet::Farm::GSLB::Zone',
-										func   => 'getGSLBFarmZones',
-										args   => [$f],
-					);
-					$tree->{ 'farms' }->{ $f }->{ 'zones' } = &addIdsArrays( \@zones );
-				}
-
-				# add bl
-				my @bl = &eload(
-								 module => 'Zevenet::IPDS::Blacklist::Core',
-								 func   => 'listBLByFarm',
-								 args   => [$f],
-				);
-
-				$tree->{ 'farms' }->{ $f }->{ 'ipds' }->{ 'blacklists' } =
-				  &addIdsArrays( \@bl );
-
-				# add dos
-				my @dos = &eload(
-								  module => 'Zevenet::IPDS::DoS::Core',
-								  func   => 'listDOSByFarm',
-								  args   => [$f],
-				);
-				$tree->{ 'farms' }->{ $f }->{ 'ipds' }->{ 'dos' } = &addIdsArrays( \@dos );
-
-				# add rbl
-				my @rbl = &eload(
-								  module => 'Zevenet::IPDS::RBL::Core',
-								  func   => 'listRBLByFarm',
-								  args   => [$f],
-				);
-				$tree->{ 'farms' }->{ $f }->{ 'ipds' }->{ 'rbl' } =
-				  &addIdsArrays( \@rbl );
-
-				#add waf
-				if ( $type =~ /http/ )
-				{
-					my @waf = &eload(
-									  module => 'Zevenet::IPDS::WAF::Core',
-									  func   => 'listWAFByFarm',
-									  args   => [$f],
-					);
-					$tree->{ 'farms' }->{ $f }->{ 'ipds' }->{ 'waf' } = &addIdsArrays( \@waf );
-				}
 			}
 		}
 	}
@@ -171,8 +106,7 @@ sub getIdsTree
 	$tree->{ 'certificates' } = &addIdsArrays( \@certs );
 
 	# add interfaces
-	my @if_list = ( 'nic', 'vlan', 'virtual' );
-	push @if_list, 'bond' if ( $eload );
+	my @if_list = qw(nic vlan virtual);
 	foreach my $type ( @if_list )
 	{
 		my $if_key = ( $type eq 'bond' ) ? 'bonding' : $type;
@@ -184,65 +118,6 @@ sub getIdsTree
 			$tree->{ 'interfaces' }->{ $if_key }->{ $if->{ name } } = $FIN;
 		}
 	}
-
-	if ( $eload )
-	{
-		# add floating interfaces
-		my $float = &eload( module => 'Zevenet::Net::Floating',
-							func   => 'getFloatingList', );
-		$tree->{ 'interfaces' }->{ 'floating' } = &addIdsArrays( $float );
-
-		# add routing
-		my @routing_table = &eload( module => 'Zevenet::Net::Route',
-									func   => 'listRoutingTablesNames', );
-		$tree->{ 'routing' }->{ 'tables' } = &addIdsArrays( \@routing_table );
-
-		# add ipds rules
-		$tree->{ 'ipds' } = &eload( module => 'Zevenet::IPDS::Core',
-									func   => 'getIPDSIds', );
-
-		# add rbac
-		my @users = &eload( module => 'Zevenet::RBAC::User::Core',
-							func   => 'getRBACUserList', );
-		my @groups = &eload( module => 'Zevenet::RBAC::Group::Core',
-							 func   => 'getRBACGroupList', );
-		my @roles = &eload( module => 'Zevenet::RBAC::Role::Config',
-							func   => 'getRBACRolesList', );
-		$tree->{ 'rbac' }->{ 'users' }  = &addIdsArrays( \@users );
-		$tree->{ 'rbac' }->{ 'roles' }  = &addIdsArrays( \@roles );
-		$tree->{ 'rbac' }->{ 'groups' } = &addIdsArrays( \@groups );
-
-		foreach my $g ( @groups )
-		{
-			my $g_cfg = &eload(
-								module => 'Zevenet::RBAC::Group::Core',
-								func   => 'getRBACGroupObject',
-								args   => [$g]
-			);
-
-			$tree->{ 'rbac' }->{ 'groups' }->{ $g }->{ 'users' } =
-			  &addIdsArrays( $g_cfg->{ 'users' } );
-			$tree->{ 'rbac' }->{ 'groups' }->{ $g }->{ 'farms' } =
-			  &addIdsArrays( $g_cfg->{ 'farms' } );
-			$tree->{ 'rbac' }->{ 'groups' }->{ $g }->{ 'interfaces' } =
-			  &addIdsArrays( $g_cfg->{ 'interfaces' } );
-		}
-
-		# add aliases
-		my $alias_bck_ref = &eload(
-									module => 'Zevenet::Alias',
-									func   => 'getAlias',
-									args   => ['backend'],
-		);
-		my $alias_if_ref = &eload(
-								   module => 'Zevenet::Alias',
-								   func   => 'getAlias',
-								   args   => ['interface'],
-		);
-		$tree->{ 'aliases' }->{ 'backends' }   = &addIdsKeys( $alias_bck_ref );
-		$tree->{ 'aliases' }->{ 'interfaces' } = &addIdsKeys( $alias_if_ref );
-	}
-
 	# add backups
 	my $backups = &getBackup();
 	foreach my $b ( @{ $backups } )

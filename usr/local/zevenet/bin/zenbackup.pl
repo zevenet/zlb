@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -25,7 +25,7 @@ use strict;
 
 use Zevenet::Log;
 use Zevenet::Config;
-
+use warnings;
 my $name   = $ARGV[0];
 my $action = $ARGV[1];
 
@@ -61,10 +61,10 @@ if ( $action eq "-d" )
 if ( $action eq "-D52to60" )
 {
 	print
-	  "Importing from Zevenet 5.2 to Zevenet 6.0, using $backupdir\/backup-$name.tar.gz\n";
+	  "Importing from ZEVENET 5.2 to ZEVENET 6.0, using $backupdir\/backup-$name.tar.gz\n";
 	print
 	  "A snapshot before to continue is recommended for Virtual Load Balancers...\n";
-	if ( !-e "$backupdir\/backup-$name.tar.gz" )
+	if ( not -e "$backupdir\/backup-$name.tar.gz" )
 	{
 		print "The given file doesn't exist...\n";
 		exit;

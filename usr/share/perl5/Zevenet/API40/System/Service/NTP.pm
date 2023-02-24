@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,11 +22,12 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 # GET /system/ntp
 sub get_ntp
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $desc = "Get ntp";
 	my $ntp  = &getGlobalConfiguration( 'ntp' );
@@ -37,12 +38,13 @@ sub get_ntp
 					 body => { description => $desc, params => { "server" => $ntp } }
 				   }
 	);
+	return;
 }
 
 #  POST /system/ntp
 sub set_ntp
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj = shift;
 
@@ -52,8 +54,10 @@ sub set_ntp
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
-	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
-	  if ( $error_msg );
+	if ( $error_msg )
+	{
+		&httpErrorResponse( code => 400, desc => $desc, msg => $error_msg );
+	}
 
 	my $error = &setGlobalConfiguration( 'ntp', $json_obj->{ 'server' } );
 
@@ -74,6 +78,7 @@ sub set_ntp
 					 }
 				   }
 	);
+	return;
 }
 
 1;

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -44,7 +44,7 @@ FIXME:
 
 sub getL4BackendEstConns
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $be_ip, $be_port, $netstat ) = @_;
 
@@ -73,8 +73,8 @@ sub getL4BackendEstConns
 	if ( $farm->{ mode } eq "dnat" )
 	{
 		if (    $farm->{ proto } eq "sip"
-			 || $farm->{ proto } eq "all"
-			 || $farm->{ proto } eq "tcp" )
+			 or $farm->{ proto } eq "all"
+			 or $farm->{ proto } eq "tcp" )
 		{
 # i.e.
 # tcp      6 431998 ESTABLISHED src=192.168.0.168 dst=192.168.100.241 sport=40130 dport=81 src=192.168.100.254 dst=192.168.100.241 sport=80 dport=40130 [ASSURED] mark=523 use=1
@@ -90,8 +90,8 @@ sub getL4BackendEstConns
 			};
 		}
 		if (    $farm->{ proto } eq "sip"
-			 || $farm->{ proto } eq "all"
-			 || $farm->{ proto } eq "udp" )
+			 or $farm->{ proto } eq "all"
+			 or $farm->{ proto } eq "udp" )
 		{
 			$connections += scalar @{
 				&getNetstatFilter(
@@ -107,8 +107,8 @@ sub getL4BackendEstConns
 	else
 	{
 		if (    $farm->{ proto } eq "sip"
-			 || $farm->{ proto } eq "all"
-			 || $farm->{ proto } eq "tcp" )
+			 or $farm->{ proto } eq "all"
+			 or $farm->{ proto } eq "tcp" )
 		{
 			$connections += scalar @{
 				&getNetstatFilter(
@@ -121,8 +121,8 @@ sub getL4BackendEstConns
 			};
 		}
 		if (    $farm->{ proto } eq "sip"
-			 || $farm->{ proto } eq "all"
-			 || $farm->{ proto } eq "udp" )
+			 or $farm->{ proto } eq "all"
+			 or $farm->{ proto } eq "udp" )
 		{
 			$connections += scalar @{
 				&getNetstatFilter(
@@ -158,7 +158,7 @@ FIXME:
 
 sub getL4FarmEstConns
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $netstat ) = @_;
 	require Zevenet::Net::ConnStats;
@@ -191,8 +191,8 @@ sub getL4FarmEstConns
 			if ( $farm->{ mode } eq "dnat" )
 			{
 				if (    $farm->{ proto } eq "sip"
-					 || $farm->{ proto } eq "all"
-					 || $farm->{ proto } eq "tcp" )
+					 or $farm->{ proto } eq "all"
+					 or $farm->{ proto } eq "tcp" )
 				{
 					$connections += scalar @{
 						&getNetstatFilter(
@@ -206,8 +206,8 @@ sub getL4FarmEstConns
 				}
 
 				if (    $farm->{ proto } eq "sip"
-					 || $farm->{ proto } eq "all"
-					 || $farm->{ proto } eq "udp" )
+					 or $farm->{ proto } eq "all"
+					 or $farm->{ proto } eq "udp" )
 				{
 					$connections += scalar @{
 						&getNetstatFilter( "udp", "",
@@ -219,8 +219,8 @@ sub getL4FarmEstConns
 			else
 			{
 				if (    $farm->{ proto } eq "sip"
-					 || $farm->{ proto } eq "all"
-					 || $farm->{ proto } eq "tcp" )
+					 or $farm->{ proto } eq "all"
+					 or $farm->{ proto } eq "tcp" )
 				{
 					$connections += scalar @{
 						&getNetstatFilter(
@@ -234,8 +234,8 @@ sub getL4FarmEstConns
 				}
 
 				if (    $farm->{ proto } eq "sip"
-					 || $farm->{ proto } eq "all"
-					 || $farm->{ proto } eq "udp" )
+					 or $farm->{ proto } eq "all"
+					 or $farm->{ proto } eq "udp" )
 				{
 					$connections += scalar @{
 						&getNetstatFilter( "udp", "",
@@ -270,7 +270,7 @@ FIXME:
 
 sub getL4BackendSYNConns
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $be_ip, $be_port, $netstat ) = @_;
 
@@ -299,8 +299,8 @@ sub getL4BackendSYNConns
 	if ( $farm->{ mode } eq "dnat" )
 	{
 		if (    $farm->{ proto } eq "sip"
-			 || $farm->{ proto } eq "all"
-			 || $farm->{ proto } eq "tcp" )
+			 or $farm->{ proto } eq "all"
+			 or $farm->{ proto } eq "tcp" )
 		{
 			$connections += scalar @{
 				&getNetstatFilter(
@@ -318,8 +318,8 @@ sub getL4BackendSYNConns
 	else
 	{
 		if (    $farm->{ proto } eq "sip"
-			 || $farm->{ proto } eq "all"
-			 || $farm->{ proto } eq "tcp" )
+			 or $farm->{ proto } eq "all"
+			 or $farm->{ proto } eq "tcp" )
 		{
 			$connections += scalar @{
 				&getNetstatFilter(
@@ -357,7 +357,7 @@ FIXME:
 
 sub getL4FarmSYNConns    # ($farm_name,$netstat)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $netstat ) = @_;
 
@@ -386,8 +386,8 @@ sub getL4FarmSYNConns    # ($farm_name,$netstat)
 			if ( $farm->{ mode } eq "dnat" )
 			{
 				if (    $farm->{ proto } eq "sip"
-					 || $farm->{ proto } eq "all"
-					 || $farm->{ proto } eq "tcp" )
+					 or $farm->{ proto } eq "all"
+					 or $farm->{ proto } eq "tcp" )
 				{
 					$connections += scalar @{
 						&getNetstatFilter(
@@ -405,8 +405,8 @@ sub getL4FarmSYNConns    # ($farm_name,$netstat)
 			else
 			{
 				if (    $farm->{ proto } eq "sip"
-					 || $farm->{ proto } eq "all"
-					 || $farm->{ proto } eq "tcp" )
+					 or $farm->{ proto } eq "all"
+					 or $farm->{ proto } eq "tcp" )
 				{
 					$connections += scalar @{
 						&getNetstatFilter(
@@ -441,7 +441,7 @@ Returns:
 
 sub getL4FarmBackendsStats
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farmname = shift;
 

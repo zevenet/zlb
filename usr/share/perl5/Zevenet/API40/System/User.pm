@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,17 +22,13 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 # 	GET /system/users
 sub get_system_user
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	require Zevenet::User;
 	my $user = &getUser();
@@ -53,30 +49,18 @@ sub get_system_user
 		&httpResponse(
 					 { code => 200, body => { description => $desc, params => $params } } );
 	}
-
-	elsif ( $eload )
-	{
-		my $params = &eload( module => 'Zevenet::API40::RBAC::User',
-							 func   => 'get_system_user_rbac', );
-
-		if ( $params )
-		{
-			&httpResponse(
-						 { code => 200, body => { description => $desc, params => $params } } );
-		}
-	}
-
 	else
 	{
 		my $msg = "The user is not found";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
+	return;
 }
 
 #  POST /system/users
 sub set_system_user
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj = shift;
 
@@ -91,8 +75,11 @@ sub set_system_user
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
-	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
-	  if ( $error_msg );
+
+	if ( $error_msg )
+	{
+		&httpErrorResponse( code => 400, desc => $desc, msg => $error_msg );
+	}
 
 	# check to change password
 	if ( $json_obj->{ 'newpassword' } )
@@ -100,32 +87,18 @@ sub set_system_user
 		if ( not exists $json_obj->{ 'password' } )
 		{
 			my $msg = "The parameter password is required.";
-			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
 		elsif ( $json_obj->{ 'newpassword' } eq $json_obj->{ 'password' } )
 		{
 			my $msg = "The new password must be different to the current password.";
-			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-		if ( $eload )
-		{
-			my $local_user = &eload(
-									 module => 'Zevenet::RBAC::User::Core',
-									 func   => 'getRBACUserLocal',
-									 args   => [$user],
-			);
-			if ( !$local_user )
-			{
-				my $msg = "The $user User is not valid to change password.";
-				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-		}
-
-		if ( !&checkValidUser( $user, $json_obj->{ 'password' } ) )
+		if ( not &checkValidUser( $user, $json_obj->{ 'password' } ) )
 		{
 			my $msg = "Invalid current password.";
-			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}
 
@@ -134,7 +107,7 @@ sub set_system_user
 		if ( not exists $json_obj->{ 'newpassword' } )
 		{
 			my $msg = "The parameter newpassword is required.";
-			return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 	}
 
@@ -150,59 +123,36 @@ sub set_system_user
 			if ( $error )
 			{
 				my $msg = "Modifying $user.";
-				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
 		}
 
 		# modify zapikey. change this parameter before than zapi permissions
 		if ( exists $json_obj->{ 'zapikey' } )
 		{
-			if ( $eload )
-			{
-				my $zapi_user = &eload(
-										module => 'Zevenet::RBAC::User::Core',
-										func   => 'getRBACUserbyZapikey',
-										args   => [$json_obj->{ 'zapikey' }],
-				);
-				if ( $zapi_user and $zapi_user ne $user )
-				{
-					my $msg = "The zapikey is not valid.";
-					return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-				}
-			}
 			&setZAPI( 'key', $json_obj->{ 'zapikey' } );
 		}
 
 		# modify zapi permissions
 		if ( exists $json_obj->{ 'zapi_permissions' } )
 		{
-			if ( $json_obj->{ 'zapi_permissions' } eq 'true' && !&getZAPI( 'zapikey' ) )
+			if ( $json_obj->{ 'zapi_permissions' } eq 'true' and not &getZAPI( 'zapikey' ) )
 			{
 				my $msg = "It is necessary a zapikey to enable the zapi permissions.";
-				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
-			if (    $json_obj->{ 'zapi_permissions' } eq 'true'
-				 && &getZAPI( "status" ) eq 'false' )
+			if (     $json_obj->{ 'zapi_permissions' } eq 'true'
+				 and &getZAPI( "status" ) eq 'false' )
 			{
 				&setZAPI( "enable" );
 			}
-			elsif (    $json_obj->{ 'zapi_permissions' } eq 'false'
-					&& &getZAPI( "status" ) eq 'true' )
+			elsif (     $json_obj->{ 'zapi_permissions' } eq 'false'
+					and &getZAPI( "status" ) eq 'true' )
 			{
 				&setZAPI( "disable" );
 			}
 		}
 	}
-
-	elsif ( $eload )
-	{
-		$error = &eload(
-						 module => 'Zevenet::API40::RBAC::User',
-						 func   => 'set_system_user_rbac',
-						 args   => [$json_obj],
-		);
-	}
-
 	else
 	{
 		my $msg = "The user is not found";
@@ -213,6 +163,7 @@ sub set_system_user
 	my $body = { description => $desc, message => $msg };
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 1;

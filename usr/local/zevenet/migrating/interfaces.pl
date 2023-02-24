@@ -1,6 +1,28 @@
 #!/usr/bin/perl
+###############################################################################
+#
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
+#
+#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###############################################################################
 
 use strict;
+use warnings;
 use Zevenet::Config;
 use Zevenet::Net::Interface;
 use Zevenet::Validate;
@@ -12,7 +34,7 @@ my $iface_files_dir = "/usr/local/zevenet/config";
 my @iface_files;
 opendir ( my $dir, $iface_files_dir );
 @iface_files =
-  grep { /^if_.*_conf/ && -f "$iface_files_dir/$_" } readdir ( $dir );
+  grep { /^if_.*_conf/ and -f "$iface_files_dir/$_" } readdir ( $dir );
 closedir $dir;
 
 foreach my $file ( @iface_files )
@@ -26,8 +48,8 @@ foreach my $file ( @iface_files )
 
 #Don't migrate if is in tiny format ( there is no error when reading and the section is defined )
 	next
-	  if ( !( Config::Tiny->errstr =~ /$iface/ )
-		   && defined $iface_file->{ $iface } );
+	  if ( not ( Config::Tiny->errstr =~ /$iface/ )
+		   and defined $iface_file->{ $iface } );
 
 	&zenlog( "Migrating $iface configuration files", "info", "NETWORK" );
 
@@ -79,7 +101,7 @@ sub _getInterfaceConfig    # \%iface ($if_name, $ip_version)
 				  :                   undef;
 			}
 
-			if ( defined $ip_version && !$if_line )
+			if ( defined $ip_version and not $if_line )
 			{
 				$if_line = $line;
 			}
@@ -94,7 +116,7 @@ sub _getInterfaceConfig    # \%iface ($if_name, $ip_version)
 	}
 
 	# includes !$if_status to avoid warning
-	if ( !$if_line && ( !$if_status || $if_status !~ /up/ ) )
+	if ( not $if_line and ( not $if_status or $if_status !~ /up/ ) )
 	{
 		return;
 	}
@@ -155,11 +177,11 @@ sub _getInterfaceConfig    # \%iface ($if_name, $ip_version)
 	# complex check to avoid warnings
 	if (
 		 (
-		      !exists ( $iface{ vini } )
-		   || !defined ( $iface{ vini } )
-		   || $iface{ vini } eq ''
+		      not exists ( $iface{ vini } )
+		   or not defined ( $iface{ vini } )
+		   or $iface{ vini } eq ''
 		 )
-		 && $iface{ addr }
+		 and $iface{ addr }
 	  )
 	{
 		require Config::Tiny;

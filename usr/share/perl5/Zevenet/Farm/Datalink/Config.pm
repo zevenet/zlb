@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,7 +22,7 @@
 ###############################################################################
 
 use strict;
-
+use warnings;
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
 =begin nd
@@ -40,7 +40,7 @@ Returns:
 
 sub getDatalinkFarmAlgorithm    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
@@ -52,7 +52,7 @@ sub getDatalinkFarmAlgorithm    # ($farm_name)
 
 	while ( my $line = <$fd> )
 	{
-		if ( $line ne "" && $first eq "true" )
+		if ( $line ne "" and $first eq "true" )
 		{
 			$first = "false";
 			my @line = split ( "\;", $line );
@@ -83,7 +83,7 @@ FIXME:
 
 sub setDatalinkFarmAlgorithm    # ($algorithm,$farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $algorithm, $farm_name ) = @_;
 
@@ -132,7 +132,7 @@ Returns:
 
 sub getDatalinkFarmBootStatus    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
@@ -144,7 +144,7 @@ sub getDatalinkFarmBootStatus    # ($farm_name)
 
 	while ( my $line = <$fd> )
 	{
-		if ( $line ne "" && $first eq "true" )
+		if ( $line ne "" and $first eq "true" )
 		{
 			$first = "false";
 			my @line_a = split ( /;/, $line );
@@ -170,7 +170,7 @@ Parameters:
 
 sub setDatalinkFarmBootStatus    # ($farm_name, $value)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $value ) = @_;
 	my $output = -1;
@@ -213,7 +213,7 @@ Returns:
 
 sub getDatalinkFarmStatus    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
@@ -240,7 +240,7 @@ Returns:
 
 sub getDatalinkFarmInterface    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
@@ -254,7 +254,7 @@ sub getDatalinkFarmInterface    # ($farm_name)
 
 	while ( $line = <$fd> )
 	{
-		if ( $line ne "" && $first eq "true" )
+		if ( $line ne "" and $first eq "true" )
 		{
 			$first = "false";
 			my @line_a = split ( "\;", $line );
@@ -284,7 +284,7 @@ Returns:
 
 sub getDatalinkFarmVip    # ($info,$farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $info, $farm_name ) = @_;
 
@@ -296,7 +296,7 @@ sub getDatalinkFarmVip    # ($info,$farm_name)
 
 	while ( my $line = <$fd> )
 	{
-		if ( $line ne "" && $first eq "true" )
+		if ( $line ne "" and $first eq "true" )
 		{
 			$first = "false";
 			my @line_a = split ( "\;", $line );
@@ -327,7 +327,7 @@ Returns:
 
 sub setDatalinkFarmVirtualConf    # ($vip,$interface,$farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $vip, $interface, $farm_name ) = @_;
 
@@ -360,7 +360,7 @@ sub setDatalinkFarmVirtualConf    # ($vip,$interface,$farm_name)
 		if ( $line =~ /^$farm_name\;/ )
 		{
 			my @args = split ( "\;", $line );
-			$interface = $args[2] if ( !$interface );
+			$interface = $args[2] if ( not $interface );
 			$line = "$args[0]\;$vip\;$interface\;$args[3]\;$args[4]";
 			splice @configfile, $i, $line;
 			$stat = $?;

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,7 +22,7 @@
 ###############################################################################
 
 use strict;
-
+use warnings;
 use Zevenet::Config;
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
@@ -45,7 +45,7 @@ NOTE:
 
 sub getFarmType    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
@@ -98,16 +98,16 @@ NOTE:
 
 sub getFarmFile    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
-	opendir ( my $dir, "$configdir" ) || return -1;
+	opendir ( my $dir, "$configdir" ) or return -1;
 	my @farm_files =
 	  grep {
-		     /^$farm_name\_(?:gslb|proxy|datalink|l4xnat)\.cfg$/
-		  && !/^$farm_name\_.*guardian\.conf$/
-		  && !/^$farm_name\_status.cfg$/
+		      /^$farm_name\_(?:gslb|proxy|datalink|l4xnat)\.cfg$/
+		  and not /^$farm_name\_.*guardian\.conf$/
+		  and not /^$farm_name\_status.cfg$/
 	  } readdir ( $dir );
 	closedir $dir;
 
@@ -139,7 +139,7 @@ NOTE:
 
 sub getFarmName    # ($farm_filename)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_filename = shift;
 
@@ -166,17 +166,17 @@ NOTE:
 
 sub getFarmList    # ()
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	opendir ( DIR, $configdir );
-	my @cfgFiles = sort ( grep ( /\.cfg$/, readdir ( DIR ) ) );
+	my @cfgFiles = sort ( grep { /\.cfg$/ } readdir ( DIR ) );
 	closedir ( DIR );
 
-	my @files1 = grep ( /_proxy\.cfg$/,    @cfgFiles );
-	my @files2 = grep ( /_datalink\.cfg$/, @cfgFiles );
-	my @files3 = grep ( /_l4xnat\.cfg$/,   @cfgFiles );
-	my @files4 = grep ( /_gslb\.cfg$/,     @cfgFiles );
+	my @files1 = grep { /_proxy\.cfg$/ } @cfgFiles;
+	my @files2 = grep { /_datalink\.cfg$/ } @cfgFiles;
+	my @files3 = grep { /_l4xnat\.cfg$/ } @cfgFiles;
+	my @files4 = grep { /_gslb\.cfg$/ } @cfgFiles;
 
 	my @files = ( @files1, @files2, @files3, @files4 );
 
@@ -201,16 +201,16 @@ NOTE:
 
 sub getFarmsByType    # ($farm_type)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_type ) = @_;
 
 	my @farm_names = ();
 
-	opendir ( my $dir, "$configdir" ) || return -1;
+	opendir ( my $dir, "$configdir" ) or return -1;
 
-  # gslb uses a directory, not a file
-  # my @farm_files = grep { /^.*\_.*\.cfg/ && -f "$configdir/$_" } readdir ( $dir );
+ # gslb uses a directory, not a file
+ # my @farm_files = grep { /^.*\_.*\.cfg/ and -f "$configdir/$_" } readdir ( $dir );
 	my @farm_files = grep { /^.*\_.*\.cfg$/ } readdir ( $dir );
 	closedir $dir;
 
@@ -243,7 +243,7 @@ Returns:
 
 sub getFarmNameList
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my @farm_names = ();    # output: returned list
 
@@ -271,11 +271,11 @@ Returns:
 
 sub getFarmExists
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farmname = shift;
 	my $out      = 0;
-	$out = 1 if ( grep /^$farmname$/, &getFarmNameList() );
+	$out = 1 if ( grep { /^$farmname$/ } &getFarmNameList() );
 	return $out;
 }
 

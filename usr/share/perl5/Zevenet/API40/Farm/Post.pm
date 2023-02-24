@@ -1,7 +1,8 @@
+#!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -21,19 +22,15 @@
 ###############################################################################
 
 use strict;
+use warnings;
 use Zevenet::Net::Util;
 use Zevenet::Farm::Core;
 use Zevenet::Farm::Factory;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 sub new_farm    # ( $json_obj )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj = shift;
 
@@ -88,14 +85,16 @@ sub new_farm    # ( $json_obj )
 	$params->{ vip }->{ values } = $ip_list;
 
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
-	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
-	  if ( $error_msg );
+	if ( $error_msg )
+	{
+		&httpErrorResponse( code => 400, desc => $desc, msg => $error_msg );
+	}
 
 	# VIP validation
 	if ( $json_obj->{ profile } =~ /^DATALINK$/i )
 	{
 		# interface must be running
-		if ( !grep { $_ eq $json_obj->{ vip } } &listallips() )
+		if ( not grep { $_ eq $json_obj->{ vip } } &listallips() )
 		{
 			my $msg = "An available virtual IP must be set.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -105,7 +104,7 @@ sub new_farm    # ( $json_obj )
 	{
 		# the ip must exist in some interface
 		require Zevenet::Net::Interface;
-		if ( !&getIpAddressExists( $json_obj->{ vip } ) )
+		if ( not &getIpAddressExists( $json_obj->{ vip } ) )
 		{
 			my $msg = "The vip IP must exist in some interface.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -113,7 +112,7 @@ sub new_farm    # ( $json_obj )
 	}
 
 	# VPORT validation
-	if ( !&getValidPort( $json_obj->{ vport }, $json_obj->{ profile } ) )
+	if ( not &getValidPort( $json_obj->{ vport }, $json_obj->{ profile } ) )
 	{
 		my $msg = "The virtual port must be an acceptable value and must be available.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -169,17 +168,8 @@ sub new_farm    # ( $json_obj )
 			params      => $out_p,
 			message => "The farm $json_obj->{ farmname } has been created successfully."
 	};
-
-	if ( $eload )
-	{
-		&eload(
-				module => 'Zevenet::Cluster',
-				func   => 'runZClusterRemoteManager',
-				args   => ['farm', 'start', $json_obj->{ farmname }],
-		);
-	}
-
 	&httpResponse( { code => 201, body => $body } );
+	return;
 }
 
 1;

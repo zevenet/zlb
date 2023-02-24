@@ -1,9 +1,0 @@
-#!/usr/bin/perl
-
-# parameter descriptions
-
-# WAF
-our $desc_waf_redirect_url =
-  "It is the URL where redirecting the client in the case that the resolution redirect is executed. This parameter can be set only when the rule resolution has the value redirect.";
-our $desc_waf_audit =
-  "This parameter overwritten the audit set rule parameter for the current rule in the case the rule matches. If it has the value true, the rule will always report in the audit log; If it has the value false, in the case that a match, the rule will never report to the audit log; if the default behavior is desired, set as blank string.";

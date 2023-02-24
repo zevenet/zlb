@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,12 +22,8 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
@@ -47,7 +43,7 @@ Returns:
 
 sub _runHTTPFarmStart    # ($farm_name, $writeconf)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $writeconf ) = @_;
 
@@ -70,40 +66,63 @@ sub _runHTTPFarmStart    # ($farm_name, $writeconf)
 	return -1 if ( &getHTTPFarmConfigIsOK( $farm_name ) );
 
 	my $args = '';
-	if ( $eload )
-	{
-		my $ssyncd_enabled = &getGlobalConfiguration( 'ssyncd_enabled' );
-		$args = '-s' if ( $ssyncd_enabled eq 'true' );
-	}
 
-	my $cmd =
-	  "$proxy $args -f $configdir\/$farm_filename -p $piddir\/$farm_name\_proxy.pid";
+	my $cmd;
+	my $proxy_ng = &getGlobalConfiguration( "proxy_ng" );
+	if ( $proxy_ng eq "false" )
+	{
+		$cmd =
+		  "$proxy $args -f $configdir\/$farm_filename -p $piddir\/$farm_name\_proxy.pid";
+	}
+	elsif ( $proxy_ng eq "true" )
+	{
+		require Zevenet::Farm::HTTP::Config;
+		my $socket_file = &getHTTPFarmSocket( $farm_name );
+		$cmd =
+		  "$proxy -f $configdir\/$farm_filename -C $socket_file -p $piddir\/$farm_name\_proxy.pid";
+	}
 	$status = &zsystem( "$cmd" );
 
-	if ( $status == 0 )
-	{
-		# set backend at status before that the farm stopped
-		&setHTTPFarmBackendStatus( $farm_name );
-		&setHTTPFarmBootStatus( $farm_name, "up" ) if ( $writeconf );
-
-		# load backend routing rules
-		&doL7FarmRules( "start", $farm_name );
-	}
-	else
+	if ( $status )
 	{
 		&zenlog( "failed: $cmd", "error", "LSLB" );
+		return $status;
 	}
+
+	# set backend at status before that the farm stopped
+	&setHTTPFarmBackendStatus( $farm_name );
+	&setHTTPFarmBootStatus( $farm_name, "up" ) if ( $writeconf );
+
+	# load backend routing rules
+	&doL7FarmRules( "start", $farm_name );
+
 	if ( &getGlobalConfiguration( "proxy_ng" ) eq 'true' )
 	{
-		if ( $eload )
+		if ( &getGlobalConfiguration( "mark_routing_L7" ) eq 'true' )
 		{
-			&eload(
-					module => 'Zevenet::Farm::HTTP::Sessions::Ext',
-					func   => 'reloadL7FarmSessions',
-					args   => [$farm_name],
+			# create L4 farm type local
+			my $farm_vip   = &getFarmVip( "vip",  $farm_name );
+			my $farm_vport = &getFarmVip( "vipp", $farm_name );
+
+			my $body =
+			  qq({"farms" : [ { "name" : "$farm_name", "virtual-addr" : "$farm_vip", "virtual-ports" : "$farm_vport", "mode" : "local", "state": "up" }]});
+
+			require Zevenet::Nft;
+			my $error = &httpNlbRequest(
+										 {
+										   farm   => $farm_name,
+										   method => "PUT",
+										   uri    => "/farms",
+										   body   => $body
+										 }
 			);
+			if ( $error )
+			{
+				&zenlog( "L4xnat Farm Type local for '$farm_name' can not be created.",
+						 "warning", "LSLB" );
+			}
 		}
-		&reloadFarmsSourceAddressByFarm( $farm_name );
+
 	}
 
 	return $status;
@@ -124,7 +143,7 @@ Returns:
 
 sub _runHTTPFarmStop    # ($farm_name, $writeconf)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $writeconf ) = @_;
 
@@ -143,7 +162,7 @@ sub _runHTTPFarmStop    # ($farm_name, $writeconf)
 	if ( &getHTTPFarmConfigIsOK( $farm_name ) == 0 )
 	{
 		my @pids = &getFarmPid( $farm_name );
-		if ( !@pids )
+		if ( not @pids )
 		{
 			&zenlog( "Not found pid", "warning", "LSLB" );
 		}
@@ -155,17 +174,22 @@ sub _runHTTPFarmStop    # ($farm_name, $writeconf)
 			sleep ( $time );
 		}
 
-		if ( $eload && &getGlobalConfiguration( "proxy_ng" ) eq 'true' )
+		if ( &getGlobalConfiguration( "proxy_ng" ) eq 'true' )
 		{
-			if ( &getGlobalConfiguration( "floating_L7" ) eq 'true' )
+			if ( &getGlobalConfiguration( "mark_routing_L7" ) eq 'true' )
 			{
-				&eload(
-						module => 'Zevenet::Net::Floating',
-						func   => 'removeL7FloatingSourceAddr',
-						args   => [$farm_name],
+				# Delete L4 farm type local
+				require Zevenet::Nft;
+				&httpNlbRequest(
+								 {
+								   farm   => $farm_name,
+								   method => "DELETE",
+								   uri    => "/farms/" . $farm_name,
+								 }
 				);
 			}
 		}
+
 		&doL7FarmRules( "stop", $farm_name );
 
 		unlink ( "$piddir\/$farm_name\_proxy.pid" )
@@ -207,7 +231,7 @@ Returns:
 
 sub copyHTTPFarm    # ($farm_name,$new_farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $new_farm_name, $del ) = @_;
 
@@ -253,31 +277,34 @@ sub copyHTTPFarm    # ($farm_name,$new_farm_name)
 			#\tErr503 "/usr/local/zevenet/config/BasekitHTTP_Err503.html"
 			#\t#Service "BasekitHTTP"
 			#NfMarks (for each backend)
-			grep ( s/Name\t\t$farm_name/Name\t\t$new_farm_name/, @configfile );
-			grep (
-				s/Control \t"\/tmp\/${farm_name}_proxy.socket"/Control \t"\/tmp\/${new_farm_name}_proxy.socket"/,
-				@configfile );
-			grep (
-				s/\tErrWAF "\/usr\/local\/zevenet\/config\/${farm_name}_ErrWAF.html"/\tErrWAF "\/usr\/local\/zevenet\/config\/${new_farm_name}_ErrWAF.html"/,
-				@configfile );
-			grep (
-				s/\tErr414 "\/usr\/local\/zevenet\/config\/${farm_name}_Err414.html"/\tErr414 "\/usr\/local\/zevenet\/config\/${new_farm_name}_Err414.html"/,
-				@configfile );
-			grep (
-				s/\tErr500 "\/usr\/local\/zevenet\/config\/${farm_name}_Err500.html"/\tErr500 "\/usr\/local\/zevenet\/config\/${new_farm_name}_Err500.html"/,
-				@configfile );
-			grep (
-				s/\tErr501 "\/usr\/local\/zevenet\/config\/${farm_name}_Err501.html"/\tErr501 "\/usr\/local\/zevenet\/config\/${new_farm_name}_Err501.html"/,
-				@configfile );
-			grep (
-				s/\tErr503 "\/usr\/local\/zevenet\/config\/${farm_name}_Err503.html"/\tErr503 "\/usr\/local\/zevenet\/config\/${new_farm_name}_Err503.html"/,
-				@configfile );
-			grep ( s/\t#Service "$farm_name"/\t#Service "$new_farm_name"/, @configfile );
+			grep { s/^(\s*Name\s+"?)$farm_name/$1$new_farm_name/ } @configfile;
+			grep {
+				s/\tErrWAF "\/usr\/local\/zevenet\/config\/${farm_name}_ErrWAF.html"/\tErrWAF "\/usr\/local\/zevenet\/config\/${new_farm_name}_ErrWAF.html"/
+			} @configfile;
+			grep {
+				s/\tErr414 "\/usr\/local\/zevenet\/config\/${farm_name}_Err414.html"/\tErr414 "\/usr\/local\/zevenet\/config\/${new_farm_name}_Err414.html"/
+			} @configfile;
+			grep {
+				s/\tErr500 "\/usr\/local\/zevenet\/config\/${farm_name}_Err500.html"/\tErr500 "\/usr\/local\/zevenet\/config\/${new_farm_name}_Err500.html"/
+			} @configfile;
+			grep {
+				s/\tErr501 "\/usr\/local\/zevenet\/config\/${farm_name}_Err501.html"/\tErr501 "\/usr\/local\/zevenet\/config\/${new_farm_name}_Err501.html"/
+			} @configfile;
+			grep {
+				s/\tErr503 "\/usr\/local\/zevenet\/config\/${farm_name}_Err503.html"/\tErr503 "\/usr\/local\/zevenet\/config\/${new_farm_name}_Err503.html"/
+			} @configfile;
+			grep { s/\t#Service "$farm_name"/\t#Service "$new_farm_name"/ } @configfile;
 
 			if ( &getGlobalConfiguration( "proxy_ng" ) eq 'true' )
 			{
 				# Remove old Marks
-				@configfile = grep ( !( /\t\t\tNfMark\s*(.*)/ ), @configfile );
+				@configfile = grep { not ( /\t\t\tNfMark\s*(.*)/ ) } @configfile;
+			}
+			else
+			{
+				grep {
+					s/Control \t"\/tmp\/${farm_name}_proxy.socket"/Control \t"\/tmp\/${new_farm_name}_proxy.socket"/
+				} @configfile;
 			}
 
 			untie @configfile;
@@ -331,7 +358,7 @@ Returns:
 
 sub sendL7ZproxyCmd
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $self = shift;
 
@@ -340,12 +367,12 @@ sub sendL7ZproxyCmd
 		&zenlog( "Property only available for zproxy", "error", "HTTP" );
 		return 1;
 	}
-	if ( !defined $self->{ farm } )
+	if ( not defined $self->{ farm } )
 	{
 		&zenlog( "Missing mandatory param farm", "error", "HTTP" );
 		return 1;
 	}
-	if ( !defined $self->{ uri } )
+	if ( not defined $self->{ uri } )
 	{
 		&zenlog( "Missing mandatory param uri", "error", "HTTP" );
 		return 1;
@@ -365,7 +392,7 @@ sub sendL7ZproxyCmd
 	my $cmd      = "$curl_bin " . $method . $body . "--unix-socket $socket $url";
 
 	my $resp = &logAndGet( $cmd, 'string' );
-	return 1 unless ( defined $resp && $resp ne '' );
+	return 1 unless ( defined $resp and $resp ne '' );
 	$resp = eval { &JSON::decode_json( $resp ) };
 	if ( $@ )
 	{

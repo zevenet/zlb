@@ -22,13 +22,10 @@
 ###############################################################################
 
 use strict;
+use warnings;
 use Regexp::IPv6 qw($IPv6_re);
 require Zevenet::Net::Validate;
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
+
 
 # Notes about regular expressions:
 #
@@ -79,7 +76,7 @@ my $dos_tcp           = qr/(?:bogustcpflags|limitrst)/;
 my $run_actions = qr/^(?:stop|start|restart)$/;
 
 my $name  = qr/^(?:[a-zA-Z0-9][\w]{5,31})$/;
-my $email = qr/^(?:[a-zA-Z][\w\_\.]+)\@(?:[a-zA-Z0-9.-]+)\.(?:[a-zA-Z]{2,4})$/;
+my $email = qr/(?:[a-zA-Z][\w\_\.]+)\@(?:[a-zA-Z0-9.-]+)\.(?:[a-zA-Z]{2,4})/;
 
 my %format_re = (
 
@@ -171,9 +168,11 @@ my %format_re = (
 	'resource_data_CNAME' => qr/[a-z\.]+/,
 	'resource_data_MX'    => qr/[a-z\.\ 0-9]+/,
 	'resource_data_TXT'   => qr/.+/,            # all characters allow
-	'resource_data_SRV'   => qr/[a-z0-9 \.]/,
+	'resource_data_SRV' =>
+	  qr/[0-9]+ [0-9]+ [0-9]+ .+/,              # https://www.ietf.org/rfc/rfc2782
 	'resource_data_PTR'   => qr/[a-z\.]+/,
-	'resource_data_NAPTR' => qr/.+/,            # all characters allow
+	'resource_data_NAPTR' => qr/[0-9]+ [0-9]+\|[a-zA-Z]?\|[a-zA-Z0-9\+]*\|.*\|.+/
+	,                                           # https://www.ietf.org/rfc/rfc2915
 
 	# interfaces ( WARNING: length in characters < 16  )
 	'mac_addr'         => $mac_addr,
@@ -286,7 +285,7 @@ my %format_re = (
 	'fg_time'    => qr/$natural/,                      # this value can't be 0
 
 	# RBAC
-	'user_name'     => qr/[a-z][-a-z0-9_.]+/,
+	'user_name'     => qr/[a-z0-9][-a-z0-9_.]+/,
 	'rbac_password' => qr/(?=.*[0-9])(?=.*[a-zA-Z]).{8,512}/,
 	'group_name'    => qr/[\w-]+/,
 	'role_name'     => qr/[\w-]+/,
@@ -319,12 +318,18 @@ sub getZAPIModel
 	require JSON;
 	my $content;
 	{
-		open ( my $fh, '<', "$dir/$file" ) or die "The file '$dir/$file' was not found";
+		my $error = open ( my $fh, '<', "$dir/$file" );
+		if ( not $error )
+		{
+			&zenlog( "The file '$dir/$file' was not found", "error" );
+			return 1;
+		}
 		local $/ = undef;
 		$content = <$fh>;
 		close $fh;
 	}
 	return JSON::decode_json( $content )->{ params } if ( $content ne "" );
+	return;
 }
 
 =begin nd
@@ -347,6 +352,7 @@ Function: getValidFormat
 Parameters:
 	format_name	- type of format
 	value		- value to be validated (optional)
+	new_format_re	- structure with the formats to use. (optional)
 
 Returns:
 	false	- If value failed to be validated
@@ -360,12 +366,14 @@ See also:
 # &getValidFormat ( $format_name, $value );
 sub getValidFormat
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $format_name, $value ) = @_;
+	my ( $format_name, $value, %new_format_re ) = @_;
+
+	# Checks if it should use the formats passed by parameters.
+	%format_re = %new_format_re if ( %new_format_re );
 
 	#~ print "getValidFormat type:$format_name value:$value\n"; # DEBUG
-
 	if ( exists $format_re{ $format_name } )
 	{
 		if ( defined $value )
@@ -373,7 +381,7 @@ sub getValidFormat
 			#~ print "$format_re{ $format_name }\n"; # DEBUG
 			if ( ref ( $value ) eq "ARRAY" )
 			{
-				return !grep ( !/^$format_re{ $format_name }$/, @{ $value } ) > 0;
+				return not grep { not /^$format_re{ $format_name }$/ } @{ $value } > 0;
 			}
 			else
 			{
@@ -390,7 +398,7 @@ sub getValidFormat
 	{
 		my $message = "getValidFormat: format $format_name not found.";
 		&zenlog( $message );
-		die ( $message );
+		return 0;
 	}
 }
 
@@ -414,7 +422,7 @@ See Also:
 
 sub getValidPort    # ( $ip, $port, $profile )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $port    = shift;
 	my $profile = shift;    # farm profile, optional
@@ -431,7 +439,7 @@ sub getValidPort    # ( $ip, $port, $profile )
 	{
 		return $port eq undef;
 	}
-	elsif ( !defined $profile )
+	elsif ( not defined $profile )
 	{
 		return &getValidFormat( 'port', $port );
 	}
@@ -465,7 +473,7 @@ See Also:
 
 sub getValidOptParams    # ( \%json_obj, \@allowParams )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $params         = shift;
 	my $allowParamsRef = shift;
@@ -473,7 +481,7 @@ sub getValidOptParams    # ( \%json_obj, \@allowParams )
 	my $output;
 	my $pattern;
 
-	if ( !keys %{ $params } )
+	if ( not keys %{ $params } )
 	{
 		return "Not found any param.";
 	}
@@ -481,7 +489,7 @@ sub getValidOptParams    # ( \%json_obj, \@allowParams )
 	# Check if any param isn't for this call
 	$pattern .= "$_|" for ( @allowParams );
 	chop ( $pattern );
-	my @errorParams = grep { !/^(?:$pattern)$/ } keys %{ $params };
+	my @errorParams = grep { not /^(?:$pattern)$/ } keys %{ $params };
 	if ( @errorParams )
 	{
 		$output .= "$_, " for ( @errorParams );
@@ -518,11 +526,11 @@ See Also:
 
 sub getValidReqParams    # ( \%json_obj, \@requiredParams, \@optionalParams )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $params            = shift;
 	my $requiredParamsRef = shift;
-	my $allowParamsRef    = shift || [];
+	my $allowParamsRef    = ( shift or [] );
 	my @requiredParams    = @{ $requiredParamsRef };
 	my @allowParams;
 	@allowParams = @{ $allowParamsRef } if ( $allowParamsRef );
@@ -542,13 +550,13 @@ sub getValidReqParams    # ( \%json_obj, \@requiredParams, \@optionalParams )
 	}
 
 	# Check if any param isn't for this call
-	if ( !$output )
+	if ( not $output )
 	{
 		$output  = "";
 		$pattern = "";
 		$pattern .= "$_|" for ( @allowParams );
 		chop ( $pattern );
-		my @errorParams = grep { !/^(?:$pattern)$/ } keys %{ $params };
+		my @errorParams = grep { not /^(?:$pattern)$/ } keys %{ $params };
 		if ( @errorParams )
 		{
 			$output .= "$_, " for ( @errorParams );
@@ -585,7 +593,7 @@ Parameters:
 		{		# parameter is the key or parameter name
 			"required" 	: "true",		# or not defined
 			"non_blank" : "true",		# or not defined
-			"interval" 	: "1,65535",	# it is possible define strings matchs ( non implement). For example: "ports" = "1-65535", "log_level":"1-3", ...
+			"interval" 	: "1,65535",	# it is possible define strings matchs ( non implement). For example: "ports" = "1-65535", "log_levelq{:}1-3", ...
 										# ",10" indicates that the value has to be less than 10 but without low limit
 										# "10," indicates that the value has to be more than 10 but without high limit
 										# The values of the interval has to be integer numbers
@@ -613,7 +621,7 @@ Returns:
 
 sub checkZAPIParams
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj    = shift;
 	my $param_obj   = shift;
@@ -624,9 +632,15 @@ sub checkZAPIParams
 	foreach my $p ( keys %$param_obj )
 	{
 		if (
-			 exists $param_obj->{ $p }->{ edition }
-			 && (    ( $param_obj->{ $p }->{ edition } eq 'ee' && !$eload )
-				  || ( $param_obj->{ $p }->{ edition } eq 'ce' && $eload ) )
+			exists $param_obj->{ $p }->{ edition }
+			and (
+				(
+				   $param_obj->{ $p }->{ edition } eq 'ee'
+
+
+				)
+
+			)
 		  )
 		{
 			delete $param_obj->{ $p };
@@ -636,7 +650,7 @@ sub checkZAPIParams
 	my @rec_keys = keys %{ $json_obj };
 
 	# Returns a help with the expected input parameters
-	if ( !@rec_keys )
+	if ( not @rec_keys )
 	{
 		&httpResponseHelp( $param_obj, $description );
 	}
@@ -703,7 +717,7 @@ sub checkZAPIParams
 			{
 				foreach my $value ( @{ $json_obj->{ $param } } )
 				{
-					if ( !grep ( /^$value$/, @{ $param_obj->{ $param }->{ 'values' } } ) )
+					if ( not grep { /^$value$/ } @{ $param_obj->{ $param }->{ 'values' } } )
 					{
 						return
 						  "The parameter '$param' expects some of the following values: '"
@@ -713,8 +727,8 @@ sub checkZAPIParams
 			}
 			else
 			{
-				if (
-					!grep ( /^$json_obj->{ $param }$/, @{ $param_obj->{ $param }->{ 'values' } } ) )
+				if ( not grep { /^$json_obj->{ $param }$/ }
+					 @{ $param_obj->{ $param }->{ 'values' } } )
 				{
 					return
 					  "The parameter '$param' expects one of the following values: '"
@@ -727,9 +741,9 @@ sub checkZAPIParams
 		if (
 			 ( exists $param_obj->{ $param }->{ 'valid_format' } )
 			 and (
-				   !&getValidFormat(
-									 $param_obj->{ $param }->{ 'valid_format' },
-									 $json_obj->{ $param }
+				   not &getValidFormat(
+										$param_obj->{ $param }->{ 'valid_format' },
+										$json_obj->{ $param }
 				   )
 			 )
 		  )
@@ -759,9 +773,8 @@ sub checkZAPIParams
 		# exceptions
 		if (
 			 ( exists $param_obj->{ $param }->{ 'exceptions' } )
-			 and (
-				   grep ( /^$json_obj->{ $param }$/,
-						  @{ $param_obj->{ $param }->{ 'exceptions' } } ) )
+			 and ( grep { /^$json_obj->{ $param }$/ }
+				   @{ $param_obj->{ $param }->{ 'exceptions' } } )
 		  )
 		{
 			return
@@ -779,7 +792,7 @@ sub checkZAPIParams
 					foreach my $value ( @{ $json_obj->{ $param } } )
 					{
 						return "The value '$value' is not valid for the parameter '$param'."
-						  if ( grep ( !/^$param_obj->{ $param }->{ 'regex' }$/, $value ) );
+						  if ( grep { not /^$param_obj->{ $param }->{ 'regex' }$/ } $value );
 					}
 				}
 				else
@@ -802,7 +815,7 @@ sub checkZAPIParams
 					foreach my $value ( @{ $json_obj->{ $param } } )
 					{
 						return "The value '$value' is not valid for the parameter '$param'."
-						  if ( grep ( /^$param_obj->{ $param }->{ 'regex' }$/, $value ) );
+						  if ( grep { /^$param_obj->{ $param }->{ 'regex' }$/ } $value );
 					}
 				}
 				else
@@ -819,7 +832,7 @@ sub checkZAPIParams
 		{
 			if ( defined $json_obj->{ $param } )
 			{
-				my $regex = eval { qr/$json_obj->{ $param }/ };
+				eval { qr/$json_obj->{ $param }/ };
 				return "The value of field $param is an invalid regex" if $@;
 			}
 		}
@@ -829,7 +842,7 @@ sub checkZAPIParams
 			my $result =
 			  &{ $param_obj->{ $param }->{ 'function' } }( $json_obj->{ $param } );
 
-			return $custom_msg if ( !$result or $result eq 'false' );
+			return $custom_msg if ( not $result or $result eq 'false' );
 		}
 	}
 
@@ -853,7 +866,7 @@ Returns:
 
 sub checkParamsInterval
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $interval, $param, $value ) = @_;
 	my $err_msg;
@@ -881,12 +894,12 @@ sub checkParamsInterval
 
 		$err_msg = $msg
 		  if (    ( $value !~ /^\d*$/ )
-			   || ( $value > $high_limit and length $high_limit )
-			   || ( $value < $low_limit  and length $low_limit ) );
+			   or ( $value > $high_limit and length $high_limit )
+			   or ( $value < $low_limit  and length $low_limit ) );
 	}
 	else
 	{
-		die "Expected a interval string, got: $interval";
+		$err_msg = "Expected a interval string, got: $interval";
 	}
 
 	return $err_msg;
@@ -908,7 +921,7 @@ Returns:
 
 sub checkParamsInvalid
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $rec_keys, $expect_params ) = @_;
 	my $err_msg;
@@ -916,9 +929,8 @@ sub checkParamsInvalid
 
 	foreach my $param ( @{ $rec_keys } )
 	{
-		push @non_valid, "'$param'" if ( !grep ( /^$param$/, @{ $expect_params } ) );
+		push @non_valid, "'$param'" if ( not grep { /^$param$/ } @{ $expect_params } );
 	}
-
 	if ( @non_valid )
 	{
 		$err_msg = &putArrayAsText( \@non_valid,
@@ -947,7 +959,7 @@ Returns:
 
 sub checkParamsRequired
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $rec_keys, $expect_params, $param_obj ) = @_;
 	my @miss_params;
@@ -955,12 +967,12 @@ sub checkParamsRequired
 
 	foreach my $param ( @{ $expect_params } )
 	{
-		next if ( !exists $param_obj->{ $param }->{ 'required' } );
+		next if ( not exists $param_obj->{ $param }->{ 'required' } );
 
 		if ( $param_obj->{ $param }->{ 'required' } eq 'true' )
 		{
 			push @miss_params, "'$param'"
-			  if ( !grep ( /^$param$/, @{ $rec_keys } ) );
+			  if ( not grep { /^$param$/ } @{ $rec_keys } );
 		}
 	}
 
@@ -990,7 +1002,7 @@ Returns:
 
 sub httpResponseHelp
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $param_obj  = shift;
 	my $desc       = shift;
@@ -1011,8 +1023,8 @@ sub httpResponseHelp
 		if ( exists $param_obj->{ $p }->{ interval } )
 		{
 			my ( $ll, $hl ) = split ( ',', $param_obj->{ $p }->{ interval } );
-			$ll = '-' if ( !defined $ll );
-			$hl = '-' if ( !defined $hl );
+			$ll = '-' if ( not defined $ll );
+			$hl = '-' if ( not defined $hl );
 			$param->{ interval } = "Expects a value between '$ll' and '$hl'.";
 		}
 		if ( exists $param_obj->{ $p }->{ non_blank }
@@ -1045,7 +1057,8 @@ sub httpResponseHelp
 	};
 	$body->{ description } = $desc if ( defined $desc );
 
-	return &httpResponse( { code => 400, body => $body } );
+	&httpResponse( { code => 400, body => $body } );
+	return;
 }
 
 =begin nd
@@ -1078,7 +1091,7 @@ Returns:
 
 sub putArrayAsText
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $array_ref = shift;
 	my $msg       = shift;

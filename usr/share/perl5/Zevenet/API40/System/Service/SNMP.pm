@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,13 +22,13 @@
 ###############################################################################
 
 use strict;
-
+use warnings;
 use Zevenet::SNMP;
 
 # GET /system/snmp
 sub get_snmp
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $desc = "Get snmp";
 
@@ -37,12 +37,13 @@ sub get_snmp
 
 	&httpResponse(
 				   { code => 200, body => { description => $desc, params => $snmp } } );
+	return;
 }
 
 #  POST /system/snmp
 sub set_snmp
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj = shift;
 
@@ -57,13 +58,15 @@ sub set_snmp
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
-	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
-	  if ( $error_msg );
+	if ( $error_msg )
+	{
+		&httpErrorResponse( code => 400, desc => $desc, msg => $error_msg );
+	}
 
 	# check scope value
 	if ( defined $json_obj->{ 'scope' } )
 	{
-		my $network = new NetAddr::IP( $json_obj->{ 'scope' } )->network();
+		my $network = NetAddr::IP->new( $json_obj->{ 'scope' } )->network();
 		if ( $network ne $json_obj->{ 'scope' } )
 		{
 			my $msg =
@@ -81,7 +84,8 @@ sub set_snmp
 
 	if ( ( $port ne $snmp->{ port } ) or ( $ip ne $snmp->{ ip } ) )
 	{
-		if ( $status eq 'true' and !&validatePort( $ip, $port, 'udp', undef, 'snmp' ) )
+		if ( $status eq 'true'
+			 and not &validatePort( $ip, $port, 'udp', undef, 'snmp' ) )
 		{
 			my $msg = "The '$ip' ip and '$port' port are in use.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -101,15 +105,15 @@ sub set_snmp
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	if ( $status eq 'true' && $status_cur eq 'false' )
+	if ( $status eq 'true' and $status_cur eq 'false' )
 	{
 		&setSnmpdStatus( 'true' );    # starting snmp
 	}
-	elsif ( $status eq 'false' && $status_cur eq 'true' )
+	elsif ( $status eq 'false' and $status_cur eq 'true' )
 	{
 		&setSnmpdStatus( 'false' );    # stopping snmp
 	}
-	elsif ( $status ne 'false' && $status_cur ne 'false' )
+	elsif ( $status ne 'false' and $status_cur ne 'false' )
 	{
 		&setSnmpdStatus( 'false' );    # stopping snmp
 		&setSnmpdStatus( 'true' );     # starting snmp
@@ -129,6 +133,7 @@ sub set_snmp
 					 }
 				   }
 	);
+	return;
 }
 
 1;

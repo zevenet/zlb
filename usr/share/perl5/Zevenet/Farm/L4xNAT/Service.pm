@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -24,11 +24,6 @@
 use strict;
 use warnings;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
@@ -47,18 +42,11 @@ Returns:
 
 sub loadL4FarmModules
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $modprobe_bin = &getGlobalConfiguration( "modprobe" );
 	my $error        = 0;
-	if ( $eload )
-	{
-		my $cmd = "$modprobe_bin nf_conntrack enable_hooks=1";
-		$error += &logAndRun( "$cmd" );
-	}
-	else
-	{
 		$error += &logAndRun( "$modprobe_bin nf_conntrack" );
 
 		# Initialize conntrack
@@ -72,8 +60,6 @@ sub loadL4FarmModules
 
 		$error += &logAndRun( "$nftCmd" )
 		  if ( &logAndRunCheck( "$nftbin list table dummyTable" ) );
-	}
-
 	return $error;
 }
 

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -60,7 +60,7 @@ Returns:
 
 sub listL7FarmSessions
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $farmname = shift;
@@ -153,7 +153,7 @@ Returns:
 
 sub getSessionsFileName
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm = shift;
 
@@ -188,14 +188,14 @@ Returns:
 
 sub listConfL7FarmSessions
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my ( $farmname, $servicename, $backendId ) = @_;
 
 	my $filepath = &getSessionsFileName( $farmname );
 
-	unless ( $filepath && -e $filepath )
+	unless ( $filepath and -e $filepath )
 	{
 		&zenlog( "$farmname" . "_sessions.cfg configuration file not found",
 				 "error", "HTTP" );
@@ -209,8 +209,8 @@ sub listConfL7FarmSessions
 	foreach my $line ( @file )
 	{
 		my ( $service, $backend, $client ) = split ( /\s+/, $line );
-		next if ( $servicename && $servicename ne "" && $service ne $servicename );
-		next if ( $backendId   && $backendId ne ""   && $backendId ne $backend );
+		next if ( $servicename and $servicename ne "" and $service ne $servicename );
+		next if ( $backendId   and $backendId ne ""   and $backendId ne $backend );
 		push ( @output,
 			   { service => $service, backend => $backend, client => $client } );
 	}
@@ -237,7 +237,7 @@ Returns:
 
 sub addConfL7FarmSession
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $farmname = shift;
@@ -247,7 +247,7 @@ sub addConfL7FarmSession
 
 	my $filepath = &getSessionsFileName( $farmname );
 
-	unless ( $filepath && -e $filepath )
+	unless ( $filepath and -e $filepath )
 	{
 		open my $fh, ">", $filepath;
 		close $fh;
@@ -290,7 +290,7 @@ Returns:
 
 sub deleteConfL7FarmSession
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $farmname = shift;
@@ -299,7 +299,7 @@ sub deleteConfL7FarmSession
 
 	my $filepath = &getSessionsFileName( $farmname );
 
-	unless ( $filepath && -e $filepath )
+	unless ( $filepath and -e $filepath )
 	{
 		&zenlog( "$farmname" . "_sessions.cfg configuration file not found",
 				 "error", "HTTP" );
@@ -334,7 +334,7 @@ Returns:
 
 sub deleteConfL7FarmAllSession
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $farmname = shift;
@@ -343,7 +343,7 @@ sub deleteConfL7FarmAllSession
 
 	my $filepath = &getSessionsFileName( $farmname );
 
-	unless ( $filepath && -e $filepath )
+	unless ( $filepath and -e $filepath )
 	{
 		&zenlog( "$farmname" . "_sessions.cfg configuration file not found",
 				 "error", "HTTP" );
@@ -357,10 +357,10 @@ sub deleteConfL7FarmAllSession
 		my $index = 0;
 		if ( defined $id )
 		{
-			@file = grep ( !/^$service\s+$id\s+/, @file );
+			@file = grep { not /^$service\s+$id\s+/ } @file;
 			foreach my $line ( @file )
 			{
-				if ( $line =~ /^$service\s+(\d+)\s+([^\s]+)/ && $id < $1 )
+				if ( $line =~ /^$service\s+(\d+)\s+([^\s]+)/ and $id < $1 )
 				{
 					my $newid = $1 - 1;
 					splice ( @file, $index, 1, "$service $newid $2" );
@@ -370,7 +370,7 @@ sub deleteConfL7FarmAllSession
 		}
 		else
 		{
-			@file = grep ( !/^$service\s+/, @file );
+			@file = grep { not /^$service\s+/ } @file;
 		}
 
 		untie @file;

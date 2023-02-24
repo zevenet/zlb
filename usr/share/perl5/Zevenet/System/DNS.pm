@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,6 +22,7 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 =begin nd
 Function: getDns
@@ -47,12 +48,12 @@ See Also:
 
 sub getDns
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $dns = { 'primary' => '', 'secondary' => '' };
 	my $dnsFile = &getGlobalConfiguration( 'filedns' );
 
-	if ( !-f $dnsFile )
+	if ( not -f $dnsFile )
 	{
 		return;
 	}
@@ -98,13 +99,13 @@ See Also:
 
 sub setDns
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $dns, $value ) = @_;
 
 	my $dnsFile = &getGlobalConfiguration( 'filedns' );
 
-	if ( !-f $dnsFile )
+	if ( not -f $dnsFile )
 	{
 		my $bin = &getGlobalConfiguration( 'touch' );
 		&logAndRun( "$bin $dnsFile" );

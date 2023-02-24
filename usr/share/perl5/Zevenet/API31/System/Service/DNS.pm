@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,23 +22,28 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 # GET /system/dns
 sub get_dns
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	require Zevenet::System::DNS;
 
 	my $desc = "Get dns";
 	my $dns  = &getDns();
 
-	&httpResponse( { code => 200, body => { description => $desc, params => $dns } } );
+	&httpResponse(
+				   { code => 200, body => { description => $desc, params => $dns } } );
+	return;
 }
 
 #  POST /system/dns
 sub set_dns
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $json_obj = shift;
 
 	require Zevenet::System::DNS;
@@ -46,7 +51,7 @@ sub set_dns
 	my $desc = "Post dns";
 
 	my @allowParams = ( "primary", "secondary" );
-	my $param_msg    = &getValidOptParams( $json_obj, \@allowParams );
+	my $param_msg = &getValidOptParams( $json_obj, \@allowParams );
 
 	if ( $param_msg )
 	{
@@ -56,7 +61,7 @@ sub set_dns
 	foreach my $key ( keys %{ $json_obj } )
 	{
 		unless ( &getValidFormat( 'dns_nameserver', $json_obj->{ $key } )
-				 || ( $key eq 'secondary' && $json_obj->{ $key } eq '' ) )
+				 or ( $key eq 'secondary' and $json_obj->{ $key } eq '' ) )
 		{
 			my $msg = "Please, insert a correct nameserver.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -71,7 +76,8 @@ sub set_dns
 
 	my $dns = &getDns();
 	&httpResponse(
-			 { code => 200, body => { description => $desc, params => $dns } } );
+				   { code => 200, body => { description => $desc, params => $dns } } );
+	return;
 }
 
 1;

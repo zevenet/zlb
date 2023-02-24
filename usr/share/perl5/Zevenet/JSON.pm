@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,6 +22,7 @@
 ###############################################################################
 
 use strict;
+use warnings;
 require JSON::XS;
 require Zevenet::Lock;
 
@@ -35,7 +36,7 @@ sub decodeJSONFile
 
 	my $file_str;
 	my $fh = &openlock( $file, '<' );
-	return undef if !defined $fh;
+	return if not defined $fh;
 
 	{
 		local $/ = undef;

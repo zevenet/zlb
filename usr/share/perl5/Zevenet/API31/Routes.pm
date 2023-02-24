@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,7 +22,7 @@
 ###############################################################################
 
 use strict;
-
+use warnings;
 my $q = getCGI();
 
 # Certificates
@@ -34,19 +34,19 @@ if ( $q->path_info =~ qr{^/certificates} )
 	require Zevenet::API31::Certificate;
 
 	#  GET List SSL certificates
-	GET qr{^/certificates$} => \&certificates;
+	GET( qr{^/certificates$} => \&certificates );
 
 	#  Download SSL certificate
-	GET qr{^/certificates/($cert_re)$} => \&download_certificate;
+	GET( qr{^/certificates/($cert_re)$} => \&download_certificate );
 
 	#  Create CSR certificates
-	POST qr{^/certificates$} => \&create_csr;
+	POST( qr{^/certificates$} => \&create_csr );
 
 	#  POST certificates
-	POST qr{^/certificates/($cert_pem_re)$} => \&upload_certificate;
+	POST( qr{^/certificates/($cert_pem_re)$} => \&upload_certificate );
 
 	#  DELETE certificate
-	DELETE qr{^/certificates/($cert_re)$} => \&delete_certificate;
+	DELETE( qr{^/certificates/($cert_re)$} => \&delete_certificate );
 }
 
 # Farms
@@ -58,70 +58,71 @@ if ( $q->path_info =~ qr{^/farms/$farm_re/certificates} )
 {
 	require Zevenet::API31::Certificate::Farm;
 
-	POST qr{^/farms/($farm_re)/certificates$} => \&add_farm_certificate;
+	POST( qr{^/farms/($farm_re)/certificates$} => \&add_farm_certificate );
 
-	DELETE qr{^/farms/($farm_re)/certificates/($cert_pem_re)$} =>
-	  \&delete_farm_certificate;
+	DELETE( qr{^/farms/($farm_re)/certificates/($cert_pem_re)$} =>
+			\&delete_farm_certificate );
 }
 
 if ( $q->path_info =~ qr{^/farms/$farm_re/fg} )
 {
 	require Zevenet::API31::Farm::Guardian;
 
-	PUT qr{^/farms/($farm_re)/fg$} => \&modify_farmguardian;
+	PUT( qr{^/farms/($farm_re)/fg$} => \&modify_farmguardian );
 }
 
 if ( $q->path_info =~ qr{^/farms/$farm_re/actions} )
 {
 	require Zevenet::API31::Farm::Action;
 
-	PUT qr{^/farms/($farm_re)/actions$} => \&farm_actions;
+	PUT( qr{^/farms/($farm_re)/actions$} => \&farm_actions );
 }
 
 if ( $q->path_info =~ qr{^/farms/$farm_re.*/backends/$be_re/maintenance} )
 {
 	require Zevenet::API31::Farm::Action;
 
-	PUT qr{^/farms/($farm_re)/services/($service_re)/backends/($be_re)/maintenance$}
-	  => \&service_backend_maintenance;    #  (HTTP only)
+	PUT(
+		 qr{^/farms/($farm_re)/services/($service_re)/backends/($be_re)/maintenance$} =>
+		   \&service_backend_maintenance );    #  (HTTP only)
 
-	PUT qr{^/farms/($farm_re)/backends/($be_re)/maintenance$} =>
-	  \&backend_maintenance;               #  (L4xNAT only)
+	PUT( qr{^/farms/($farm_re)/backends/($be_re)/maintenance$} =>
+		 \&backend_maintenance );              #  (L4xNAT only)
 }
 
 if ( $q->path_info =~ qr{^/farms/$farm_re(?:/services/$service_re)?/backends} )
 {
 	require Zevenet::API31::Farm::Backend;
 
-	GET qr{^/farms/($farm_re)/backends$} => \&backends;
+	GET( qr{^/farms/($farm_re)/backends$} => \&backends );
 
-	POST qr{^/farms/($farm_re)/backends$} => \&new_farm_backend;
+	POST( qr{^/farms/($farm_re)/backends$} => \&new_farm_backend );
 
-	PUT qr{^/farms/($farm_re)/backends/($be_re)$} => \&modify_backends;
+	PUT( qr{^/farms/($farm_re)/backends/($be_re)$} => \&modify_backends );
 
-	DELETE qr{^/farms/($farm_re)/backends/($be_re)$} => \&delete_backend;
+	DELETE( qr{^/farms/($farm_re)/backends/($be_re)$} => \&delete_backend );
 
-	GET qr{^/farms/($farm_re)/services/($service_re)/backends$} =>
-	  \&service_backends;
+	GET(
+		qr{^/farms/($farm_re)/services/($service_re)/backends$} => \&service_backends );
 
-	POST qr{^/farms/($farm_re)/services/($service_re)/backends$} =>
-	  \&new_service_backend;
+	POST( qr{^/farms/($farm_re)/services/($service_re)/backends$} =>
+		  \&new_service_backend );
 
-	PUT qr{^/farms/($farm_re)/services/($service_re)/backends/($be_re)$} =>
-	  \&modify_service_backends;
+	PUT( qr{^/farms/($farm_re)/services/($service_re)/backends/($be_re)$} =>
+		 \&modify_service_backends );
 
-	DELETE qr{^/farms/($farm_re)/services/($service_re)/backends/($be_re)$} =>
-	  \&delete_service_backend;
+	DELETE( qr{^/farms/($farm_re)/services/($service_re)/backends/($be_re)$} =>
+			\&delete_service_backend );
 }
 
 if ( $q->path_info =~ qr{^/farms/$farm_re/services} )
 {
 	require Zevenet::API31::Farm::Service;
 
-	POST qr{^/farms/($farm_re)/services$}                 => \&new_farm_service;
-	GET qr{^/farms/($farm_re)/services/($service_re)$}    => \&farm_services;
-	PUT qr{^/farms/($farm_re)/services/($service_re)$}    => \&modify_services;
-	DELETE qr{^/farms/($farm_re)/services/($service_re)$} => \&delete_service;
+	POST( qr{^/farms/($farm_re)/services$} => \&new_farm_service );
+	GET( qr{^/farms/($farm_re)/services/($service_re)$} => \&farm_services );
+	PUT( qr{^/farms/($farm_re)/services/($service_re)$} => \&modify_services );
+	DELETE( qr{^/farms/($farm_re)/services/($service_re)$} => \&delete_service );
 }
 
 if ( $q->path_info =~ qr{^/farms} )
@@ -131,17 +132,17 @@ if ( $q->path_info =~ qr{^/farms} )
 		require Zevenet::API31::Farm::Get;
 
 		##### /farms
-		GET qr{^/farms$} => \&farms;
+		GET( qr{^/farms$} => \&farms );
 
 		##### /farms/modules/MODULE
-		GET qr{^/farms/modules/lslb$} => \&farms_lslb;
-		GET qr{^/farms/modules/dslb$} => \&farms_dslb;
+		GET( qr{^/farms/modules/lslb$} => \&farms_lslb );
+		GET( qr{^/farms/modules/dslb$} => \&farms_dslb );
 
 		##### /farms/FARM/summary
-		GET qr{^/farms/($farm_re)/summary$} => \&farms_name_summary;
+		GET( qr{^/farms/($farm_re)/summary$} => \&farms_name_summary );
 
 		##### /farms/FARM
-		GET qr{^/farms/($farm_re)$} => \&farms_name;
+		GET( qr{^/farms/($farm_re)$} => \&farms_name );
 	}
 
 	if ( $ENV{ REQUEST_METHOD } eq 'POST' )
@@ -149,7 +150,7 @@ if ( $q->path_info =~ qr{^/farms} )
 		require Zevenet::API31::Farm::Post;
 
 		##### /farms
-		POST qr{^/farms$} => \&new_farm;
+		POST( qr{^/farms$} => \&new_farm );
 	}
 
 	if ( $ENV{ REQUEST_METHOD } eq 'PUT' )
@@ -157,7 +158,7 @@ if ( $q->path_info =~ qr{^/farms} )
 		require Zevenet::API31::Farm::Put;
 
 		##### /farms/FARM
-		PUT qr{^/farms/($farm_re)$} => \&modify_farm;
+		PUT( qr{^/farms/($farm_re)$} => \&modify_farm );
 	}
 
 	if ( $ENV{ REQUEST_METHOD } eq 'DELETE' )
@@ -165,7 +166,7 @@ if ( $q->path_info =~ qr{^/farms} )
 		require Zevenet::API31::Farm::Delete;
 
 		##### /farms/FARM
-		DELETE qr{^/farms/($farm_re)$} => \&delete_farm;
+		DELETE( qr{^/farms/($farm_re)$} => \&delete_farm );
 	}
 }
 
@@ -178,55 +179,55 @@ if ( $q->path_info =~ qr{^/interfaces/nic} )
 {
 	require Zevenet::API31::Interface::NIC;
 
-	GET qr{^/interfaces/nic$}                    => \&get_nic_list;
-	GET qr{^/interfaces/nic/($nic_re)$}          => \&get_nic;
-	PUT qr{^/interfaces/nic/($nic_re)$}          => \&modify_interface_nic;
-	DELETE qr{^/interfaces/nic/($nic_re)$}       => \&delete_interface_nic;
-	POST qr{^/interfaces/nic/($nic_re)/actions$} => \&actions_interface_nic;
+	GET( qr{^/interfaces/nic$}           => \&get_nic_list );
+	GET( qr{^/interfaces/nic/($nic_re)$} => \&get_nic );
+	PUT( qr{^/interfaces/nic/($nic_re)$} => \&modify_interface_nic );
+	DELETE( qr{^/interfaces/nic/($nic_re)$} => \&delete_interface_nic );
+	POST( qr{^/interfaces/nic/($nic_re)/actions$} => \&actions_interface_nic );
 }
 
 if ( $q->path_info =~ qr{^/interfaces/vlan} )
 {
 	require Zevenet::API31::Interface::VLAN;
 
-	GET qr{^/interfaces/vlan$}                     => \&get_vlan_list;
-	POST qr{^/interfaces/vlan$}                    => \&new_vlan;
-	GET qr{^/interfaces/vlan/($vlan_re)$}          => \&get_vlan;
-	PUT qr{^/interfaces/vlan/($vlan_re)$}          => \&modify_interface_vlan;
-	DELETE qr{^/interfaces/vlan/($vlan_re)$}       => \&delete_interface_vlan;
-	POST qr{^/interfaces/vlan/($vlan_re)/actions$} => \&actions_interface_vlan;
+	GET( qr{^/interfaces/vlan$} => \&get_vlan_list );
+	POST( qr{^/interfaces/vlan$} => \&new_vlan );
+	GET( qr{^/interfaces/vlan/($vlan_re)$} => \&get_vlan );
+	PUT( qr{^/interfaces/vlan/($vlan_re)$} => \&modify_interface_vlan );
+	DELETE( qr{^/interfaces/vlan/($vlan_re)$} => \&delete_interface_vlan );
+	POST( qr{^/interfaces/vlan/($vlan_re)/actions$} => \&actions_interface_vlan );
 }
 
 if ( $q->path_info =~ qr{^/interfaces/virtual} )
 {
 	require Zevenet::API31::Interface::Virtual;
 
-	GET qr{^/interfaces/virtual$}  => \&get_virtual_list;
-	POST qr{^/interfaces/virtual$} => \&new_vini;
+	GET( qr{^/interfaces/virtual$} => \&get_virtual_list );
+	POST( qr{^/interfaces/virtual$} => \&new_vini );
 
 	my $virtual_re = &getValidFormat( 'virt_interface' );
 
-	GET qr{^/interfaces/virtual/($virtual_re)$}    => \&get_virtual;
-	PUT qr{^/interfaces/virtual/($virtual_re)$}    => \&modify_interface_virtual;
-	DELETE qr{^/interfaces/virtual/($virtual_re)$} => \&delete_interface_virtual;
-	POST qr{^/interfaces/virtual/($virtual_re)/actions$} =>
-	  \&actions_interface_virtual;
+	GET( qr{^/interfaces/virtual/($virtual_re)$} => \&get_virtual );
+	PUT( qr{^/interfaces/virtual/($virtual_re)$} => \&modify_interface_virtual );
+	DELETE( qr{^/interfaces/virtual/($virtual_re)$} => \&delete_interface_virtual );
+	POST( qr{^/interfaces/virtual/($virtual_re)/actions$} =>
+		  \&actions_interface_virtual );
 }
 
 if ( $q->path_info =~ qr{^/interfaces/gateway} )
 {
 	require Zevenet::API31::Interface::Gateway;
 
-	GET qr{^/interfaces/gateway$}    => \&get_gateway;
-	PUT qr{^/interfaces/gateway$}    => \&modify_gateway;
-	DELETE qr{^/interfaces/gateway$} => \&delete_gateway;
+	GET( qr{^/interfaces/gateway$} => \&get_gateway );
+	PUT( qr{^/interfaces/gateway$} => \&modify_gateway );
+	DELETE( qr{^/interfaces/gateway$} => \&delete_gateway );
 }
 
 if ( $q->path_info =~ qr{^/interfaces$} )
 {
 	require Zevenet::API31::Interface::Generic;
 
-	GET qr{^/interfaces$} => \&get_interfaces;
+	GET( qr{^/interfaces$} => \&get_interfaces );
 }
 
 # Statistics
@@ -235,18 +236,18 @@ if ( $q->path_info =~ qr{^/stats} )
 	require Zevenet::API31::Stats;
 
 	# System stats
-	GET qr{^/stats$}                => \&stats;
-	GET qr{^/stats/system/network$} => \&stats_network;
+	GET( qr{^/stats$}                => \&stats );
+	GET( qr{^/stats/system/network$} => \&stats_network );
 
 	# Farm stats
-	GET qr{^/stats/farms$}                     => \&all_farms_stats;
-	GET qr{^/stats/farms/($farm_re)$}          => \&farm_stats;
-	GET qr{^/stats/farms/($farm_re)/backends$} => \&farm_stats;
+	GET( qr{^/stats/farms$}                     => \&all_farms_stats );
+	GET( qr{^/stats/farms/($farm_re)$}          => \&farm_stats );
+	GET( qr{^/stats/farms/($farm_re)/backends$} => \&farm_stats );
 
 	# Fixed: make 'service' or 'services' valid requests for compatibility
 	# with previous bug.
-	GET qr{^/stats/farms/($farm_re)/services?/($service_re)/backends$} =>
-	  \&farm_stats;
+	GET( qr{^/stats/farms/($farm_re)/services?/($service_re)/backends$} =>
+		 \&farm_stats );
 }
 
 # Graphs
@@ -258,54 +259,54 @@ if ( $q->path_info =~ qr{^/graphs} )
 	my $system_id_re = &getValidFormat( 'graphs_system_id' );
 
 	#  GET possible graphs
-	GET qr{^/graphs$} => \&possible_graphs;
+	GET( qr{^/graphs$} => \&possible_graphs );
 
 	##### /graphs/system
 	#  GET all possible system graphs
-	GET qr{^/graphs/system$} => \&get_all_sys_graphs;
+	GET( qr{^/graphs/system$} => \&get_all_sys_graphs );
 
 	#  GET system graphs
-	GET qr{^/graphs/system/($system_id_re)$} => \&get_sys_graphs;
+	GET( qr{^/graphs/system/($system_id_re)$} => \&get_sys_graphs );
 
 	#  GET frequency system graphs
-	GET qr{^/graphs/system/($system_id_re)/($frequency_re)$} =>
-	  \&get_frec_sys_graphs;
+	GET(
+		qr{^/graphs/system/($system_id_re)/($frequency_re)$} => \&get_frec_sys_graphs );
 
 	##### /graphs/system/disk
 
 	# $disk_re includes 'root' at the beginning
 	my $disk_re = &getValidFormat( 'mount_point' );
 
-	GET qr{^/graphs/system/disk$} => \&list_disks;
+	GET( qr{^/graphs/system/disk$} => \&list_disks );
 
 	# keep before next request
-	GET qr{^/graphs/system/disk/($disk_re)/($frequency_re)$} =>
-	  \&graph_disk_mount_point_freq;
+	GET( qr{^/graphs/system/disk/($disk_re)/($frequency_re)$} =>
+		 \&graph_disk_mount_point_freq );
 
-	GET qr{^/graphs/system/disk/($disk_re)$} => \&graphs_disk_mount_point_all;
+	GET( qr{^/graphs/system/disk/($disk_re)$} => \&graphs_disk_mount_point_all );
 
 	##### /graphs/interfaces
 
 	#  GET all posible interfaces graphs
-	GET qr{^/graphs/interfaces$} => \&get_all_iface_graphs;
+	GET( qr{^/graphs/interfaces$} => \&get_all_iface_graphs );
 
 	#  GET interfaces graphs
-	GET qr{^/graphs/interfaces/($nic_re|$vlan_re)$} => \&get_iface_graphs;
+	GET( qr{^/graphs/interfaces/($nic_re|$vlan_re)$} => \&get_iface_graphs );
 
 	#  GET frequency interfaces graphs
-	GET qr{^/graphs/interfaces/($nic_re)/($frequency_re)$} =>
-	  \&get_frec_iface_graphs;
+	GET(
+		qr{^/graphs/interfaces/($nic_re)/($frequency_re)$} => \&get_frec_iface_graphs );
 
 	##### /graphs/farms
 
 	#  GET all posible farm graphs
-	GET qr{^/graphs/farms$} => \&get_all_farm_graphs;
+	GET( qr{^/graphs/farms$} => \&get_all_farm_graphs );
 
 	#  GET farm graphs
-	GET qr{^/graphs/farms/($farm_re)$} => \&get_farm_graphs;
+	GET( qr{^/graphs/farms/($farm_re)$} => \&get_farm_graphs );
 
 	#  GET frequency farm graphs
-	GET qr{^/graphs/farms/($farm_re)/($frequency_re)$} => \&get_frec_farm_graphs;
+	GET( qr{^/graphs/farms/($farm_re)/($frequency_re)$} => \&get_frec_farm_graphs );
 }
 
 # System
@@ -313,24 +314,24 @@ if ( $q->path_info =~ qr{^/system/dns} )
 {
 	require Zevenet::API31::System::Service::DNS;
 
-	GET qr{^/system/dns$}  => \&get_dns;
-	POST qr{^/system/dns$} => \&set_dns;
+	GET( qr{^/system/dns$} => \&get_dns );
+	POST( qr{^/system/dns$} => \&set_dns );
 }
 
 if ( $q->path_info =~ qr{^/system/snmp} )
 {
 	require Zevenet::API31::System::Service::SNMP;
 
-	GET qr{^/system/snmp$}  => \&get_snmp;
-	POST qr{^/system/snmp$} => \&set_snmp;
+	GET( qr{^/system/snmp$} => \&get_snmp );
+	POST( qr{^/system/snmp$} => \&set_snmp );
 }
 
 if ( $q->path_info =~ qr{^/system/ntp} )
 {
 	require Zevenet::API31::System::Service::NTP;
 
-	GET qr{^/system/ntp$}  => \&get_ntp;
-	POST qr{^/system/ntp$} => \&set_ntp;
+	GET( qr{^/system/ntp$} => \&get_ntp );
+	POST( qr{^/system/ntp$} => \&set_ntp );
 }
 
 if ( $q->path_info =~ qr{^/system/users} )
@@ -339,22 +340,22 @@ if ( $q->path_info =~ qr{^/system/users} )
 
 	my $user_re = &getValidFormat( 'user' );
 
-	GET qr{^/system/users$}             => \&get_all_users;    #  GET users
-	GET qr{^/system/users/($user_re)$}  => \&get_user;         #  GET user settings
-	POST qr{^/system/users/zapi$}       => \&set_user_zapi;    #  POST zapi user
-	POST qr{^/system/users/($user_re)$} => \&set_user;         #  POST other user
+	GET( qr{^/system/users$}            => \&get_all_users );   #  GET users
+	GET( qr{^/system/users/($user_re)$} => \&get_user );        #  GET user settings
+	POST( qr{^/system/users/zapi$}       => \&set_user_zapi );  #  POST zapi user
+	POST( qr{^/system/users/($user_re)$} => \&set_user );       #  POST other user
 }
 
 if ( $q->path_info =~ qr{^/system/log} )
 {
 	require Zevenet::API31::System::Log;
 
-	GET qr{^/system/logs$} => \&get_logs;
+	GET( qr{^/system/logs$} => \&get_logs );
 
 	my $logs_re = &getValidFormat( 'log' );
-	GET qr{^/system/logs/($logs_re)$} => \&download_logs;
+	GET( qr{^/system/logs/($logs_re)$} => \&download_logs );
 
-	GET qr{^/system/logs/($logs_re)/lines/(\d+)$} => \&show_logs;
+	GET( qr{^/system/logs/($logs_re)/lines/(\d+)$} => \&show_logs );
 
 }
 
@@ -362,34 +363,35 @@ if ( $q->path_info =~ qr{^/system/backup} )
 {
 	require Zevenet::API31::System::Backup;
 
-	GET qr{^/system/backup$}  => \&get_backup;       #  GET list backups
-	POST qr{^/system/backup$} => \&create_backup;    #  POST create backups
+	GET( qr{^/system/backup$} => \&get_backup );    #  GET list backups
+	POST( qr{^/system/backup$} => \&create_backup );    #  POST create backups
 
 	my $backup_re = &getValidFormat( 'backup' );
-	GET qr{^/system/backup/($backup_re)$} =>
-	  \&download_backup;                             #  GET download backups
-	PUT qr{^/system/backup/($backup_re)$} => \&upload_backup; #  PUT  upload backups
-	DELETE qr{^/system/backup/($backup_re)$} => \&del_backup; #  DELETE  backups
-	POST qr{^/system/backup/($backup_re)/actions$} =>
-	  \&apply_backup;                                         #  POST  apply backups
+	GET( qr{^/system/backup/($backup_re)$} => \&download_backup )
+	  ;                                                 #  GET download backups
+	PUT( qr{^/system/backup/($backup_re)$} => \&upload_backup )
+	  ;                                                 #  PUT  upload backups
+	DELETE( qr{^/system/backup/($backup_re)$} => \&del_backup );  #  DELETE  backups
+	POST( qr{^/system/backup/($backup_re)/actions$} => \&apply_backup )
+	  ;    #  POST  apply backups
 }
 
 if ( $q->path_info =~ qr{^/system/(?:version|license|supportsave)} )
 {
 	require Zevenet::API31::System::Info;
 
-	GET qr{^/system/version$}     => \&get_version;
-	GET qr{^/system/supportsave$} => \&get_supportsave;
+	GET( qr{^/system/version$}     => \&get_version );
+	GET( qr{^/system/supportsave$} => \&get_supportsave );
 
 	my $license_re = &getValidFormat( 'license_format' );
-	GET qr{^/system/license/($license_re)$} => \&get_license;
+	GET( qr{^/system/license/($license_re)$} => \&get_license );
 }
 
 if ( $q->path_info =~ qr{/ciphers$} )
 {
 	require Zevenet::API31::Certificate;
 
-	GET qr{^/ciphers$} => \&ciphers_available;
+	GET( qr{^/ciphers$} => \&ciphers_available );
 }
 
 ##### Load modules dynamically #######################################
@@ -405,7 +407,7 @@ foreach my $file ( readdir $dir )
 	unless ( eval { require $module; } )
 	{
 		&zenlog( $@ );
-		die $@;
+		exit 1;
 	}
 }
 

@@ -1,10 +1,10 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
-#    Copyright (C) 2020-today ZEVENET SL, Sevilla (Spain)
+#    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -22,6 +22,7 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 =begin nd
 Function: priorityAlgorithmIsOK
@@ -39,7 +40,7 @@ Returns:
 sub priorityAlgorithmIsOK    # ( \@Priorities )
 {
 	use List::Util qw( min max );
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $priority_ref = shift;
 	my @backends     = sort @{ $priority_ref };

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,10 +22,11 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 sub getFile
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $path = shift;
 
@@ -58,7 +59,7 @@ sub getFile
 
 sub setFile
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $path    = shift;
 	my $content = shift;
@@ -91,7 +92,7 @@ sub setFile
 
 sub saveFileHandler
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $path       = shift;
 	my $content_fh = shift;
@@ -124,43 +125,39 @@ sub saveFileHandler
 
 	return 1;
 
-	# Insert an array in a file before or after a pattern
-	sub insertFileWithPattern
+}
+
+sub insertFileWithPattern
+{
+	my ( $file, $array, $pattern, $opt ) = @_;
+	my $err = 0;
+
+	$opt //= 'after';
+
+	my $index = 0;
+	my $found = 0;
+	tie my @fileconf, 'Tie::File', $file;
+
+	foreach my $line ( @fileconf )
 	{
-		my ( $file, $array, $pattern, $opt ) = @_;
-		my $err = 0;
-
-		$opt //= 'after';
-
-		my $index = 0;
-		my $found = 0;
-		tie my @fileconf, 'Tie::File', $file;
-
-		foreach my $line ( @fileconf )
+		if ( $line =~ /$pattern/ )
 		{
-			if ( $line =~ /$pattern/ )
-			{
-				$found = 1;
-				last;
-			}
-			$index++;
+			$found = 1;
+			last;
 		}
-
-		return 1 if ( !$found );
-
-		$index++ if ( $opt eq 'after' );
-
-		splice @fileconf, $index, 0, @{ $array };
-		untie @fileconf;
-
-		return $err;
+		$index++;
 	}
+	return 1 if ( not $found );
+	$index++ if ( $opt eq 'after' );
+	splice @fileconf, $index, 0, @{ $array };
+	untie @fileconf;
+
+	return $err;
 }
 
 sub createFile
 {
 	my $file = shift;
-	my $fh;
 
 	if ( -f $file )
 	{
@@ -168,7 +165,8 @@ sub createFile
 		return 1;
 	}
 
-	if ( !open ( $fh, '>', $file ) )
+	my $success = open ( my $fh, '>', $file );
+	if ( not $success )
 	{
 		&zenlog( "The file $file could not be created", "error", "System" );
 		return 2;
@@ -181,9 +179,8 @@ sub createFile
 sub deleteFile
 {
 	my $file = shift;
-	my $fh;
 
-	if ( !-f $file )
+	if ( not -f $file )
 	{
 		&zenlog( "The file $file doesn't exist", "error", "System" );
 		return 1;
@@ -235,7 +232,7 @@ Returns:
 
 sub getFileChecksumMD5
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $filepath = shift;
@@ -279,7 +276,7 @@ Returns:
 
 sub getFileChecksumAction
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $checksum_filepath1 = shift;
@@ -288,7 +285,7 @@ sub getFileChecksumAction
 
 	foreach my $file ( keys %{ $checksum_filepath1 } )
 	{
-		if ( !defined $checksum_filepath2->{ $file } )
+		if ( not defined $checksum_filepath2->{ $file } )
 		{
 			$files_changed->{ $file } = "del";
 		}
