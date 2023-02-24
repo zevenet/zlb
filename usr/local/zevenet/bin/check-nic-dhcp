@@ -54,7 +54,7 @@ foreach my $iface ( @interfaces )
 	$iface_hash_ref->{ 'addr' } = $addr;
 	$iface_hash_ref->{ 'mask' } = $netmask;
 
-	if ( !-f $cfg_file )
+	if ( not -f $cfg_file )
 	{
 		# Store a network interface configuration.
 		&setInterfaceConfig( $iface_hash_ref );

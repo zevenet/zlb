@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,6 +22,7 @@
 ###############################################################################
 
 use strict;
+use warnings;
 use Zevenet::Log;
 use Zevenet::Config;
 
@@ -42,7 +43,7 @@ See Also:
 
 sub setSnmpdStatus    # ($snmpd_status)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	# get 'true' string to start, or a 'false' string to stop
@@ -108,7 +109,7 @@ See Also:
 
 sub getSnmpdStatus    # ()
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $pidof = &getGlobalConfiguration( 'pidof' );
 	my $return_code = ( &logAndRunCheck( "$pidof snmpd" ) ) ? 'false' : 'true';
@@ -142,7 +143,7 @@ See Also:
 
 sub getSnmpdConfig    # ()
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	require Tie::File;
 
@@ -191,7 +192,7 @@ See Also:
 
 sub setSnmpdConfig    # ($snmpd_conf)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $snmpd_conf ) = @_;
 
@@ -203,13 +204,13 @@ sub setSnmpdConfig    # ($snmpd_conf)
 	return -1 if ref $snmpd_conf ne 'HASH';
 
 	# scope has to be network range definition
-	my $network = new NetAddr::IP( $snmpd_conf->{ scope } )->network();
+	my $network = NetAddr::IP->new( $snmpd_conf->{ scope } )->network();
 	return -1 if ( $network ne $snmpd_conf->{ scope } );
 
 	# Open config file
 	open my $config_file, '>', $snmpdconfig_file;
 
-	if ( !$config_file )
+	if ( not $config_file )
 	{
 		&zenlog( "Could not open $snmpdconfig_file: $!", "warning", "SYSTEM" );
 		return -1;

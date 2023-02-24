@@ -1,7 +1,8 @@
+#!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -21,21 +22,17 @@
 ###############################################################################
 
 use strict;
+use warnings;
 use Zevenet::FarmGuardian;
 use Zevenet::Farm::Config;
 use Zevenet::Farm::Backend;
 use Zevenet::Farm::L4xNAT::Config;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 # GET /farms/<farmname> Request info of a l4xnat Farm
 sub farms_name_l4    # ( $farmname )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farmname = shift;
 
@@ -59,29 +56,25 @@ sub farms_name_l4    # ( $farmname )
 		listener     => 'l4xnat',
 		sessions     => &listL4FarmSessions( $farmname )
 	};
-
-	if ( $eload )
-	{
-		$out_p->{ logs } = $farm->{ logs };
-	}
-
 	# Backends
+	my $warning;
 	my $out_b = &getFarmServers( $farmname );
-	&getAPIFarmBackends( $out_b, 'l4xnat' );
+	if ( &getAPIFarmBackends( $out_b, 'l4xnat' ) == 2 )
+	{
+		$out_b   = [];
+		$warning = "Error get info from backends";
+	}
 
 	my $body = {
 				 description => "List farm $farmname",
 				 params      => $out_p,
 				 backends    => $out_b,
 	};
+	$body->{ warning } = $warning if $warning;
 
-	$body->{ ipds } = &eload(
-							  module => 'Zevenet::IPDS::Core',
-							  func   => 'getIPDSfarmsRules',
-							  args   => [$farmname],
-	) if ( $eload );
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 1;

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,13 +22,9 @@
 ###############################################################################
 
 use strict;
+use warnings;
 use Zevenet::Config;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
@@ -48,7 +44,7 @@ Returns:
 
 sub _runFarmStart    # ($farm_name, $writeconf)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $writeconf ) = @_;
 
@@ -70,7 +66,7 @@ sub _runFarmStart    # ($farm_name, $writeconf)
 	# check if the ip exists in any interface
 	my $ip = &getFarmVip( "vip", $farm_name );
 	require Zevenet::Net::Interface;
-	if ( !&getIpAddressExists( $ip ) )
+	if ( not &getIpAddressExists( $ip ) )
 	{
 		&zenlog( "The virtual interface $ip is not defined in any interface." );
 		return $status;
@@ -81,7 +77,7 @@ sub _runFarmStart    # ($farm_name, $writeconf)
 	if ( $farm_type ne "datalink" )
 	{
 		my $port = &getFarmVip( "vipp", $farm_name );
-		if ( !&validatePort( $ip, $port, undef, $farm_name ) )
+		if ( not &validatePort( $ip, $port, undef, $farm_name ) )
 		{
 			&zenlog( "The networking '$ip:$port' is being used." );
 			return 2;
@@ -90,7 +86,7 @@ sub _runFarmStart    # ($farm_name, $writeconf)
 
 	&zenlog( "Starting farm $farm_name with type $farm_type", "info", "FARMS" );
 
-	if ( $farm_type eq "http" || $farm_type eq "https" )
+	if ( $farm_type eq "http" or $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Action;
 		$status = &_runHTTPFarmStart( $farm_name, $writeconf );
@@ -104,14 +100,6 @@ sub _runFarmStart    # ($farm_name, $writeconf)
 	{
 		require Zevenet::Farm::L4xNAT::Action;
 		$status = &startL4Farm( $farm_name, $writeconf );
-	}
-	elsif ( $farm_type eq "gslb" && $eload )
-	{
-		$status = &eload(
-						  module => 'Zevenet::Farm::GSLB::Action',
-						  func   => '_runGSLBFarmStart',
-						  args   => [$farm_name, $writeconf],
-		);
 	}
 
 	&setFarmNoRestart( $farm_name );
@@ -138,7 +126,7 @@ NOTE:
 
 sub runFarmStart    # ($farm_name, $writeconf)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $writeconf ) = @_;
 
@@ -148,25 +136,6 @@ sub runFarmStart    # ($farm_name, $writeconf)
 
 	require Zevenet::FarmGuardian;
 	&runFarmGuardianStart( $farm_name, "" );
-
-	if ( $eload )
-	{
-		&eload(
-				module => 'Zevenet::IPDS::Base',
-				func   => 'runIPDSStartByFarm',
-				args   => [$farm_name],
-		);
-
-		require Zevenet::Farm::Config;
-		if ( &getPersistence( $farm_name ) == 0 )
-		{
-			&eload(
-					module => 'Zevenet::Ssyncd',
-					func   => 'setSsyncdFarmUp',
-					args   => [$farm_name],
-			);
-		}
-	}
 	return $status;
 }
 
@@ -189,25 +158,9 @@ NOTE:
 
 sub runFarmStop    # ($farm_name, $writeconf)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $writeconf ) = @_;
-
-	if ( $eload )
-	{
-		# stop ipds rules
-		&eload(
-				module => 'Zevenet::IPDS::Base',
-				func   => 'runIPDSStopByFarm',
-				args   => [$farm_name],
-		);
-		&eload(
-				module => 'Zevenet::Ssyncd',
-				func   => 'setSsyncdFarmDown',
-				args   => [$farm_name],
-		);
-
-	}
 
 	require Zevenet::FarmGuardian;
 	&runFGFarmStop( $farm_name );
@@ -233,7 +186,7 @@ Returns:
 
 sub _runFarmStop    # ($farm_name, $writeconf)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $writeconf ) = @_;
 
@@ -268,14 +221,6 @@ sub _runFarmStop    # ($farm_name, $writeconf)
 		require Zevenet::Farm::L4xNAT::Action;
 		$status = &stopL4Farm( $farm_name, $writeconf );
 	}
-	elsif ( $farm_type eq "gslb" && $eload )
-	{
-		$status = &eload(
-						  module => 'Zevenet::Farm::GSLB::Action',
-						  func   => '_runGSLBFarmStop',
-						  args   => [$farm_name, $writeconf],
-		);
-	}
 
 	&setFarmNoRestart( $farm_name );
 
@@ -300,7 +245,7 @@ NOTE:
 
 sub runFarmDelete    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
@@ -308,24 +253,6 @@ sub runFarmDelete    # ($farm_name)
 
 	# global variables
 	my $configdir = &getGlobalConfiguration( 'configdir' );
-
-	if ( $eload )
-	{
-		#delete IPDS rules
-		&eload(
-				module => 'Zevenet::IPDS::Base',
-				func   => 'runIPDSDeleteByFarm',
-				args   => [$farm_name],
-		);
-
-		#delete from RBAC
-		&eload(
-				module => 'Zevenet::RBAC::Group::Config',
-				func   => 'delRBACResource',
-				args   => [$farm_name, 'farms'],
-		);
-	}
-
 	# stop and unlink farmguardian
 	require Zevenet::FarmGuardian;
 	&delFGFarm( $farm_name );
@@ -345,7 +272,7 @@ sub runFarmDelete    # ($farm_name)
 	}
 	else
 	{
-		if ( $farm_type eq "http" || $farm_type eq "https" )
+		if ( $farm_type eq "http" or $farm_type eq "https" )
 		{
 			unlink glob ( "$configdir/$farm_name\_*\.html" );
 
@@ -369,14 +296,14 @@ sub runFarmDelete    # ($farm_name)
 										 method => "DELETE",
 										 uri    => "/farms/" . $farm_name,
 									   }
-			) if ( !$output );
+			) if ( not $output );
 		}
 		elsif ( $farm_type eq "datalink" )
 		{
 			# delete cron task to check backends
 			require Tie::File;
 			tie my @filelines, 'Tie::File', "/etc/cron.d/zevenet";
-			@filelines = grep !/\# \_\_$farm_name\_\_/, @filelines;
+			@filelines = grep { not /\# \_\_$farm_name\_\_/ } @filelines;
 			untie @filelines;
 		}
 		elsif ( $farm_type eq "l4xnat" )
@@ -388,7 +315,7 @@ sub runFarmDelete    # ($farm_name)
 
 	unlink glob ( "$configdir/$farm_name\_*\.cfg" );
 	$status = 0
-	  if ( !-f "$configdir/$farm_name\_*\.cfg" );
+	  if ( not -f "$configdir/$farm_name\_*\.cfg" );
 
 	require Zevenet::RRD;
 
@@ -412,7 +339,7 @@ Integer - return 0 on success, another value on another failure
 
 sub runFarmReload    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 	require Zevenet::Farm::Action;
@@ -452,21 +379,46 @@ Returns:
 sub _runFarmReload    # ($farm_name)
 
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $farm = shift;
-	my $err  = 0;
+	my $farm_name = shift;
 
 	require Zevenet::Farm::Base;
-	return 0 if ( &getFarmStatus( $farm ) ne 'up' );
-
 	require Zevenet::Farm::HTTP::Config;
-	my $proxy_ctl = &getGlobalConfiguration( 'proxyctl' );
-	my $socket    = &getHTTPFarmSocket( $farm );
 
-	$err = &logAndRun( "$proxy_ctl -c $socket -R 0" );
+	return 0 if ( &getFarmStatus( $farm_name ) ne 'up' );
+	my $proxy_ng    = &getGlobalConfiguration( 'proxy_ng' );
+	my $socket_file = &getHTTPFarmSocket( $farm_name );
 
-	return $err;
+	if ( $proxy_ng eq "false" )
+	{
+		my $err       = 0;
+		my $proxy_ctl = &getGlobalConfiguration( 'proxyctl' );
+
+		$err = &logAndRun( "$proxy_ctl -c $socket_file -R 0" );
+
+		return $err;
+
+	}
+	elsif ( $proxy_ng eq "true" )
+	{
+		my $call = {
+					 method   => "PATCH",
+					 protocol => "http",
+					 host     => "localhost",
+					 path     => "/config",
+					 socket   => $socket_file,
+					 json     => 3,
+		};
+
+		require Zevenet::HTTPClient;
+		my $err = &runHTTPRequest( $call );
+		if ( $err->{ code } ne 0 )
+		{
+			&zenlog( "Farm Reload: " . $err->{ desc }, "error", "FARMS" );
+		}
+		return $err->{ code };
+	}
 }
 
 =begin nd
@@ -487,7 +439,7 @@ NOTE:
 
 sub getFarmRestartFile    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
@@ -512,7 +464,7 @@ NOTE:
 
 sub getFarmRestartStatus
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $fname = shift;
 
@@ -541,7 +493,7 @@ NOTE:
 
 sub setFarmRestart    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
@@ -553,6 +505,7 @@ sub setFarmRestart    # ($farm_name)
 	my $lf = &getFarmRestartFile( $farm_name );
 	my $fh = &openlock( $lf, 'w' );
 	close $fh;
+	return;
 }
 
 =begin nd
@@ -573,12 +526,13 @@ NOTE:
 
 sub setFarmNoRestart    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
 	my $lf = &getFarmRestartFile( $farm_name );
 	unlink ( $lf ) if -e $lf;
+	return;
 }
 
 =begin nd
@@ -597,7 +551,7 @@ Returns:
 
 sub setNewFarmName    # ($farm_name,$new_farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $new_farm_name ) = @_;
 
@@ -623,7 +577,7 @@ sub setNewFarmName    # ($farm_name,$new_farm_name)
 	&zenlog( "setting 'NewFarmName $new_farm_name' for $farm_name farm $farm_type",
 			 "info", "FARMS" );
 
-	if ( $farm_type eq "http" || $farm_type eq "https" )
+	if ( $farm_type eq "http" or $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Action;
 		$output = &copyHTTPFarm( $farm_name, $new_farm_name, 'del' );
@@ -638,14 +592,7 @@ sub setNewFarmName    # ($farm_name,$new_farm_name)
 		require Zevenet::Farm::L4xNAT::Action;
 		$output = &setL4NewFarmName( $farm_name, $new_farm_name );
 	}
-	elsif ( $farm_type eq "gslb" && $eload )
-	{
-		$output = &eload(
-						  module => 'Zevenet::Farm::GSLB::Action',
-						  func   => 'copyGSLBFarm',
-						  args   => [$farm_name, $new_farm_name, 'del'],
-		);
-	}
+
 
 	# farmguardian renaming
 	if ( $output == 0 and $farm_status eq 'up' )
@@ -662,22 +609,6 @@ sub setNewFarmName    # ($farm_name,$new_farm_name)
 
 	# delete old graphs
 	unlink ( "img/graphs/bar$farm_name.png" );
-
-	if ( $eload )
-	{
-		&eload(
-				module => 'Zevenet::IPDS::Base',
-				func   => 'runIPDSRenameByFarm',
-				args   => [$farm_name, $new_farm_name],
-		);
-
-		&eload(
-				module => 'Zevenet::RBAC::Group::Config',
-				func   => 'setRBACRenameByFarm',
-				args   => [$farm_name, $new_farm_name],
-		);
-	}
-
 	# FIXME: farmguardian files
 	# FIXME: logfiles
 	return $output;
@@ -699,7 +630,7 @@ Returns:
 
 sub copyFarm    # ($farm_name,$new_farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $new_farm_name ) = @_;
 
@@ -708,7 +639,7 @@ sub copyFarm    # ($farm_name,$new_farm_name)
 
 	&zenlog( "copying the farm '$farm_name' to '$new_farm_name'", "info", "FARMS" );
 
-	if ( $farm_type eq "http" || $farm_type eq "https" )
+	if ( $farm_type eq "http" or $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Action;
 		$output = &copyHTTPFarm( $farm_name, $new_farm_name );
@@ -722,14 +653,6 @@ sub copyFarm    # ($farm_name,$new_farm_name)
 	{
 		require Zevenet::Farm::L4xNAT::Action;
 		$output = &copyL4Farm( $farm_name, $new_farm_name );
-	}
-	elsif ( $farm_type eq "gslb" && $eload )
-	{
-		$output = &eload(
-						  module => 'Zevenet::Farm::GSLB::Action',
-						  func   => 'copyGSLBFarm',
-						  args   => [$farm_name, $new_farm_name],
-		);
 	}
 
 	return $output;

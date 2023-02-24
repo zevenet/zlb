@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -130,7 +130,7 @@ if ( -e "$pidfile" )
 	}
 }
 
-if ( !-e "$pidfile" )
+if ( not -e "$pidfile" )
 {
 	open my $file, '>', "$pidfile";
 	print $file "$pid";
@@ -212,7 +212,7 @@ while ()
 	}
 
 	# Read l4 configuration, backends
-	if ( $min == $counter_g || $init == 1 )
+	if ( $min == $counter_g or $init == 1 )
 	{
 		if ( $debug ) { printf "Executing G()\n"; }
 
@@ -230,7 +230,7 @@ while ()
 			my $falg   = &getFarmAlgorithm( $fname );
 			my $fstate = &getFarmStatus( $fname );
 
-			if ( $falg eq $algorithm && $fstate eq 'up' )
+			if ( $falg eq $algorithm and $fstate eq 'up' )
 			{
 				my $backends = &getFarmServers( $fname );
 
@@ -267,7 +267,7 @@ while ()
 	}
 
 	# Parse connections
-	if ( $min == $counter_n || $init == 1 )
+	if ( $min == $counter_n or $init == 1 )
 	{
 		if ( $debug ) { printf "Executing N()\n"; }
 
@@ -310,7 +310,7 @@ while ()
 	}
 
 	# Algorithm logic and set the condition
-	if ( $min == $counter_l || $init == 1 )
+	if ( $min == $counter_l or $init == 1 )
 	{
 		my $num_farms = scalar ( keys %farms );
 

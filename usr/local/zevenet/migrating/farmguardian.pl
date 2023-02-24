@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -25,7 +25,7 @@
 # Migrate from old Farmguardian configuration file to new Farmguardian configuration format
 
 use strict;
-
+use warnings;
 use Zevenet::Log;
 use Zevenet::Config;
 
@@ -45,8 +45,9 @@ while ( my $file = readdir ( DIR ) )
 		my $file_content = &getFile( "$conf_dir/$file" );
 		chomp $file_content;
 
-		my $file_name = $1 if $file =~ /^(.+)_guardian\.conf$/;
-		my ( $farm, $service ) = split ( /_/, $file_name );
+		my $file_name;
+		$file_name = $1 if $file =~ /^(.+)_guardian\.conf$/;
+		my ( undef, $service ) = split ( /_/, $file_name );
 		my ( $farm, $interval, $command, $cut, $log ) = split ( /:{3}/, $file_content );
 
 		my @check_command = split ( / /, $command );

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -31,21 +31,21 @@ $LOG_TAG = "WEBGUI" if ( exists $ENV{ HTTP_COOKIE } );
 require CGI::Session;
 
 # POST CGISESSID to login
-POST qr{^/session$} => \&session_login;
+POST( qr{^/session$} => \&session_login );
 
 #  DELETE session to logout
-DELETE qr{^/session$} => \&session_logout;
+DELETE( qr{^/session$} => \&session_logout );
 
 sub session_login
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $desc    = "Login to new session";
 	my $session = CGI::Session->new( &getCGI() );
 
 	require Zevenet::SystemInfo;
 
-	unless ( $session && !$session->param( 'is_logged_in' ) )
+	unless ( $session and not $session->param( 'is_logged_in' ) )
 	{
 		my $msg = "Already logged in a session";
 		&httpErrorResponse( code => 401, desc => $desc, msg => $msg );
@@ -65,7 +65,7 @@ sub session_login
 
 	# check if the user has got permissions
 	my ( undef, undef, undef, $webgui_group ) = getgrnam ( 'webgui' );
-	if ( !grep ( /(^| )$username( |$)/, $webgui_group ) )
+	if ( not grep { /(^| )$username( |$)/ } $webgui_group )
 	{
 		my $msg = "The user $username has not web permissions";
 		&httpErrorResponse( code => 401, desc => $desc, msg => $msg );
@@ -93,11 +93,12 @@ sub session_login
 			 { 'Set-cookie' => $session_cookie . "; SameSite=None; Secure; HttpOnly" },
 		 }
 	);
+	return;
 }
 
 sub session_logout
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $desc = "Logout of session";
 	my $cgi  = &getCGI();
@@ -108,9 +109,9 @@ sub session_logout
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	my $session = new CGI::Session( $cgi );
+	my $session = CGI::Session->new( $cgi );
 
-	unless ( $session && $session->param( 'is_logged_in' ) )
+	unless ( $session and $session->param( 'is_logged_in' ) )
 	{
 		my $msg = "Session expired or not found";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -125,6 +126,7 @@ sub session_logout
 	$session->flush();
 
 	&httpResponse( { code => 200 } );
+	return;
 }
 
 1;

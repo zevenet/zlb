@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,25 +22,26 @@
 ###############################################################################
 
 use strict;
-
+use warnings;
 use Zevenet::Backup;
 
 #	GET	/system/backup
 sub get_backup
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $desc    = "Get backups";
 	my $backups = &getBackup();
 
 	&httpResponse(
 				{ code => 200, body => { description => $desc, params => $backups } } );
+	return;
 }
 
 #	POST  /system/backup
 sub create_backup
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj = shift;
 
@@ -50,8 +51,10 @@ sub create_backup
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
-	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
-	  if ( $error_msg );
+	if ( $error_msg )
+	{
+		&httpErrorResponse( code => 400, desc => $desc, msg => $error_msg );
+	}
 
 	if ( &getExistsBackup( $json_obj->{ 'name' } ) )
 	{
@@ -74,18 +77,19 @@ sub create_backup
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 #	GET	/system/backup/BACKUP
 sub download_backup
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $backup = shift;
 
 	my $desc = "Download a backup";
 
-	if ( !&getExistsBackup( $backup ) )
+	if ( not &getExistsBackup( $backup ) )
 	{
 		my $msg = "Not found $backup backup.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -97,19 +101,20 @@ sub download_backup
 
 	my $msg = "Error, downloading backup.";
 	&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+	return;
 }
 
 #	PUT	/system/backup/BACKUP
 sub upload_backup
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $upload_filehandle = shift;
 	my $name              = shift;
 
 	my $desc = "Upload a backup";
 
-	if ( !$upload_filehandle || !$name )
+	if ( not $upload_filehandle or not $name )
 	{
 		my $msg = "It's necessary to add a data binary file.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -119,7 +124,7 @@ sub upload_backup
 		my $msg = "A backup already exists with this name.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
-	elsif ( !&getValidFormat( 'backup', $name ) )
+	elsif ( not &getValidFormat( 'backup', $name ) )
 	{
 		my $msg = "The backup name has invalid characters.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -141,18 +146,19 @@ sub upload_backup
 	my $body = { description => $desc, params => $name, message => $msg };
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 #	DELETE /system/backup/BACKUP
 sub del_backup
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $backup = shift;
 
 	my $desc = "Delete backup $backup'";
 
-	if ( !&getExistsBackup( $backup ) )
+	if ( not &getExistsBackup( $backup ) )
 	{
 		my $msg = "$backup doesn't exist.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -174,12 +180,13 @@ sub del_backup
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 #	POST /system/backup/BACKUP/actions
 sub apply_backup
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $backup   = shift;
@@ -190,10 +197,12 @@ sub apply_backup
 
 	# Check allowed parameters
 	my $error_msg = &checkZAPIParams( $json_obj, $params, $desc );
-	return &httpErrorResponse( code => 400, desc => $desc, msg => $error_msg )
-	  if ( $error_msg );
+	if ( $error_msg )
+	{
+		&httpErrorResponse( code => 400, desc => $desc, msg => $error_msg );
+	}
 
-	if ( !&getExistsBackup( $backup ) )
+	if ( not &getExistsBackup( $backup ) )
 	{
 		my $msg = "Not found $backup backup.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -203,7 +212,7 @@ sub apply_backup
 	my $sys_version = &getGlobalConfiguration( 'version' );
 	if ( $b_version ne $sys_version )
 	{
-		if ( !exists $json_obj->{ force }
+		if ( not exists $json_obj->{ force }
 			 or ( exists $json_obj->{ force } and $json_obj->{ force } ne 'true' ) )
 		{
 			my $msg =
@@ -230,6 +239,7 @@ sub apply_backup
 
 	&httpResponse(
 				   { code => 200, body => { description => $desc, message => $msg } } );
+	return;
 }
 
 1;

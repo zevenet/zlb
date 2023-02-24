@@ -1,8 +1,8 @@
 #!/usr/bin/env perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -36,7 +36,7 @@ my $filename  = &getFarmFile( $farmname );
 my $type      = &getFarmType( $farmname );
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
-if ( -e "$configdir/$filename" && $type eq "datalink" )
+if ( -e "$configdir/$filename" and $type eq "datalink" )
 {
 	my @backends = &getFarmServers( $farmname );
 
@@ -48,11 +48,11 @@ if ( -e "$configdir/$filename" && $type eq "datalink" )
 		my $status  = $lines[5];
 		chomp ( $status );
 
-		if ( $backend ne "" && $backend =~ /\./ )
+		if ( $backend ne "" and $backend =~ /\./ )
 		{
 			my $output = &logAndRunCheck( "ping -c $count $backend" );
 
-			if ( $output ne 0 && $status eq "up" )
+			if ( $output ne 0 and $status eq "up" )
 			{
 				&zenlog(
 					  "disabling datalink backend $index with ip $backend for the $farmname farm" );
@@ -60,7 +60,7 @@ if ( -e "$configdir/$filename" && $type eq "datalink" )
 				&runFarmStop( $farmname, "true" );
 				&runFarmStart( $farmname, "true" );
 			}
-			if ( $output eq 0 && $status eq "down" )
+			if ( $output eq 0 and $status eq "down" )
 			{
 				&zenlog(
 					   "enabling datalink backend $index with ip $backend for the $farmname farm" );

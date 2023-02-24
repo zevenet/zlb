@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,41 +22,26 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 # GET /interfaces Get params of the interfaces
 sub get_interfaces    # ()
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	require Zevenet::Net::Interface;
 
 	my $desc = "List interfaces";
 	my $if_list_ref;
-
-	if ( $eload )
-	{
-		$if_list_ref = &eload(
-							   module => 'Zevenet::Net::Interface',
-							   func   => 'get_interface_list_struct',    # 100
-		);
-	}
-	else
-	{
 		$if_list_ref = &get_interface_list_struct();
-	}
-
 	my $body = {
 				 description => $desc,
 				 interfaces  => $if_list_ref,
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 1;

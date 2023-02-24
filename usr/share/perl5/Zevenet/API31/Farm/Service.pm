@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,18 +22,14 @@
 ###############################################################################
 
 use strict;
+use warnings;
 use Zevenet::Farm::Core;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 # POST
 sub new_farm_service    # ( $json_obj, $farmname )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $farmname = shift;
@@ -43,14 +39,14 @@ sub new_farm_service    # ( $json_obj, $farmname )
 	my $desc = "New service";
 
 	# Check if the farm exists
-	if ( !&getFarmExists( $farmname ) )
+	if ( not &getFarmExists( $farmname ) )
 	{
 		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
 	}
 
 	# check if the service exists
-	if ( grep ( /^$json_obj->{id}$/, &getFarmServices( $farmname ) ) )
+	if ( grep { /^$json_obj->{id}$/ } &getFarmServices( $farmname ) )
 	{
 		my $msg = "Error, the service $json_obj->{id} already exists.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -59,19 +55,13 @@ sub new_farm_service    # ( $json_obj, $farmname )
 	my $type = &getFarmType( $farmname );
 
 	# validate farm profile
-	if ( $type eq "gslb" && $eload )
-	{
-		&eload(
-				module => 'Zevenet::API31::Farm::GSLB',
-				func   => 'new_gslb_farm_service',
-				args   => [$json_obj, $farmname]
-		);
-	}
-	elsif ( $type !~ /^https?$/ )
-	{
-		my $msg = "The farm profile $type does not support services.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
+
+		if ( $type !~ /^https?$/ )
+		{
+			my $msg = "The farm profile $type does not support services.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+
 
 	# HTTP profile
 	require Zevenet::Farm::Base;
@@ -139,15 +129,11 @@ sub new_farm_service    # ( $json_obj, $farmname )
 		else
 		{
 			&runFarmReload( $farmname );
-			&eload(
-					module => 'Zevenet::Cluster',
-					func   => 'runZClusterRemoteManager',
-					args   => ['farm', 'reload', $farmname],
-			) if ( $eload );
 		}
 	}
 
 	&httpResponse( { code => 201, body => $body } );
+	return;
 }
 
 # GET
@@ -155,7 +141,7 @@ sub new_farm_service    # ( $json_obj, $farmname )
 #GET /farms/<name>/services/<service>
 sub farm_services
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farmname, $servicename ) = @_;
 
@@ -166,7 +152,7 @@ sub farm_services
 	my $service;
 
 	# Check if the farm exists
-	if ( !&getFarmExists( $farmname ) )
+	if ( not &getFarmExists( $farmname ) )
 	{
 		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -184,7 +170,7 @@ sub farm_services
 	my @services = &getHTTPFarmServices( $farmname );
 
 	# check if the service is available
-	if ( !grep { $servicename eq $_ } @services )
+	if ( not grep { $servicename eq $_ } @services )
 	{
 		my $msg = "The required service does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -192,7 +178,7 @@ sub farm_services
 
 	# no error found, return successful response
 	require Zevenet::API31::Farm::Get::HTTP;
-	my $service = &getZapiHTTPServiceStruct( $farmname, $servicename );
+	$service = &getZapiHTTPServiceStruct( $farmname, $servicename );
 
 	foreach my $be ( @{ $service->{ backends } } )
 	{
@@ -208,13 +194,14 @@ sub farm_services
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # PUT
 
 sub modify_services    # ( $json_obj, $farmname, $service )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $json_obj, $farmname, $service ) = @_;
 
@@ -226,7 +213,7 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	my $output_params;
 
 	# validate FARM NAME
-	if ( !&getFarmExists( $farmname ) )
+	if ( not &getFarmExists( $farmname ) )
 	{
 		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -235,7 +222,7 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	# validate FARM TYPE
 	my $type = &getFarmType( $farmname );
 
-	unless ( $type eq 'gslb' || $type eq 'http' || $type eq 'https' )
+	unless ( $type eq 'gslb' or $type eq 'http' or $type eq 'https' )
 	{
 		my $msg = "The $type farm profile does not support services.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -252,19 +239,12 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	}
 
 	# check if the farm profile gslb is supported
-	if ( $type eq "gslb" && $eload )
-	{
-		&eload(
-				module => 'Zevenet::API31::Farm::GSLB',
-				func   => 'modify_gslb_service',
-				args   => [$json_obj, $farmname, $service]
-		);
-	}
-	elsif ( $type !~ /^https?$/ )
-	{
-		my $msg = "Farm profile not supported";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
+
+		if ( $type !~ /^https?$/ )
+		{
+			my $msg = "Farm profile not supported";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
 
 	if ( exists $json_obj->{ vhost } )
 	{
@@ -276,15 +256,13 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 		&setFarmVS( $farmname, $service, "urlp", $json_obj->{ urlp } );
 	}
 
-	my $redirecttype = &getFarmVS( $farmname, $service, "redirecttype" );
-
 	if ( exists $json_obj->{ redirect } )
 	{
 		my $redirect = $json_obj->{ redirect };
 
 		unless (    $redirect =~ /^http\:\/\//i
-				 || $redirect =~ /^https:\/\//i
-				 || $redirect eq '' )
+				 or $redirect =~ /^https:\/\//i
+				 or $redirect eq '' )
 		{
 			my $msg = "Invalid redirect value.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -292,8 +270,6 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 
 		&setFarmVS( $farmname, $service, "redirect", $redirect );
 	}
-
-	my $redirect = &getFarmVS( $farmname, $service, "redirect" );
 
 	if ( exists $json_obj->{ redirecttype } )
 	{
@@ -303,7 +279,7 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 		{
 			&setFarmVS( $farmname, $service, "redirecttype", $redirecttype );
 		}
-		elsif ( exists $json_obj->{ redirect } && $json_obj->{ redirect } )
+		elsif ( exists $json_obj->{ redirect } and $json_obj->{ redirect } )
 		{
 			my $msg = "Invalid redirecttype value.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -374,27 +350,11 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 	}
 
 	# Cookie insertion
-	if ( scalar grep ( /^cookie/, keys %{ $json_obj } ) )
+	if ( scalar grep { /^cookie/ } keys %{ $json_obj } )
 	{
-		if ( $eload )
-		{
-			my $msg = &eload(
-							  module   => 'Zevenet::API31::Farm::Service::Ext',
-							  func     => 'modify_service_cookie_insertion',
-							  args     => [$farmname, $service, $json_obj],
-							  just_ret => 1,
-			);
-
-			if ( defined $msg && length $msg )
-			{
-				return &httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-			}
-		}
-		else
-		{
 			my $msg = "Cookie insertion feature not available.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
+
 	}
 
 	if ( exists $json_obj->{ httpsb } )
@@ -420,12 +380,6 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 
 	# no error found, return succesful response
 	$output_params = &getHTTPServiceStruct( $farmname, $service );
-	if ( $eload )
-	{
-		delete ( $output_params->{ sts_status } );
-		delete ( $output_params->{ sts_timeout } );
-		delete ( $output_params->{ redirect_code } );
-	}
 	delete ( $output_params->{ replacerequestheader } );
 	delete ( $output_params->{ replaceresponseheader } );
 	delete ( $output_params->{ rewritelocation } );
@@ -466,15 +420,12 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 		else
 		{
 			&runFarmReload( $farmname );
-			&eload(
-					module => 'Zevenet::Cluster',
-					func   => 'runZClusterRemoteManager',
-					args   => ['farm', 'reload', $farmname],
-			) if ( $eload );
+
 		}
 	}
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # DELETE
@@ -482,14 +433,14 @@ sub modify_services    # ( $json_obj, $farmname, $service )
 # DELETE /farms/<farmname>/services/<servicename> Delete a service of a Farm
 sub delete_service    # ( $farmname, $service )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farmname, $service ) = @_;
 
 	my $desc = "Delete service";
 
 	# Check if the farm exists
-	if ( !&getFarmExists( $farmname ) )
+	if ( not &getFarmExists( $farmname ) )
 	{
 		my $msg = "The farmname $farmname does not exist.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -498,19 +449,11 @@ sub delete_service    # ( $farmname, $service )
 	# check the farm type is supported
 	my $type = &getFarmType( $farmname );
 
-	if ( $type eq "gslb" && $eload )
-	{
-		&eload(
-				module => 'Zevenet::API31::Farm::GSLB',
-				func   => 'delete_gslb_service',
-				args   => [$farmname, $service]
-		);
-	}
-	elsif ( $type !~ /^https?$/ )
-	{
-		my $msg = "The farm profile $type does not support services.";
-		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-	}
+		if ( $type !~ /^https?$/ )
+		{
+			my $msg = "The farm profile $type does not support services.";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
 
 	require Zevenet::Farm::Base;
 	require Zevenet::Farm::HTTP::Service;
@@ -573,15 +516,12 @@ sub delete_service    # ( $farmname, $service )
 		else
 		{
 			&runFarmReload( $farmname );
-			&eload(
-					module => 'Zevenet::Cluster',
-					func   => 'runZClusterRemoteManager',
-					args   => ['farm', 'reload', $farmname],
-			) if ( $eload );
+
 		}
 	}
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 1;

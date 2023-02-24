@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -33,16 +33,13 @@
 use strict;
 use warnings;
 use Getopt::Long;
-use Switch;
+
 use Zevenet::Config;
 use Zevenet::Log;
 use Zevenet::LetsencryptZ;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
+$SIG{ ALRM } = sub { die "timeout" };
+
 
 #local variables
 my $cert_name;
@@ -51,6 +48,8 @@ my $vip;
 my $force;
 my $restart;
 my $msg;
+my $timeout = getGlobalConfiguration( 'le_renewal_timeout' );
+$timeout //= 120;
 
 GetOptions(
 			'cert=s'  => \$cert_name,
@@ -63,7 +62,7 @@ GetOptions(
 
 # check params
 
-if ( ( !defined $vip && !defined $farm_name ) )
+if ( not defined $vip and not defined $farm_name )
 {
 	$msg = "No 'vip' or 'farm' param found.";
 	&zenlog( $msg, "ERROR", "Letsencryptz-renewal" );
@@ -71,7 +70,7 @@ if ( ( !defined $vip && !defined $farm_name ) )
 	#&help;
 }
 
-if ( !defined $cert_name )
+if ( not defined $cert_name )
 {
 	$msg = "No 'cert' param found.";
 	&zenlog( $msg, "ERROR", "Letsencryptz-renewal" );
@@ -81,7 +80,7 @@ if ( !defined $cert_name )
 
 # checks
 my $le_cert = &getLetsencryptCertificates( $cert_name );
-if ( !@{ $le_cert } )
+if ( not @{ $le_cert } )
 {
 	my $msg = "Let's Encrypt certificate $cert_name not found!";
 	&zenlog( $msg, "ERROR", "Letsencryptz-renewal" );
@@ -95,7 +94,7 @@ if ( defined $farm_name )
 
 	# avoid farmname when no HTTP Farm exists
 	my $msg;
-	if ( !@farm_list )
+	if ( not @farm_list )
 	{
 		$msg = "There is no HTTP Farms in the system, use 'vip' param instead.";
 	}
@@ -121,9 +120,6 @@ if ( defined $farm_name )
 
 if ( defined $vip )
 {
-	require Zevenet::Net::Interface;
-	my $ip_list = &getIpAddressList();
-
 	# check any farm listening on vip and port 80 and up
 	my $msg;
 	my $le_farm_port = 80;
@@ -149,7 +145,7 @@ if ( defined $vip )
 
 # check Email config
 my $le_conf = &getLetsencryptConfig();
-if ( !$le_conf->{ email } )
+if ( not $le_conf->{ email } )
 {
 	my $msg = "LetsencryptZ email is not configured.";
 	&zenlog( $msg, "ERROR", "Letsencryptz-renewal" );
@@ -158,82 +154,93 @@ if ( !$le_conf->{ email } )
 
 $force = $force ? "true" : "false";
 
-my $error_ref = &runLetsencryptRenew( $cert_name, $farm_name, $vip, $force );
+eval {
+	my $error_ref;
+	&zenlog(
+		"Executing Letsencrypt certificate '$cert_name' renewal with timeout '$timeout'.",
+		"info", "Letsencryptz-renewal"
+	);
+	alarm ( $timeout );
+	$error_ref = &runLetsencryptRenew( $cert_name, $farm_name, $vip, $force );
+	alarm ( 0 );
 
-if ( $error_ref->{ code } )
-{
-	&zenlog( $error_ref->{ desc }, "ERROR", "Letsencryptz-renewal" );
-	exit $error_ref->{ code };
-}
-&zenlog(
-	"Success, the Letsencrypt certificate $cert_name has been renewed successfully.",
-	"info", "Letsencryptz-renewal"
-);
-
-my @farms_restarted;
-my @farms_restarted_error;
-
-if ( defined $restart )
-{
-	my $cert = $cert_name;
-	$cert =~ s/\./\_/g;
-	$cert .= ".pem";
-
-	my $error;
-	require Zevenet::Farm::Action;
-	require Zevenet::Farm::Base;
-	require Zevenet::Certificate;
-
-	foreach my $farm ( @{ &getCertFarmsUsed( $cert ) } )
+	if ( defined $error_ref and $error_ref->{ code } )
 	{
-		# restart farm used and up
-		if ( &getFarmStatus( $farm ) ne 'down' )
-		{
-			&zenlog( "Restarting farm '$farm' using certificate '$cert_name'.",
-					 "info", "Letsencryptz-renewal" );
-			$error = &runFarmStop( $farm, "" );
-			if ( $error )
-			{
-				push @farms_restarted_error, $farm;
-				next;
-			}
-			$error = &runFarmStart( $farm, "" );
-			if ( $error )
-			{
-				push @farms_restarted_error, $farm;
-				next;
-			}
-			push @farms_restarted, $farm;
-		}
+		&zenlog( $error_ref->{ desc }, "ERROR", "Letsencryptz-renewal" );
+		exit $error_ref->{ code };
 	}
+	&zenlog(
+		"Success, the Letsencrypt certificate $cert_name has been renewed successfully.",
+		"info", "Letsencryptz-renewal"
+	);
 
-	if ( $eload )
+	my @farms_restarted;
+	my @farms_restarted_error;
+
+	if ( defined $restart )
 	{
+		my $cert = $cert_name;
+		$cert =~ s/\./\_/g;
+		$cert .= ".pem";
+
+		my $error;
+		require Zevenet::Farm::Action;
+		require Zevenet::Farm::Base;
+		require Zevenet::Certificate;
+
+		foreach my $farm ( @{ &getCertFarmsUsed( $cert ) } )
+		{
+			# restart farm used and up
+			if ( &getFarmStatus( $farm ) ne 'down' )
+			{
+				&zenlog( "Restarting farm '$farm' using certificate '$cert_name'.",
+						 "info", "Letsencryptz-renewal" );
+				$error = &runFarmStop( $farm, "" );
+				if ( $error )
+				{
+					push @farms_restarted_error, $farm;
+					next;
+				}
+				$error = &runFarmStart( $farm, "" );
+				if ( $error )
+				{
+					push @farms_restarted_error, $farm;
+					next;
+				}
+				push @farms_restarted, $farm;
+			}
+		}
+
+		my $info_msg;
 		if ( @farms_restarted )
 		{
-			&eload(
-					module => 'Zevenet::Cluster',
-					func   => 'runZClusterRemoteManager',
-					args   => ['farm', 'restart_farms', @farms_restarted],
-			);
+			$info_msg =
+			  "The following farms were been restarted: " . join ( ", ", @farms_restarted );
 		}
-	}
+		if ( @farms_restarted_error )
+		{
+			$info_msg .= "The following farms could not been restarted: "
+			  . join ( ", ", @farms_restarted_error );
+		}
 
-	my $info_msg;
-	if ( @farms_restarted )
+		&zenlog( "$info_msg.", "info", "Letsencryptz-renewal" ) if defined $info_msg;
+
+	}
+};
+
+if ( $@ )
+{
+	if ( $@ =~ /timeout/ )
 	{
-		$info_msg =
-		  "The following farms were been restarted: " . join ( ", ", @farms_restarted );
-
+		$msg = "Error: Timeout '$timeout' reached!.";
 	}
-	if ( @farms_restarted_error )
+	else
 	{
-		$info_msg .= "The following farms could not been restarted: "
-		  . join ( ", ", @farms_restarted_error );
+		alarm ( 0 );
+		$msg = "Unexpected error found : $@";
 	}
-
-	&zenlog( "$info_msg.", "info", "Letsencryptz-renewal" ) if defined $info_msg;
-
+	&zenlog( $msg, "ERROR", "Letsencryptz-renewal" );
+	exit 1;
 }
-exit 0;
 
+exit 0;

@@ -1,7 +1,8 @@
-###############################################################################
+#!/usr/bin/perl
+################################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -21,17 +22,13 @@
 ###############################################################################
 
 use strict;
+use warnings;
 use Zevenet::Farm::Datalink::Backend;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 sub farms_name_datalink    # ( $farmname )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farmname = shift;
 
@@ -53,23 +50,8 @@ sub farms_name_datalink    # ( $farmname )
 				 params      => $out_p,
 				 backends    => $out_b,
 	};
-
-	if ( $eload )
-	{
-		$body->{ ipds } = &eload(
-								  module => 'Zevenet::IPDS::Core',
-								  func   => 'getIPDSfarmsRules',
-								  args   => [$farmname],
-		);
-		delete $body->{ ipds }->{ rbl };
-		delete $body->{ ipds }->{ dos };
-		for my $blacklist ( @{ $body->{ ipds }->{ blacklists } } )
-		{
-			delete $blacklist->{ id };
-		}
-	}
-
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 1;

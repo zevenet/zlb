@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,12 +22,8 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 =begin nd
 Function: runFarmCreate
@@ -51,7 +47,7 @@ FIXME:
 
 sub runFarmCreate    # ($farm_type,$vip,$vip_port,$farm_name,$fdev)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_type, $vip, $vip_port, $farm_name, $fdev ) = @_;
 
@@ -70,7 +66,7 @@ sub runFarmCreate    # ($farm_type,$vip,$vip_port,$farm_name,$fdev)
 	{
 		require Zevenet::Net::Interface;
 		$status = 'down'
-		  if ( !&validatePort( $vip, $vip_port, $farm_type, $farm_name ) );
+		  if ( not &validatePort( $vip, $vip_port, $farm_type, $farm_name ) );
 	}
 
 	&zenlog( "running 'Create' for $farm_name farm $farm_type", "info", "LSLB" );
@@ -91,21 +87,6 @@ sub runFarmCreate    # ($farm_type,$vip,$vip_port,$farm_name,$fdev)
 		require Zevenet::Farm::L4xNAT::Factory;
 		$output = &runL4FarmCreate( $vip, $farm_name, $vip_port, $status );
 	}
-	elsif ( $farm_type =~ /^GSLB$/i )
-	{
-		$output = &eload(
-						  module => 'Zevenet::Farm::GSLB::Factory',
-						  func   => 'runGSLBFarmCreate',
-						  args   => [$vip, $vip_port, $farm_name, $status],
-		) if $eload;
-	}
-
-	&eload(
-			module => 'Zevenet::RBAC::Group::Config',
-			func   => 'addRBACUserResource',
-			args   => [$farm_name, 'farms'],
-	) if $eload;
-
 	return $output;
 }
 
@@ -140,18 +121,6 @@ sub runFarmCreateFrom
 
 	# add ipds rules
 	my $ipds;
-	if ( $eload )
-	{
-		$ipds = &eload(
-						module => 'Zevenet::IPDS::Core',
-						func   => 'getIPDSfarmsRules',
-						args   => [$params->{ copy_from }],
-		);
-
-		# they doesn't have to be applied, they already are in the config file
-		delete $ipds->{ waf };
-	}
-
 	# create file
 	require Zevenet::Farm::Action;
 	$err = &copyFarm( $params->{ copy_from }, $params->{ farmname } );
@@ -196,17 +165,7 @@ sub runFarmCreateFrom
 											$params->{ farmname }
 		);
 	}
-
-	if ( $eload and !$err )
-	{
-		$err = &eload(
-					   module => 'Zevenet::IPDS::Core',
-					   func   => 'addIPDSFarms',
-					   args   => [$params->{ farmname }, $ipds],
-		);
-	}
-
-	if ( ( $params->{ profile } eq 'l4xnat' ) and ( !$err ) )
+	if ( ( $params->{ profile } eq 'l4xnat' ) and ( not $err ) )
 	{
 		require Zevenet::Net::Interface;
 		if (

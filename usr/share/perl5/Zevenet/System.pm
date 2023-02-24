@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,6 +22,7 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 =begin nd
 Function: getTotalConnections
@@ -40,7 +41,7 @@ See Also:
 
 sub getTotalConnections
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $conntrack = &getGlobalConfiguration( "conntrack" );
 	my $conns     = &logAndGet( "$conntrack -C" );
@@ -68,7 +69,7 @@ See Also:
 
 sub indexOfElementInArray
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $searched_element = shift;
 	my $array_ref        = shift;
@@ -116,7 +117,7 @@ Returns:
 
 sub slurpFile
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $path = shift;
 
@@ -133,7 +134,7 @@ sub slurpFile
 		my $msg = "Could not open $file: $!";
 
 		&zenlog( $msg );
-		die $msg;
+		return 1;
 	}
 
 	{
@@ -162,7 +163,7 @@ Returns:
 
 sub getSpaceFree
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $dir      = shift;
@@ -195,7 +196,7 @@ Returns:
 
 sub getSpaceFormatHuman
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $size = shift;
@@ -241,7 +242,7 @@ Returns:
 
 sub getSupportSaveSize
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $offset = "20971520";                             # 20 MB
@@ -269,7 +270,7 @@ Returns:
 
 sub checkSupportSaveSpace
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $dir = shift // "/tmp";
@@ -312,7 +313,7 @@ Returns:
 
 sub getSupportSave
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $zbindir = &getGlobalConfiguration( 'zbindir' );
 	my @ss_output = @{ &logAndGet( "${zbindir}/supportsave", "array" ) };
@@ -348,13 +349,13 @@ Returns:
 
 sub applyFactoryReset
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $if_name = shift;
 	my $reset_type = shift // '';
 
-	if ( !$if_name )
+	if ( not $if_name )
 	{
 		&zenlog( "Factory reset needs a interface", "error", "Factory" );
 		return -1;
@@ -391,7 +392,7 @@ Returns:
 
 sub checkPidRunning    #( $pid )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $pid = shift;
 	my $ret = 1;
@@ -414,10 +415,10 @@ Returns:
 
 sub checkPidFileRunning    #( $pid_file )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $pid_file = shift;
-	open my $fileh, $pid_file;
+	open my $fileh, "<", $pid_file;
 	my $pid = <$fileh>;
 	chomp $pid;
 	close $fileh;

@@ -1,7 +1,8 @@
+#!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -21,19 +22,15 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 my $CSR_KEY_SIZE = 2048;
 
 # GET /certificates
 sub certificates    # ()
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	require Zevenet::Certificate;
 
@@ -53,12 +50,13 @@ sub certificates    # ()
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # GET /certificates/CERTIFICATE
 sub download_certificate    # ()
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $cert_filename = shift;
 
@@ -68,7 +66,7 @@ sub download_certificate    # ()
 	  if $cert_filename eq 'zlbcertfile.pem';
 	my $cert_path = "$cert_dir/$cert_filename";
 
-	unless ( $cert_filename =~ /\.(pem|csr)$/ && -f $cert_path )
+	unless ( $cert_filename =~ /\.(pem|csr)$/ and -f $cert_path )
 	{
 		my $msg = "Could not find such certificate";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -79,12 +77,13 @@ sub download_certificate    # ()
 						   dir  => $cert_dir,
 						   file => $cert_filename
 	);
+	return;
 }
 
 # DELETE /certificates/CERTIFICATE
 sub delete_certificate    # ( $cert_filename )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $cert_filename = shift;
 
@@ -97,7 +96,7 @@ sub delete_certificate    # ( $cert_filename )
 	  if $cert_filename eq 'zlbcertfile.pem';
 
 	# check is the certificate file exists
-	if ( !-f "$cert_dir\/$cert_filename" )
+	if ( not -f "$cert_dir\/$cert_filename" )
 	{
 		my $msg = "Certificate file not found.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -130,12 +129,13 @@ sub delete_certificate    # ( $cert_filename )
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # POST /certificates (Create CSR)
 sub create_csr
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj = shift;
 
@@ -164,16 +164,16 @@ sub create_csr
 	if (
 		$json_obj->{ name } =~ /^$/
 
-		#~ || $json_obj->{ issuer } =~ /^$/
-		|| $json_obj->{ fqdn } =~ /^$/
-		|| $json_obj->{ division } =~ /^$/
-		|| $json_obj->{ organization } =~ /^$/
-		|| $json_obj->{ locality } =~ /^$/
-		|| $json_obj->{ state } =~ /^$/
-		|| $json_obj->{ country } =~ /^$/
-		|| $json_obj->{ mail } =~ /^$/
+		#~ or $json_obj->{ issuer } =~ /^$/
+		or $json_obj->{ fqdn } =~ /^$/
+		or $json_obj->{ division } =~ /^$/
+		or $json_obj->{ organization } =~ /^$/
+		or $json_obj->{ locality } =~ /^$/
+		or $json_obj->{ state } =~ /^$/
+		or $json_obj->{ country } =~ /^$/
+		or $json_obj->{ mail } =~ /^$/
 
-		#~ || $json_obj->{ key } =~ /^$/
+		#~ or $json_obj->{ key } =~ /^$/
 	  )
 	{
 		my $msg = "Fields can not be empty. Try again.";
@@ -223,12 +223,13 @@ sub create_csr
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # POST /certificates/CERTIFICATE (Upload PEM)
 sub upload_certificate    # ()
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $upload_filehandle = shift;
 	my $filename          = shift;
@@ -267,12 +268,13 @@ sub upload_certificate    # ()
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # GET /ciphers
 sub ciphers_available    # ( $json_obj, $farmname )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $desc = "Get the ciphers available";
 
@@ -282,20 +284,13 @@ sub ciphers_available    # ( $json_obj, $farmname )
 				{ 'ciphers' => "customsecurity", "description" => "Custom security" }
 	);
 
-	push (
-		   @out,
-		   &eload(
-				   module => 'Zevenet::Farm::HTTP::HTTPS::Ext',
-				   func   => 'getExtraCipherProfiles',
-		   )
-	) if ( $eload );
-
 	my $body = {
 				 description => $desc,
 				 params      => \@out,
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 1;

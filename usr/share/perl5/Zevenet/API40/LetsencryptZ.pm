@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 ##############################################################################
 #
 #    Zevenet Software License
@@ -21,17 +22,13 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 # GET /certificates/letsencryptz
 sub get_le_certificates    # ()
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	require Zevenet::LetsencryptZ;
@@ -47,35 +44,19 @@ sub get_le_certificates    # ()
 			push @out, &getLetsencryptCertificateInfo( $cert->{ name } );
 		}
 	}
-	if ( $eload )
-	{
-		my $wildcards = &eload( module => 'Zevenet::LetsencryptZ::Wildcard',
-								func   => 'getLetsencryptWildcardCertificates' );
-
-		foreach my $cert ( @{ $wildcards } )
-		{
-			push @out,
-			  &eload(
-					  module => 'Zevenet::LetsencryptZ::Wildcard',
-					  func   => 'getLetsencryptWildcardCertificateInfo',
-					  args   => [$cert->{ name }]
-			  );
-		}
-
-	}
-
 	my $body = {
 				 description => $desc,
 				 params      => \@out,
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # GET /certificates/letsencryptz/le_cert_re
 sub get_le_certificate    # ( $cert_filename )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $le_cert_name = shift;
 
@@ -83,7 +64,7 @@ sub get_le_certificate    # ( $cert_filename )
 
 	my $desc    = "Show Let's Encrypt certificate $le_cert_name";
 	my $le_cert = &getLetsencryptCertificates( $le_cert_name );
-	if ( !defined $le_cert_name or !@{ $le_cert } )
+	if ( not defined $le_cert_name or not @{ $le_cert } )
 	{
 		my $msg = "Let's Encrypt certificate $le_cert_name not found!";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -97,12 +78,13 @@ sub get_le_certificate    # ( $cert_filename )
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # POST /certificates/letsencryptz
 sub create_le_certificate    # ()
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $json_obj = shift;
@@ -120,15 +102,15 @@ sub create_le_certificate    # ()
 	$params->{ farmname }->{ values } = \@farm_list;
 
 	# avoid farmname when no HTTP Farm exists
-	if ( !@farm_list and defined $json_obj->{ farmname } )
+	if ( not @farm_list and defined $json_obj->{ farmname } )
 	{
 		my $msg = "There is no HTTP Farms in the system, use 'vip' param instead.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
 	# vip or farmname has to be defined
-	if (     !$json_obj->{ vip }
-		 and !$json_obj->{ farmname }
+	if (     not $json_obj->{ vip }
+		 and not $json_obj->{ farmname }
 		 and defined $json_obj->{ domains } )
 	{
 		my $msg = "No 'vip' or 'farmname' param found.";
@@ -143,7 +125,7 @@ sub create_le_certificate    # ()
 	}
 
 	# avoid wildcards domains
-	if ( grep ( /^\*/, @{ $json_obj->{ domains } } ) )
+	if ( grep { /^\*/ } @{ $json_obj->{ domains } } )
 	{
 		my $msg = "Wildcard domains are not allowed.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -193,7 +175,7 @@ sub create_le_certificate    # ()
 
 	# check Email config
 	my $le_conf = &getLetsencryptConfig();
-	if ( !$le_conf->{ email } )
+	if ( not $le_conf->{ email } )
 	{
 		my $msg = "LetsencryptZ email is not configured.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -223,12 +205,13 @@ sub create_le_certificate    # ()
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # DELETE /certificates/letsencryptz/le_cert_re
 sub delete_le_certificate    # ( $cert_filename )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $le_cert_name = shift;
@@ -237,7 +220,7 @@ sub delete_le_certificate    # ( $cert_filename )
 	require Zevenet::LetsencryptZ;
 
 	my $le_cert = &getLetsencryptCertificates( $le_cert_name );
-	if ( !@{ $le_cert } )
+	if ( not @{ $le_cert } )
 	{
 		my $msg = "Let's Encrypt certificate $le_cert_name not found!";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -257,23 +240,6 @@ sub delete_le_certificate    # ( $cert_filename )
 		  . join ( ", ", @{ $farms_used } );
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
-
-	if ( $eload )
-	{
-		# check the certificate is being used by ZAPI Webserver
-		my $status = &eload(
-							 module => 'Zevenet::System::HTTP',
-							 func   => 'getHttpsCertUsed',
-							 args   => ['$cert_name']
-		);
-		if ( $status == 0 )
-		{
-			my $msg =
-			  "Let's Encrypt Certificate $le_cert_name can not be deleted because it is in use by HTTPS server";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
-		}
-	}
-
 	# revoke LE cert
 	my $error = &runLetsencryptDestroy( $le_cert_name );
 	if ( $error )
@@ -306,12 +272,13 @@ sub delete_le_certificate    # ( $cert_filename )
 				 message     => $msg,
 	};
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # POST /certificates/letsencryptz/le_cert_re/actions
 sub actions_le_certificate    # ( $le_cert_name )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj     = shift;
 	my $le_cert_name = shift;
@@ -322,7 +289,7 @@ sub actions_le_certificate    # ( $le_cert_name )
 
 	# check the certificate is a LE cert
 	my $le_cert = &getLetsencryptCertificates( $le_cert_name );
-	if ( !@{ $le_cert } )
+	if ( not @{ $le_cert } )
 	{
 		my $msg = "Let's Encrypt certificate $le_cert_name not found!";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -345,15 +312,15 @@ sub actions_le_certificate    # ( $le_cert_name )
 	}
 
 	# avoid farmname when no HTTP Farm exists
-	if ( !@farm_list and defined $json_obj->{ farmname } )
+	if ( not @farm_list and defined $json_obj->{ farmname } )
 	{
 		my $msg = "There is no HTTP Farms in the system, use 'vip' param instead.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
 	# vip or farmname has to be defined
-	if (     !$json_obj->{ vip }
-		 and !$json_obj->{ farmname } )
+	if (     not $json_obj->{ vip }
+		 and not $json_obj->{ farmname } )
 	{
 		my $msg = "No 'vip' or 'farmname' param found.";
 		&httpErrorResponse( code => 404, desc => $desc, msg => $msg );
@@ -402,7 +369,7 @@ sub actions_le_certificate    # ( $le_cert_name )
 
 	# check Email config
 	my $le_conf = &getLetsencryptConfig();
-	if ( !$le_conf->{ email } )
+	if ( not $le_conf->{ email } )
 	{
 		my $msg = "LetsencryptZ email is not configured.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -457,14 +424,6 @@ sub actions_le_certificate    # ( $le_cert_name )
 		}
 
 		# restart on backup node
-		if ( $eload )
-		{
-			&eload(
-					module => 'Zevenet::Cluster',
-					func   => 'runZClusterRemoteManager',
-					args   => ['farm', 'restart_farms', @farms_restarted],
-			) if @farms_restarted;
-		}
 	}
 
 	my $info_msg;
@@ -489,13 +448,14 @@ sub actions_le_certificate    # ( $le_cert_name )
 	};
 	$body->{ warning } = $info_msg if defined $info_msg;
 	&httpResponse( { code => 200, body => $body } );
+	return;
 
 }
 
 # PUT /certificates/letsencryptz/le_cert_re
 sub modify_le_certificate    # ( $le_cert_name )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj     = shift;
 	my $le_cert_name = shift;
@@ -506,7 +466,7 @@ sub modify_le_certificate    # ( $le_cert_name )
 
 	# check the certificate is a LE cert
 	my $le_cert = &getLetsencryptCertificates( $le_cert_name );
-	if ( !@{ $le_cert } )
+	if ( not @{ $le_cert } )
 	{
 		my $msg = "Let's Encrypt certificate $le_cert_name not found!";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -553,8 +513,8 @@ sub modify_le_certificate    # ( $le_cert_name )
 
 	# depends_on model
 	# vip or farmname has to be defined
-	if (     !$json_obj->{ vip }
-		 and !$json_obj->{ farmname }
+	if (     not $json_obj->{ vip }
+		 and not $json_obj->{ farmname }
 		 and $json_obj->{ autorenewal } eq "true" )
 	{
 		my $msg = "No 'vip' or 'farmname' param found.";
@@ -604,7 +564,7 @@ sub modify_le_certificate    # ( $le_cert_name )
 
 	# check Email config
 	my $le_conf = &getLetsencryptConfig();
-	if ( !$le_conf->{ email } )
+	if ( not $le_conf->{ email } )
 	{
 		my $msg = "LetsencryptZ email is not configured.";
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -659,12 +619,13 @@ sub modify_le_certificate    # ( $le_cert_name )
 				 message     => $msg,
 	};
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # GET /certificates/letsencryptz/config
 sub get_le_conf    # ( )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $desc = "Get LetsEncrypt Config";
@@ -676,12 +637,13 @@ sub get_le_conf    # ( )
 				 params      => $out,
 	};
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 # PUT /certificates/letsencryptz/config
 sub modify_le_conf    # ( )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $json_obj = shift;
 
@@ -711,6 +673,7 @@ sub modify_le_conf    # ( )
 				 params      => $out,
 	};
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 1;

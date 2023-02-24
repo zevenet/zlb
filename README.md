@@ -8,28 +8,28 @@ In this repository you'll find the source code usually placed into the folder `/
 - **backups/**: Default folder where the configuration backups will be placed.
 - **config/**: Default folder where the load balancing services, health checks and network configuration files will be placed.
 - **etc/**: Some system files to configure ZEVENET Load Balancer services.
-- **lib/**: Folder where Zevenet funcionality library is located.
+- **lib/**: Folder where ZEVENET funcionality library is located.
 - **share/**: Folder for templates and other data.
 - **www/**: Backend API source files of ZEVENET Load Balancer.
 - *other*: License and this readme information.
-And `/usr/share/perl5/Zevent` with the entire Zevenet backend core.
+And `/usr/share/perl5/Zevent` with the entire ZEVENET backend core.
 
 ## ZEVENET Load Balancer Installation
 
 Currently, there is only available package for Debian Buster, the installation is not supported out of this operating system.
 
-There are two options to deploy a ZEVENET load balancer: The first is deploying the ZEVENET CE ISO, and the other is deploying a Debian Buster image and installing Zevenet with its dependencies.
+There are two options to deploy a ZEVENET load balancer: The first is deploying the ZEVENET CE ISO, and the other is deploying a Debian Buster image and installing ZEVENET with its dependencies.
 
 ### ISO
 
-ZEVENET CE ISO is a Debian Buster template with Zevenet already installed. It can be got from the following link, clicking on the "Download ISO image" button.
+ZEVENET CE ISO is a Debian Buster template with ZEVENET already installed. It can be got from the following link, clicking on the "Download ISO image" button.
 
 https://www.zevenet.com/products/community/
 
 
 ### Installation on Debian Buster
 
-If you prefer install zevenet yourself, you should get a Debian ISO installable from [debian.org](https://www.debian.org/distrib/). This installation process has been only tested with the 64 bits version.
+If you prefer install ZEVENET yourself, you should get a Debian ISO installable from [debian.org](https://www.debian.org/distrib/). This installation process has been only tested with the 64 bits version.
 
 Please, take into account these **requirements** before installing the load balancer:
 
@@ -52,14 +52,14 @@ Now, update the local APT database
 ```
 root@zevenetlb#> apt-get update
 ```
-And finally, install the Zevenet CE
+And finally, install the ZEVENET CE
 ```
 root@zevenetlb#> apt-get install zevenet
 ```
 
 ## Updates
 
-Please use the Zevenet APT repo in order to check if updates are available. 
+Please use the ZEVENET APT repo in order to check if updates are available.
 
 
 ## How to Contribute

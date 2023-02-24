@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,7 +22,7 @@
 ###############################################################################
 
 use strict;
-
+use warnings;
 my $passfile = "/etc/shadow";
 
 =begin nd
@@ -47,11 +47,11 @@ See Also:
 
 sub changePassword    #($user, $newpass, $verifypass)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $user, $newpass, $verifypass ) = @_;
 
-	$verifypass = $newpass if ( !$verifypass );
+	$verifypass = $newpass if ( not $verifypass );
 
 	##write \$ instead $
 	$newpass =~ s/\$/\\\$/g;
@@ -99,7 +99,7 @@ See Also:
 
 sub checkValidUser    #($user,$curpasswd)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $user, $curpasswd ) = @_;
 

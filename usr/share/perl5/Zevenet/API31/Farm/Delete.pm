@@ -1,7 +1,8 @@
-###############################################################################
+#!/usr/bin/perl
+################################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,19 +23,15 @@
 
 use strict;
 use Zevenet::Farm::Core;
+use warnings;
 use Zevenet::Farm::Base;
 use Zevenet::Farm::Action;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 # DELETE /farms/FARMNAME
 sub delete_farm    # ( $farmname )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farmname = shift;
 
@@ -53,12 +50,6 @@ sub delete_farm    # ( $farmname )
 			my $msg = "The farm $farmname could not be stopped.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
-
-		&eload(
-				module => 'Zevenet::Cluster',
-				func   => 'runZClusterRemoteManager',
-				args   => ['farm', 'stop', $farmname],
-		) if ( $eload );
 	}
 
 	my $error = &runFarmDelete( $farmname );
@@ -71,12 +62,6 @@ sub delete_farm    # ( $farmname )
 
 	&zenlog( "Success, the farm $farmname has been deleted.", "info", "FARMS" );
 
-	&eload(
-			module => 'Zevenet::Cluster',
-			func   => 'runZClusterRemoteManager',
-			args   => ['farm', 'delete', $farmname],
-	) if ( $eload );
-
 	my $msg = "The Farm $farmname has been deleted.";
 	my $body = {
 				 description => $desc,
@@ -85,6 +70,7 @@ sub delete_farm    # ( $farmname )
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 1;

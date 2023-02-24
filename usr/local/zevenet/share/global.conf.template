@@ -28,12 +28,12 @@ $cors_devel_mode = "false";
 # Minutes for Gui Session Timeout.
 $session_timeout="30";
 
-## Zevenet Paths
-#Zevenet root directory
+## ZEVENET Paths
+#ZEVENET root directory
 $zdir="/usr/local/zevenet";#update
-#Zevenet lib directory
+#ZEVENET lib directory
 $zlibdir="/usr/share/perl5/Zevenet";#update
-#Zevenet bin directory
+#ZEVENET bin directory
 $zbindir="$zdir/bin";#update
 #Document Root for Web Aplication directory
 $basedir="$zdir/www";#update
@@ -45,15 +45,17 @@ $certdir="$zdir/config/certificates";#update
 $localconfig="$configdir/local";#update
 #Directory where is check script. In this directory you can save your own check scripts.
 $libexec_dir="/usr/lib/nagios/plugins";
-#Zevenet bin directory
+#ZEVENET bin directory
 $templatedir="$zdir/share";#update
 #Save backups on
 $backupdir="$zdir/backups";#update
+#Save farm sockets on
+$socketdir="/tmp";
 #Log directory
 $logdir="/var/log";#update
 #piddir
 $piddir="/var/run";
-#zevenet activation certificate path
+#ZEVENET activation certificate path
 $zlbcertfile_path="$basedir/zlbcertfile.pem";#update
 # directory of the zapi binaries
 $zapi_directory="$basedir/zapi";
@@ -61,8 +63,10 @@ $zapi_directory="$basedir/zapi";
 $first_boot_flag="/etc/firstzlbboot";
 #zna migration flag
 $migration_flag="/etc/zlbmigration";
-#zevenet service
+#ZEVENET service
 $zevenet_service="/etc/init.d/zevenet";
+#zevenet no restart service flag
+$zevenet_service_norestart_flag="/etc/zlbnorestart";
 # directory of the migration scripts
 $mig_dir="$zdir/migrating";
 
@@ -78,15 +82,15 @@ $shadow_file="/etc/shadow";
 $filedns="/etc/resolv.conf";
 # apt sources configuration file
 $fileapt="/etc/apt/sources.list";
-# apt Zevenet source
+# apt ZEVENET source
 $apt_source_zevenet="/etc/apt/sources.list.d/zevenet.list";
 # apt user conf
 $apt_conf_file="/etc/apt/apt.conf";
 # apt updates dir
 $update_dir="/usr/local/zevenet/updates";
-# Zevenet URL repo
+# ZEVENET URL repo
 $repo_url_zevenet="repo.zevenet.com";
-# Zevenet GPG key
+# ZEVENET GPG key
 $gpg_key_zevenet="ee.zevenet.com.gpg.key";
 # Bios version
 $bios_version="/sys/devices/virtual/dmi/id/bios_version";
@@ -105,7 +109,7 @@ $zlb_stop_script="$configdir/zlb-stop";
 $zlb_start_tpl="$templatedir/zlb-start.template";
 $zlb_stop_tpl="$templatedir/zlb-stop.template";
 
-## Zevenet Files
+## ZEVENET Files
 #appliance version file
 $applianceVersionFile="/etc/zevenet_version";
 #this file
@@ -136,6 +140,7 @@ $le_acme_cert_path="$le_acme_config_path/live";
 $le_email="";
 $le_cron_file="/etc/cron.d/letsencryptz";
 $le_renewal_bin="$zbindir/letsencryptz-autorenew";
+$le_renewal_timeout="120";
 
 #File configuration GUI
 $http_server_dir="$zdir/app/cherokee";

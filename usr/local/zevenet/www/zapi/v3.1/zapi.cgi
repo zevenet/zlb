@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -31,7 +31,6 @@ use Zevenet::API31::HTTP;
 
 my $q = &getCGI();
 
-
 ##### Debugging messages #############################################
 #
 #~ use Data::Dumper;
@@ -39,42 +38,43 @@ my $q = &getCGI();
 #
 #~ if ( debug() )
 #~ {
-	&zenlog( "REQUEST: $ENV{REQUEST_METHOD} $ENV{SCRIPT_URL}" ) if &debug;
-	#~ &zenlog( ">>>>>> CGI REQUEST: <$ENV{REQUEST_METHOD} $ENV{SCRIPT_URL}> <<<<<<" ) if &debug;
-	#~ &zenlog( "HTTP HEADERS: " . join ( ', ', $q->http() ) );
-	#~ &zenlog( "HTTP_AUTHORIZATION: <$ENV{HTTP_AUTHORIZATION}>" )
-	#~ if exists $ENV{ HTTP_AUTHORIZATION };
-	#~ &zenlog( "HTTP_ZAPI_KEY: <$ENV{HTTP_ZAPI_KEY}>" )
-	#~ if exists $ENV{ HTTP_ZAPI_KEY };
-	#~
-	#~ #my $session = new CGI::Session( $q );
-	#~
-	#~ my $param_zapikey = $ENV{'HTTP_ZAPI_KEY'};
-	#~ my $param_session = new CGI::Session( $q );
-	#~
-	#~ my $param_client = $q->param('client');
-	#~
-	#~
-	#~ &zenlog("CGI PARAMS: " . Dumper $params );
-	#~ &zenlog("CGI OBJECT: " . Dumper $q );
-	#~ &zenlog("CGI VARS: " . Dumper $q->Vars() );
-	#~ &zenlog("PERL ENV: " . Dumper \%ENV );
-	#~
-	#~
-	#~ my $post_data = $q->param( 'POSTDATA' );
-	#~ my $put_data  = $q->param( 'PUTDATA' );
-	#~
-	#~ &zenlog( "CGI POST DATA: " . $post_data ) if $post_data && &debug && $ENV{ CONTENT_TYPE } eq 'application/json';
-	#~ &zenlog( "CGI PUT DATA: " . $put_data )   if $put_data && &debug && $ENV{ CONTENT_TYPE } eq 'application/json';
-#~ }
+&zenlog( "REQUEST: $ENV{REQUEST_METHOD} $ENV{SCRIPT_URL}" ) if &debug;
 
+#~ &zenlog( ">>>>>> CGI REQUEST: <$ENV{REQUEST_METHOD} $ENV{SCRIPT_URL}> <<<<<<" ) if &debug;
+#~ &zenlog( "HTTP HEADERS: " . join ( ', ', $q->http() ) );
+#~ &zenlog( "HTTP_AUTHORIZATION: <$ENV{HTTP_AUTHORIZATION}>" )
+#~ if exists $ENV{ HTTP_AUTHORIZATION };
+#~ &zenlog( "HTTP_ZAPI_KEY: <$ENV{HTTP_ZAPI_KEY}>" )
+#~ if exists $ENV{ HTTP_ZAPI_KEY };
+#~
+#~ #my $session = new CGI::Session( $q );
+#~
+#~ my $param_zapikey = $ENV{'HTTP_ZAPI_KEY'};
+#~ my $param_session = new CGI::Session( $q );
+#~
+#~ my $param_client = $q->param('client');
+#~
+#~
+#~ &zenlog("CGI PARAMS: " . Dumper $params );
+#~ &zenlog("CGI OBJECT: " . Dumper $q );
+#~ &zenlog("CGI VARS: " . Dumper $q->Vars() );
+#~ &zenlog("PERL ENV: " . Dumper \%ENV );
+#~
+#~
+#~ my $post_data = $q->param( 'POSTDATA' );
+#~ my $put_data  = $q->param( 'PUTDATA' );
+#~
+#~ &zenlog( "CGI POST DATA: " . $post_data ) if $post_data && &debug && $ENV{ CONTENT_TYPE } eq 'application/json';
+#~ &zenlog( "CGI PUT DATA: " . $put_data )   if $put_data && &debug && $ENV{ CONTENT_TYPE } eq 'application/json';
+#~ }
 
 ##### Load more basic modules ########################################
 require Zevenet::Config;
 require Zevenet::Validate;
 
 #### OPTIONS requests ################################################
-require Zevenet::API31::Routes::Options  if ( $ENV{ REQUEST_METHOD } eq 'OPTIONS' );
+require Zevenet::API31::Routes::Options
+  if ( $ENV{ REQUEST_METHOD } eq 'OPTIONS' );
 
 ##### Authentication #################################################
 require Zevenet::API31::Auth;
@@ -83,22 +83,20 @@ require Zevenet::Zapi;
 # Session request
 require Zevenet::API31::Routes::Session if ( $q->path_info eq '/session' );
 
-
 # Verify authentication
-unless (    ( exists $ENV{ HTTP_ZAPI_KEY } && &validZapiKey() )
-		 or ( exists $ENV{ HTTP_COOKIE } && &validCGISession() ) )
+unless (    ( exists $ENV{ HTTP_ZAPI_KEY } and &validZapiKey() )
+		 or ( exists $ENV{ HTTP_COOKIE } and &validCGISession() ) )
 {
 	&httpResponse(
 				   { code => 401, body => { message => 'Authorization required' } } );
 }
-
 
 ##### Load API routes ################################################
 #~ require Zevenet::SystemInfo;
 require Zevenet::API31::Routes;
 
 my $desc = 'Request not found';
-my $req = $ENV{ PATH_INFO };
+my $req  = $ENV{ PATH_INFO };
 
 &httpErrorResponse( code => 404, desc => $desc, msg => "$desc: $req" );
 

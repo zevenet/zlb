@@ -1,7 +1,8 @@
+#!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -21,20 +22,16 @@
 ###############################################################################
 
 use strict;
+use warnings;
 use Zevenet::FarmGuardian;
 use Zevenet::Farm::Config;
 use Zevenet::Farm::L4xNAT::Backend;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 # GET /farms/<farmname> Request info of a l4xnat Farm
 sub farms_name_l4    # ( $farmname )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farmname = shift;
 
@@ -58,10 +55,10 @@ sub farms_name_l4    # ( $farmname )
 	my $fgtimecheck = $fgconfig[1];
 	my $fglog       = $fgconfig[4];
 
-	if ( !$fgtimecheck ) { $fgtimecheck = 5; }
-	if ( !$fguse )       { $fguse       = "false"; }
-	if ( !$fglog )       { $fglog       = "false"; }
-	if ( !$fgcommand )   { $fgcommand   = ""; }
+	if ( not $fgtimecheck ) { $fgtimecheck = 5; }
+	if ( not $fguse )       { $fguse       = "false"; }
+	if ( not $fglog )       { $fglog       = "false"; }
+	if ( not $fgcommand )   { $fgcommand   = ""; }
 
 	my $status = &getFarmVipStatus( $farmname );
 
@@ -83,28 +80,21 @@ sub farms_name_l4    # ( $farmname )
 
 	# Backends
 	$out_b = &getL4FarmServers( $farmname );
-	&getAPIFarmBackends( $out_b, 'l4xnat' );
+	my $warning;
+	if ( &getAPIFarmBackends( $out_b, 'l4xnat' ) == 2 )
+	{
+		$out_b   = [];
+		$warning = "Error get info from backends";
+
+	}
 
 	my $body = {
 				 description => "List farm $farmname",
 				 params      => $out_p,
 				 backends    => $out_b,
 	};
-
-	if ( $eload )
-	{
-		$body->{ ipds } = &eload(
-								  module => 'Zevenet::IPDS::Core',
-								  func   => 'getIPDSfarmsRules',
-								  args   => [$farmname],
-		);
-		for my $blacklist ( @{ $body->{ ipds }->{ blacklists } } )
-		{
-			delete $blacklist->{ id };
-		}
-	}
-
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 1;

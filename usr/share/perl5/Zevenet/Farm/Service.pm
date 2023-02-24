@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,12 +22,8 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
@@ -46,28 +42,18 @@ Returns:
 
 sub getFarmServices    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
 	my $farm_type = &getFarmType( $farm_name );
 	my @output    = ();
 
-	if ( $farm_type eq "http" || $farm_type eq "https" )
+	if ( $farm_type eq "http" or $farm_type eq "https" )
 	{
 		require Zevenet::Farm::HTTP::Service;
 		@output = &getHTTPFarmServices( $farm_name );
 	}
-
-	if ( $farm_type eq "gslb" )
-	{
-		@output = &eload(
-						  module => 'Zevenet::Farm::GSLB::Service',
-						  func   => 'getGSLBFarmServices',
-						  args   => [$farm_name],
-		) if $eload;
-	}
-
 	return @output;
 }
 

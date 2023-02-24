@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,16 +22,12 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 my $LOG_TAG = "";
 $LOG_TAG = "ZAPI"   if ( exists $ENV{ HTTP_ZAPI_KEY } );
 $LOG_TAG = "WEBGUI" if ( exists $ENV{ HTTP_COOKIE } );
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 my %http_status_codes = (
 
@@ -54,7 +50,7 @@ my %http_status_codes = (
 
 sub GET
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $path, $code, $mod ) = @_;
 
@@ -71,15 +67,12 @@ sub GET
 	{
 		$code->( @captures );
 	}
-	else
-	{
-		&eload( module => $mod, func => $code, args => \@captures ) if $eload;
-	}
+	return;
 }
 
 sub POST
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $path, $code, $mod ) = @_;
 
@@ -93,7 +86,8 @@ sub POST
 	my $data = &getCgiParam( 'POSTDATA' );
 	my $input_ref;
 
-	if ( exists $ENV{ CONTENT_TYPE } && $ENV{ CONTENT_TYPE } eq 'application/json' )
+	if ( exists $ENV{ CONTENT_TYPE }
+		 and $ENV{ CONTENT_TYPE } eq 'application/json' )
 	{
 		if ( $data )
 		{
@@ -108,7 +102,7 @@ sub POST
 				&zenlog( "json: " . Dumper( $input_ref ), "debug", $LOG_TAG );
 			}
 
-			if ( !$input_ref )
+			if ( not $input_ref )
 			{
 				my $body =
 				  { message => 'The body does not look a valid JSON', error => 'true' };
@@ -116,17 +110,17 @@ sub POST
 			}
 		}
 	}
-	elsif ( exists $ENV{ CONTENT_TYPE } && $ENV{ CONTENT_TYPE } eq 'text/plain' )
+	elsif ( exists $ENV{ CONTENT_TYPE } and $ENV{ CONTENT_TYPE } eq 'text/plain' )
 	{
 		$input_ref = $data;
 	}
 	elsif ( exists $ENV{ CONTENT_TYPE }
-			&& $ENV{ CONTENT_TYPE } eq 'application/x-pem-file' )
+			and $ENV{ CONTENT_TYPE } eq 'application/x-pem-file' )
 	{
 		$input_ref = $data;
 	}
 	elsif ( exists $ENV{ CONTENT_TYPE }
-			&& $ENV{ CONTENT_TYPE } eq 'application/gzip' )
+			and $ENV{ CONTENT_TYPE } eq 'application/gzip' )
 	{
 		$input_ref = $data;
 	}
@@ -145,15 +139,12 @@ sub POST
 	{
 		$code->( @args );
 	}
-	else
-	{
-		&eload( module => $mod, func => $code, args => \@args ) if $eload;
-	}
+	return;
 }
 
 sub PUT
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $path, $code, $mod ) = @_;
 
@@ -167,7 +158,8 @@ sub PUT
 	my $data = &getCgiParam( 'PUTDATA' );
 	my $input_ref;
 
-	if ( exists $ENV{ CONTENT_TYPE } && $ENV{ CONTENT_TYPE } eq 'application/json' )
+	if ( exists $ENV{ CONTENT_TYPE }
+		 and $ENV{ CONTENT_TYPE } eq 'application/json' )
 	{
 		if ( $data )
 		{
@@ -182,7 +174,7 @@ sub PUT
 				&zenlog( "json: " . Dumper( $input_ref ), "debug", $LOG_TAG );
 			}
 
-			if ( !$input_ref )
+			if ( not $input_ref )
 			{
 				my $body =
 				  { message => 'The body does not look a valid JSON', error => 'true' };
@@ -190,17 +182,17 @@ sub PUT
 			}
 		}
 	}
-	elsif ( exists $ENV{ CONTENT_TYPE } && $ENV{ CONTENT_TYPE } eq 'text/plain' )
+	elsif ( exists $ENV{ CONTENT_TYPE } and $ENV{ CONTENT_TYPE } eq 'text/plain' )
 	{
 		$input_ref = $data;
 	}
 	elsif ( exists $ENV{ CONTENT_TYPE }
-			&& $ENV{ CONTENT_TYPE } eq 'application/x-pem-file' )
+			and $ENV{ CONTENT_TYPE } eq 'application/x-pem-file' )
 	{
 		$input_ref = $data;
 	}
 	elsif ( exists $ENV{ CONTENT_TYPE }
-			&& $ENV{ CONTENT_TYPE } eq 'application/gzip' )
+			and $ENV{ CONTENT_TYPE } eq 'application/gzip' )
 	{
 		$input_ref = $data;
 	}
@@ -219,15 +211,12 @@ sub PUT
 	{
 		$code->( @args );
 	}
-	else
-	{
-		&eload( module => $mod, func => $code, args => \@args ) if $eload;
-	}
+	return;
 }
 
 sub DELETE
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $path, $code, $mod ) = @_;
 
@@ -242,15 +231,12 @@ sub DELETE
 	{
 		$code->( @captures );
 	}
-	else
-	{
-		&eload( module => $mod, func => $code, args => \@captures ) if $eload;
-	}
+	return;
 }
 
 sub OPTIONS
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $path, $code ) = @_;
 
@@ -262,6 +248,7 @@ sub OPTIONS
 	&zenlog( "OPTIONS captures( @captures )", "debug", $LOG_TAG ) if &debug();
 
 	$code->( @captures );
+	return;
 }
 
 =begin nd
@@ -284,19 +271,22 @@ sub OPTIONS
 
 sub httpResponse    # ( \%hash ) hash_keys->( $code, %headers, $body )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $self = shift;
-
 	return $self unless exists $ENV{ GATEWAY_INTERFACE };
 
 #~ &zenlog("DEBUG httpResponse input: " . Dumper $self, "debug", $LOG_TAG ); # DEBUG
 
-	die 'httpResponse: Bad input' if !defined $self or ref $self ne 'HASH';
+	if ( not defined $self or ref $self ne 'HASH' )
+	{
+		&zenlog( 'httpResponse: Bad input', "error" );
+		exit 1;
+	}
 
-	die
-	  if !defined $self->{ code }
-	  or !exists $http_status_codes{ $self->{ code } };
+	exit 1
+	  if not defined $self->{ code }
+	  or not exists $http_status_codes{ $self->{ code } };
 
 	require Zevenet::CGI;
 
@@ -304,7 +294,7 @@ sub httpResponse    # ( \%hash ) hash_keys->( $code, %headers, $body )
 
 	my $origin = '*';
 
-	if ( !exists $ENV{ HTTP_ZAPI_KEY } )
+	if ( not exists $ENV{ HTTP_ZAPI_KEY } )
 	{
 		$origin =
 		  ( &getGlobalConfiguration( 'cors_devel_mode' ) eq "true" )
@@ -330,7 +320,7 @@ sub httpResponse    # ( \%hash ) hash_keys->( $code, %headers, $body )
 		  ;
 	}
 
-	if ( exists $ENV{ HTTP_COOKIE } && $ENV{ HTTP_COOKIE } =~ /CGISESSID/ )
+	if ( exists $ENV{ HTTP_COOKIE } and $ENV{ HTTP_COOKIE } =~ /CGISESSID/ )
 	{
 		require Zevenet::API40::Auth;
 
@@ -354,14 +344,14 @@ sub httpResponse    # ( \%hash ) hash_keys->( $code, %headers, $body )
 	}
 
 	# add possible extra headers
-	if ( exists $self->{ headers } && ref $self->{ headers } eq 'HASH' )
+	if ( exists $self->{ headers } and ref $self->{ headers } eq 'HASH' )
 	{
 		push @headers, %{ $self->{ headers } };
 	}
 
 	# header
 	my $content_type = 'application/json';
-	$content_type = $self->{ type } if $self->{ type } && $self->{ body };
+	$content_type = $self->{ type } if $self->{ type } and $self->{ body };
 
 	my $output = $q->header(
 		-type    => $content_type,
@@ -426,7 +416,7 @@ sub httpResponse    # ( \%hash ) hash_keys->( $code, %headers, $body )
 
 sub httpErrorResponse
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $args;
 
@@ -446,7 +436,7 @@ sub httpErrorResponse
 	}
 
 	# check required arguments: code, desc and msg
-	unless ( $args->{ code } && $args->{ desc } && $args->{ msg } )
+	unless ( $args->{ code } and $args->{ desc } and $args->{ msg } )
 	{
 		&zdie( "httpErrorResponse: Missing required argument" );
 	}
@@ -477,12 +467,13 @@ sub httpErrorResponse
 	}
 
 	&httpResponse( $response );
+	return;
 }
 
 # WARNING: Function unfinished.
 sub httpSuccessResponse
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $args ) = @_;
 
@@ -491,7 +482,7 @@ sub httpSuccessResponse
 		&zdie( "httpSuccessResponse: Argument is not a hash reference" );
 	}
 
-	unless ( $args->{ code } && $args->{ desc } && $args->{ msg } )
+	unless ( $args->{ code } and $args->{ desc } and $args->{ msg } )
 	{
 		&zdie( "httpSuccessResponse: Missing required argument" );
 	}
@@ -509,11 +500,12 @@ sub httpSuccessResponse
 
 	&zenlog( $args->{ log_msg }, "info", $LOG_TAG ) if exists $args->{ log_msg };
 	&httpResponse( { code => $args->{ code }, body => $body } );
+	return;
 }
 
 sub httpDownloadResponse
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $args;
 
@@ -531,7 +523,7 @@ sub httpDownloadResponse
 		&zdie( "httpDownloadResponse: Argument is not a hash reference" );
 	}
 
-	unless ( $args->{ desc } && $args->{ dir } && $args->{ file } )
+	unless ( $args->{ desc } and $args->{ dir } and $args->{ file } )
 	{
 		&zdie( "httpDownloadResponse: Missing required argument" );
 	}
@@ -561,7 +553,7 @@ sub httpDownloadResponse
 
 	# make headers
 	my $origin = '*';
-	if ( !exists $ENV{ HTTP_ZAPI_KEY } )
+	if ( not exists $ENV{ HTTP_ZAPI_KEY } )
 	{
 		$origin =
 		  ( &getGlobalConfiguration( 'cors_devel_mode' ) eq "true" )
@@ -582,11 +574,12 @@ sub httpDownloadResponse
 	&zenlog( "[Download] $args->{ desc }: $path", "info", $LOG_TAG );
 
 	&httpResponse( { code => 200, headers => $headers, body => $body } );
+	return;
 }
 
 sub buildAPIParams
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $out_b     = shift;
 	my $api_keys  = shift;
@@ -610,7 +603,7 @@ sub buildAPIParams
 
 sub buildBackendAPIParams
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $out_b     = shift;
 	my $api_keys  = shift;
@@ -628,16 +621,17 @@ sub buildBackendAPIParams
 
 	foreach my $param ( @bk_keys )
 	{
-		delete $out_b->{ $param } if ( !grep ( /^$param$/, @{ $api_keys } ) );
+		delete $out_b->{ $param } if ( not grep { /^$param$/ } @{ $api_keys } );
 	}
 	if ( &debug() )
 	{
 		foreach my $param ( @{ $api_keys } )
 		{
 			&zenlog( "API parameter $param is missing", 'error', 'API' )
-			  if ( !grep ( /^$param$/, @bk_keys ) );
+			  if ( not grep { /^$param$/ } @bk_keys );
 		}
 	}
+	return;
 }
 1;
 

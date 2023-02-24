@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,8 +22,8 @@
 ###############################################################################
 
 ##farmguardian 4.1
-#this script is a service that check all Bakends or servers in a farm
-#using a script to monitorice the status of backends.  If the execution script return
+#this script is a service that check all Backends or servers in a farm
+#using a script to monitor the status of backends.  If the execution script returns
 # <> 0 this script put in blacklist the backendserver. This script check
 #the timeout execution of a script
 #parameters:
@@ -50,14 +50,9 @@ my $configdir            = &getGlobalConfiguration( 'configdir' );
 my $libexec_dir          = &getGlobalConfiguration( 'libexec_dir' );
 my $fgmarkbin            = &getGlobalConfiguration( 'fgmark' );
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 # print usage help if no argument was given
-if ( !defined $ARGV[0] )
+if ( not defined $ARGV[0] )
 {
 	&printHelp();
 	exit 1;
@@ -102,10 +97,6 @@ for ( my $it = 0 ; $it <= $#ARGV ; $it++ )
 	{
 		$logging = 'enabled';
 	}
-	elsif ( $arg eq "-a" and $eload )
-	{
-		$useAlias = 'true';
-	}
 	else
 	{
 		&printHelp();
@@ -117,10 +108,10 @@ for ( my $it = 0 ; $it <= $#ARGV ; $it++ )
 $pidfile = "${farmname}_${fservice}guardian.pid";
 
 my $fgname = &getFGFarm( $farmname, $service );
-if ( !$fgname )
+if ( not $fgname )
 {
 	my $ms = ( $service ) ? "farm $farmname, service $service" : "farm $farmname";
-	my $msg = "Abort: Configuration for farm $ms does not found";
+	my $msg = "Abort: Configuration for farm $ms was not found";
 
 	if ( $logging eq 'enabled' )
 	{
@@ -148,7 +139,7 @@ else
 my $filepid = "/var/run/$pidfile";
 {
 	open ( my $fo, '>', "$filepid" );
-	if ( !$fo )
+	if ( not $fo )
 	{
 		my $msg = "Cannot open file $filepid: $!";
 
@@ -161,7 +152,7 @@ my $filepid = "/var/run/$pidfile";
 			print "$msg\n";
 		}
 
-		die;
+		exit 1;
 	}
 
 	print $fo "$$";
@@ -178,6 +169,7 @@ $type = 'http' if $type eq 'https';
 my $proxyctl;
 my $portadmin;
 my $usemark = 0;
+my $proxy_ng;
 
 if ( $type eq 'l4xnat' )
 {
@@ -193,7 +185,7 @@ elsif ( $type eq 'http' )
 	$proxyctl  = &getGlobalConfiguration( 'proxyctl' );
 	$portadmin = &getHTTPFarmSocket( $farmname );
 
-	my $proxy_ng  = &getGlobalConfiguration( 'proxy_ng' );
+	$proxy_ng = &getGlobalConfiguration( 'proxy_ng' );
 	$usemark = $proxy_ng eq "true" ? 1 : 0;
 
 }
@@ -207,19 +199,20 @@ while ( 1 )
 	my @backendid;
 	my @backendserv;
 	my @backendport;
+	my @backendip;
 	my @backendstatus;
 	my @backendprio;
 	my @backendmark;
-	my $i       = 0;
-	my $j       = 0;
+	my $i = 0;
+	my $j = 0;
 
 	### Collect variable values for the diferent farm types ###
 
 	# Collect HTTP/S farm variables values
 	if ( $type eq 'http' )
 	{
-		my $err = &logAndRunCheck( "$proxyctl -C -c $portadmin" );
-		if ( $err != 0 )
+		my $status = &getHTTPFarmStatus( $farmname );
+		if ( $status ne "up" )
 		{
 			my $msg = "Farm $farmname is down, abort.";
 
@@ -231,7 +224,6 @@ while ( 1 )
 			{
 				print "$msg\n";
 			}
-
 			exit 1;
 		}
 
@@ -244,7 +236,8 @@ while ( 1 )
 			$backendid[$i] = $subbe[1];
 			$backendserv[$i] =
 			  ( $useAlias eq 'true' ) ? &getFGAlias( $subbe[3] ) : $subbe[3];
-			$backendport[$i] = $subbe[5];
+			$backendip[$i]     = $subbe[3];
+			$backendport[$i]   = $subbe[5];
 			$backendstatus[$i] = &getHTTPBackendStatusFromFile( $farmname, $i, $service );
 			$i++;
 		}
@@ -260,7 +253,7 @@ while ( 1 )
 			$backendid[$i] = $l_serv->{ id };
 			$backendserv[$i] =
 			  ( $useAlias eq 'true' ) ? &getFGAlias( $l_serv->{ ip } ) : $l_serv->{ ip };
-			$backendmark[$i] = hex( $l_serv->{ tag } ) if $usemark;
+			$backendmark[$i] = hex ( $l_serv->{ tag } ) if $usemark;
 			$backendport[$i] = $l_serv->{ port }
 			  // $farm_st->{ vport };    # use farm port if backend port is not defined
 			$backendport[$i]   = $farm_st->{ vport } if ( $backendport[$i] eq "" );
@@ -271,7 +264,7 @@ while ( 1 )
 	}
 
 	# Use the default timetocheck as the timeout for the backends response
-	if ( ! defined $timeout )
+	if ( not defined $timeout )
 	{
 		$timeout = $timetocheck;
 	}
@@ -317,7 +310,8 @@ while ( 1 )
 		#execute the binary to check
 		$command = "$libexec_dir/$command";
 
-		$command = "MARK=$backendmark[$j] LD_PRELOAD=$fgmarkbin " . $command if ( defined $fgmarkbin && $usemark);
+		$command = "MARK=$backendmark[$j] LD_PRELOAD=$fgmarkbin " . $command
+		  if ( defined $fgmarkbin and $usemark );
 
 		my @output;
 		my $timedout  = 0;
@@ -352,7 +346,7 @@ while ( 1 )
 
 		### Enable backend
 		my $auxLog;
-		if ( ( $timedout == 0 && $errorcode == 0 && $backendstatus[$j] =~ /down/i )
+		if ( ( $timedout == 0 and $errorcode == 0 and $backendstatus[$j] =~ /down/i )
 			 or $first_exec )
 		{
 			if ( $logging eq 'enabled' )
@@ -366,7 +360,32 @@ while ( 1 )
 			if ( $type eq 'http' )
 			{
 				my $idsv = &getFarmVSI( $farmname, $service );
-				&logAndRun( "$proxyctl -c $portadmin -B 0 $idsv $j" );
+				if ( $proxy_ng eq "false" )
+				{
+					&logAndRun( "$proxyctl -c $portadmin -B 0 $idsv $j" );
+				}
+				elsif ( $proxy_ng eq "true" )
+				{
+					my $backend_id = $backendip[$j] . "-" . $backendport[$j];
+					my $socket_params = {
+										  farm_name   => $farmname,
+										  service     => $service,
+										  backend_id  => $backend_id,
+										  socket_file => $portadmin,
+										  status      => "active"
+					};
+					require Zevenet::Farm::HTTP::Runtime;
+					my $error_ref = &setHTTPFarmBackendStatusSocket( $socket_params );
+					if ( $error_ref->{ code } )
+					{
+						&zenlog(
+								 "Backend '$backend_id' in service '$service' can not be enabled : "
+								   . $error_ref->{ desc },
+								 "error",
+								 "FG"
+						);
+					}
+				}
 				&setHTTPFarmBackendStatusFile( $farmname, $j, 'active', $idsv );
 				$auxLog = " in farm: '$farmname', service: '$service'";
 			}
@@ -404,11 +423,11 @@ while ( 1 )
 
 			# WARNING: This message format is expected by 'sec'
 			&zenlog( "BackEnd $backendserv[$j]:$backendport[$j] resurrect$auxLog" )
-			  if ( !$first_exec );
+			  if ( not $first_exec );
 		}
 		### Disable backend
 		elsif (
-				( ( $timedout == 1 || $errorcode != 0 ) && $backendstatus[$j] ne 'fgDOWN' )
+				( ( $timedout == 1 or $errorcode != 0 ) and $backendstatus[$j] ne 'fgDOWN' )
 				or $first_exec )
 		{
 			if ( $logging eq 'enabled' )
@@ -421,7 +440,32 @@ while ( 1 )
 			if ( $type eq 'http' )
 			{
 				my $idsv = &getFarmVSI( $farmname, $service );
-				&logAndRun( "$proxyctl -c $portadmin -b 0 $idsv $j" );
+				if ( $proxy_ng eq "false" )
+				{
+					&logAndRun( "$proxyctl -c $portadmin -b 0 $idsv $j" );
+				}
+				elsif ( $proxy_ng eq "true" )
+				{
+					my $backend_id = $backendip[$j] . "-" . $backendport[$j];
+					my $socket_params = {
+										  farm_name   => $farmname,
+										  service     => $service,
+										  backend_id  => $backend_id,
+										  socket_file => $portadmin,
+										  status      => "disabled"
+					};
+					require Zevenet::Farm::HTTP::Runtime;
+					my $error_ref = &setHTTPFarmBackendStatusSocket( $socket_params );
+					if ( $error_ref->{ code } )
+					{
+						&zenlog(
+								 "Backend '$backend_id' in service '$service' can not be disabled : "
+								   . $error_ref->{ desc },
+								 "error",
+								 "FG"
+						);
+					}
+				}
 				&setHTTPFarmBackendStatusFile( $farmname, $j, 'fgDOWN', $idsv );
 				&setHTTPFarmBackendsSessionsRemove( $farmname, $service, $j )
 				  if ( $cutConns eq 'true' );
@@ -446,7 +490,7 @@ while ( 1 )
 
 			# WARNING: This message format is expected by 'sec'
 			&zenlog( "BackEnd $backendserv[$j]:$backendport[$j] down$auxLog" )
-			  if ( !$first_exec );
+			  if ( not $first_exec );
 		}
 		$j++;
 	}
@@ -466,14 +510,11 @@ sub printHelp
 	print
 	  "FarmGuardian v4.1. Check Backends Servers in a Farm and enable or disable the load balancing\n";
 	print "\thelp: farmguardian <farmname> [-s <service>] [-l]";
-	print " [-a]" if ( $eload );
 	print "\n";
 	print
 	  "\t\t-s <service>\t: Launch FarmGuardian for a certain HTTP/S farm service\n";
 	print "\t\t-l\t\t: Enable logs\n";
-	print
-	  "\t\t-a\t\t: Use the backend alias to do the farmguardian check, the alias has to be resolved\n"
-	  if ( $eload );
+	return;
 }
 
 sub getFGAlias

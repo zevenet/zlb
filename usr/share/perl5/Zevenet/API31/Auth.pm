@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,23 +22,27 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 sub validCGISession    # ()
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	require Zevenet::CGI;
 	require CGI::Session;
 
-	my $q = &getCGI();
+	my $q            = &getCGI();
 	my $validSession = 0;
 
-	my $session      = CGI::Session->load( $q );
+	my $session = CGI::Session->load( $q );
 
-	#~ &zenlog( "CGI SESSION ID: " . Dumper $session, "debug", "ZAPI" );
-	#~ &zenlog( "CGI SESSION ID: " . $session->id, "debug", "ZAPI" ) if $session->id;
-	#~ &zenlog( "session data: " . Dumper $session->dataref(),"debug", "ZAPI" ); # DEBUG
+#~ &zenlog( "CGI SESSION ID: " . Dumper $session, "debug", "ZAPI" );
+#~ &zenlog( "CGI SESSION ID: " . $session->id, "debug", "ZAPI" ) if $session->id;
+#~ &zenlog( "session data: " . Dumper $session->dataref(),"debug", "ZAPI" ); # DEBUG
 
-	if ( $session && $session->param( 'is_logged_in' ) && !$session->is_expired )
+	if (     $session
+		 and $session->param( 'is_logged_in' )
+		 and not $session->is_expired )
 	{
 		# ignore cluster localhost status to reset session expiration date
 		unless ( $q->path_info eq '/system/cluster/nodes/localhost' )
@@ -52,10 +56,10 @@ sub validCGISession    # ()
 	return $validSession;
 }
 
-
-sub getAuthorizationCredentials                     # ()
+sub getAuthorizationCredentials    # ()
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $base64_digest;
 	my $username;
 	my $password;
@@ -75,19 +79,20 @@ sub getAuthorizationCredentials                     # ()
 		# $decoded_digest format: "username:password"
 		my $decoded_digest = decode_base64( $base64_digest );
 		chomp $decoded_digest;
-		( $username, $password ) = split ( ":", $decoded_digest );
+		( $username, $password ) = split ( q{:}, $decoded_digest );
 	}
 
-	return if !$username or !$password;
+	return if not $username or not $password;
 	return ( $username, $password );
 }
 
 sub authenticateCredentials    #($user,$curpasswd)
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my ( $user, $pass ) = @_;
 
-	return if !defined $user or !defined $pass;
+	return if not defined $user or not defined $pass;
 
 	require Authen::Simple::Passwd;
 	Authen::Simple::Passwd->import;

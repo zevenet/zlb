@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,12 +22,8 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
@@ -49,7 +45,7 @@ FIXME:
 
 sub getFarmCertificate    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
@@ -62,7 +58,7 @@ sub getFarmCertificate    # ($farm_name)
 
 	foreach my $line ( @content )
 	{
-		if ( $line =~ /Cert/ && $line !~ /\#.*Cert/ )
+		if ( $line =~ /Cert/ and $line !~ /\#.*Cert/ )
 		{
 			my @partline = split ( '\"', $line );
 			@partline = split ( "\/", $partline[1] );
@@ -93,7 +89,7 @@ FIXME:
 
 sub setFarmCertificate    # ($cfile,$farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $cfile, $farm_name ) = @_;
 
@@ -112,7 +108,8 @@ sub setFarmCertificate    # ($cfile,$farm_name)
 			 "info", "LSLB" );
 
 	require Zevenet::Certificate;
-	unless ( !&getCertIsValid( "$certdir/$cfile" ) )
+	my $error = &checkCertPEMValid( "$certdir/$cfile" );
+	if ( $error->{ code } )
 	{
 		&zenlog( "'Certificate $cfile' for $farm_name farm https is not valid",
 				 "error", "LSLB" );
@@ -149,7 +146,7 @@ Returns:
 
 sub setFarmCipherList    # ($farm_name,$ciphers,$cipherc)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	# assign first/second/third argument or take global value
@@ -231,7 +228,7 @@ Returns:
 
 sub getFarmCipherList    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 	my $output    = -1;
@@ -270,7 +267,7 @@ Returns:
 
 sub getFarmCipherSet    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
@@ -286,11 +283,8 @@ sub getFarmCipherSet    # ($farm_name)
 	{
 		$output = "cipherpci";
 	}
-	elsif (    $eload
-			&& $cipher_list eq &getGlobalConfiguration( 'cipher_ssloffloading' ) )
-	{
-		$output = "cipherssloffloading";
-	}
+
+
 	else
 	{
 		$output = "ciphercustom";
@@ -314,7 +308,7 @@ Returns:
 
 sub getHTTPFarmDisableSSL    # ($farm_name, $protocol)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $protocol ) = @_;
 
@@ -354,7 +348,7 @@ Returns:
 
 sub setHTTPFarmDisableSSL    # ($farm_name, $protocol, $action )
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name, $protocol, $action ) = @_;
 

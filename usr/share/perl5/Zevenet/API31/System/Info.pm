@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,11 +22,13 @@
 ###############################################################################
 
 use strict;
+use warnings;
 
 # show license
 sub get_license
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $format = shift;
 
 	require Zevenet::System;
@@ -50,12 +52,14 @@ sub get_license
 
 	my $file = &slurpFile( $licenseFile );
 
-	&httpResponse({ code => 200, body => $file, type => 'text/plain' });
+	&httpResponse( { code => 200, body => $file, type => 'text/plain' } );
+	return;
 }
 
 sub get_supportsave
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $desc = "Get supportsave file";
 
 	require Zevenet::System;
@@ -63,12 +67,14 @@ sub get_supportsave
 	my $ss_filename = &getSupportSave();
 
 	&httpDownloadResponse( desc => $desc, dir => '/tmp', file => $ss_filename );
+	return;
 }
 
 # GET /system/version
 sub get_version
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	require Zevenet::SystemInfo;
 	require Zevenet::Certificate;
 
@@ -90,6 +96,7 @@ sub get_version
 	my $body = { description => $desc, params => $params };
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 1;

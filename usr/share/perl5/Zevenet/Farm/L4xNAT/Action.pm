@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -27,11 +27,6 @@ use warnings;
 use Zevenet::Config;
 use Zevenet::Nft;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } )
-{
-	$eload = 1;
-}
 
 my $configdir = &getGlobalConfiguration( 'configdir' );
 
@@ -51,7 +46,7 @@ Returns:
 
 sub startL4Farm    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $farm_name = shift;
@@ -108,7 +103,7 @@ Returns:
 
 sub stopL4Farm    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $farm_name = shift;
@@ -164,7 +159,7 @@ Returns:
 
 sub setL4NewFarmName    # ($farm_name, $new_farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name     = shift;
 	my $new_farm_name = shift;
@@ -173,7 +168,7 @@ sub setL4NewFarmName    # ($farm_name, $new_farm_name)
 
 	unlink "$configdir\/${farm_name}_l4xnat.cfg";
 
-	if ( !$err )
+	if ( not $err )
 	{
 		$err = &setL4FarmParam( 'log-prefix', undef, $new_farm_name );
 	}
@@ -199,7 +194,7 @@ Returns:
 
 sub copyL4Farm    # ($farm_name, $new_farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name     = shift;
 	my $new_farm_name = shift;
@@ -225,7 +220,7 @@ sub copyL4Farm    # ($farm_name, $new_farm_name)
 		{
 			$line = $1 . "\"$new_farm_name" . $2 . "\",";
 		}
-		if ( ( !$backend_block ) and ( $line =~ /^(\s+"state": )"\w+",/ ) )
+		if ( ( not $backend_block ) and ( $line =~ /^(\s+"state": )"\w+",/ ) )
 		{
 			$line = $1 . "\"down\",";
 		}
@@ -266,7 +261,7 @@ Returns:
 
 sub loadL4FarmNlb    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 
@@ -274,17 +269,17 @@ sub loadL4FarmNlb    # ($farm_name)
 
 	my $farmfile = &getFarmFile( $farm_name );
 
-	return 0 if ( !-e "$configdir/$farmfile" );
+	return 0 if ( $farmfile eq "-1" or ( not -e "$configdir/$farmfile" ) );
 
-	return
-	  &httpNlbRequest(
-					   {
-						 farm   => $farm_name,
-						 method => "POST",
-						 uri    => "/farms",
-						 body   => qq(\@$configdir/$farmfile)
-					   }
-	  );
+	&httpNlbRequest(
+					 {
+					   farm   => $farm_name,
+					   method => "POST",
+					   uri    => "/farms",
+					   body   => qq(\@$configdir/$farmfile)
+					 }
+	);
+	return;
 }
 
 =begin nd
@@ -303,7 +298,7 @@ Returns:
 
 sub startL4FarmNlb    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 	my $writeconf = shift;
@@ -315,7 +310,7 @@ sub startL4FarmNlb    # ($farm_name)
 
 	my $pidfile = &getL4FarmPidFile( $farm_name );
 
-	if ( !-e "$pidfile" )
+	if ( not -e "$pidfile" )
 	{
 		open my $fi, '>', "$pidfile";
 		close $fi;
@@ -340,7 +335,7 @@ Returns:
 
 sub stopL4FarmNlb    # ($farm_name)
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
 	my $writeconf = shift;
@@ -368,7 +363,7 @@ Returns:
 
 sub getL4FarmPidFile
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my ( $farm_name ) = @_;
 
@@ -399,7 +394,7 @@ Returns:
 
 sub sendL4NlbCmd
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $self    = shift;
 	my $cfgfile = "";
@@ -416,7 +411,7 @@ sub sendL4NlbCmd
   # avoid farm configuration file destruction by asking nftlb only for modifications
   # or deletion of attributes of the farm
 	if ( $self->{ method } =~ /PUT/
-		 || ( $self->{ method } =~ /DELETE/ && $self->{ uri } =~ /farms\/.*\/.*/ ) )
+		or ( $self->{ method } =~ /DELETE/ and $self->{ uri } =~ /farms\/.*\/.*/ ) )
 	{
 		my $file  = "/tmp/get_farm_$$";
 		my $match = 0;
@@ -444,7 +439,7 @@ sub sendL4NlbCmd
 			unlink $file;
 		}
 
-		if ( !$match )
+		if ( not $match )
 		{
 			&zenlog( "The farms was not loaded properly, trying it again", "error", );
 			&loadL4FarmNlb( $self->{ farm } );
@@ -457,12 +452,12 @@ sub sendL4NlbCmd
 		$self->{ file } = "";
 	}
 
-	if ( defined $self->{ backend } && $self->{ backend } ne "" )
+	if ( defined $self->{ backend } and $self->{ backend } ne "" )
 	{
 		$self->{ uri } =
 		  "/farms/" . $self->{ farm } . "/backends/" . $self->{ backend };
 	}
-	elsif ( !defined $self->{ uri } )
+	elsif ( not defined $self->{ uri } )
 	{
 		$self->{ uri } = "/farms";
 		$self->{ uri } = "/farms/" . $self->{ farm }
@@ -474,11 +469,11 @@ sub sendL4NlbCmd
 
 	$output = &httpNlbRequest( $self );
 
-	return $output if ( $self->{ method } eq "GET" or !defined $self->{ file } );
+	return $output if ( $self->{ method } eq "GET" or not defined $self->{ file } );
 
 	# end if the farm was deleted
 	return $output
-	  if ( $self->{ method } eq "DELETE" and !exists $self->{ backend } );
+	  if ( $self->{ method } eq "DELETE" and not exists $self->{ backend } );
 
 	# save the conf
 	if ( $self->{ method } =~ /PUT|DELETE/ )

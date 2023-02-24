@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -22,7 +22,7 @@
 ###############################################################################
 
 use strict;
-
+use warnings;
 use File::stat;
 use File::Basename;
 
@@ -43,14 +43,14 @@ See Also:
 
 sub getBackup
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my @backups;
 	my $backupdir = &getGlobalConfiguration( 'backupdir' );
 	my $backup_re = &getValidFormat( 'backup' );
 
 	opendir ( DIR, $backupdir );
-	my @files = grep ( /^backup.*/, readdir ( DIR ) );
+	my @files = grep { /^backup.*/ } readdir ( DIR );
 	closedir ( DIR );
 
 	foreach my $line ( @files )
@@ -96,7 +96,7 @@ See Also:
 
 sub getExistsBackup
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $name = shift;
 	my $find;
@@ -129,7 +129,7 @@ See Also:
 
 sub createBackup
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $name      = shift;
 	my $zenbackup = &getGlobalConfiguration( 'zenbackup' );
@@ -157,7 +157,7 @@ See Also:
 
 sub downloadBackup
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $backup = shift;
 	my $error;
@@ -166,7 +166,7 @@ sub downloadBackup
 	my $backupdir = &getGlobalConfiguration( 'backupdir' );
 	open ( my $download_fh, '<', "$backupdir/$backup" );
 
-	if ( -f "$backupdir\/$backup" && $download_fh )
+	if ( -f "$backupdir\/$backup" and $download_fh )
 	{
 		my $cgi = &getCGI();
 		print $cgi->header(
@@ -188,6 +188,7 @@ sub downloadBackup
 	{
 		$error = 1;
 	}
+	close $download_fh;
 	return $error;
 }
 
@@ -211,7 +212,7 @@ See Also:
 
 sub uploadBackup
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 
 	my $filename          = shift;
@@ -224,9 +225,14 @@ sub uploadBackup
 	$filename = "backup-$filename.tar.gz";
 	my $filepath = "$backupdir/$filename";
 
-	if ( !-f $filepath )
+	if ( not -f $filepath )
 	{
-		open ( my $disk_fh, '>', $filepath ) or die "$!";
+		$error = open ( my $disk_fh, '>', $filepath );
+		if ( not $error )
+		{
+			&zenlog( "Could not open file '$filepath' $!", "error" );
+			return 1;
+		}
 
 		binmode $disk_fh;
 
@@ -276,7 +282,7 @@ See Also:
 
 sub deleteBackup
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $file = shift;
 	$file = "backup-$file.tar.gz";
@@ -315,7 +321,7 @@ See Also:
 
 sub applyBackup
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $backup = shift;
 	my $error;
@@ -325,11 +331,11 @@ sub applyBackup
 	# get current version
 	my $version = &getGlobalConfiguration( 'version' );
 
-	&zenlog( "Stopping Zevenet service", "info", "SYSTEM" );
+	&zenlog( "Stopping ZEVENET service", "info", "SYSTEM" );
 	$error = &logAndRun( "/etc/init.d/zevenet stop" );
 	if ( $error )
 	{
-		&zenlog( "Problem stopping Zevenet Load Balancer service", "error", "SYSTEM" );
+		&zenlog( "Problem stopping ZEVENET Load Balancer service", "error", "SYSTEM" );
 		return $error;
 	}
 
@@ -353,20 +359,25 @@ sub applyBackup
 
 	# set migration files process
 	my $migration_flag = &getGlobalConfiguration( 'migration_flag' );
-	open ( my $fh, '>', $migration_flag ) or die "$!";
+	$error = open ( my $fh, '>', $migration_flag );
+	if ( not $error )
+	{
+		&zenlog( "$!" );
+		return 1;
+	}
 	close ( $fh );
 	&zenlog( "Migration Flag enabled" ) if ( -e $migration_flag );
 
 	$error = &logAndRun( "/etc/init.d/zevenet start" );
 
-	if ( !$error )
+	if ( not $error )
 	{
-		&zenlog( "Backup applied and Zevenet Load Balancer restarted...",
+		&zenlog( "Backup applied and ZEVENET Load Balancer restarted...",
 				 "info", "SYSTEM" );
 	}
 	else
 	{
-		&zenlog( "Problem restarting Zevenet Load Balancer service", "error",
+		&zenlog( "Problem restarting ZEVENET Load Balancer service", "error",
 				 "SYSTEM" );
 	}
 
@@ -376,19 +387,19 @@ sub applyBackup
 =begin nd
 Function: getBackupVersion
 
-	It gets the version of zevenet from which the backup was created
+	It gets the version of ZEVENET from which the backup was created
 
 Parameters:
 	backup - Backup name.
 
 Returns:
-	String - Zevenet version
+	String - ZEVENET version
 
 =cut
 
 sub getBackupVersion
 {
-	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $backup = shift;
 

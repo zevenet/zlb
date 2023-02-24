@@ -1,7 +1,8 @@
-###############################################################################
+#!/usr/bin/perl
+################################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -21,24 +22,22 @@
 ###############################################################################
 
 use strict;
+use warnings;
 use Zevenet::Net::Util;
 use Zevenet::Farm::Base;
 use Zevenet::Farm::Datalink::Config;
 
-my $eload;
-if ( eval { require Zevenet::ELoad; } ) { $eload = 1; }
 
 sub modify_datalink_farm    # ( $json_obj, $farmname )
 {
-	&zenlog(__FILE__ . ":" . __LINE__ . ":" . (caller(0))[3] . "( @_ )", "debug", "PROFILING" );
+	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
 	my $json_obj = shift;
 	my $farmname = shift;
 
 	my $desc           = "Modify datalink farm '$farmname'";
-	my $reload_flag    = "false";
 	my $restart_flag   = "false";
 	my $initial_status = &getFarmStatus( $farmname );
-	my $error          = "false";
 	my $status;
 
 	# Check parameters
@@ -137,21 +136,21 @@ sub modify_datalink_farm    # ( $json_obj, $farmname )
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
-		if ( !defined $json_obj->{ vip } || $json_obj->{ vip } eq "" )
+		if ( not defined $json_obj->{ vip } or $json_obj->{ vip } eq "" )
 		{
 			my $msg = "Invalid Virtual IP value.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
 		# interface must be running
-		if ( !grep { $_ eq $json_obj->{ vip } } &listallips() )
+		if ( not grep { $_ eq $json_obj->{ vip } } &listallips() )
 		{
 			my $msg = "An available virtual IP must be set.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 		}
 
 		my $fdev = &getInterfaceOfIp( $json_obj->{ vip } );
-		if ( !defined $fdev )
+		if ( not defined $fdev )
 		{
 			my $msg = "Invalid Interface value.";
 			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
@@ -169,21 +168,15 @@ sub modify_datalink_farm    # ( $json_obj, $farmname )
 	}
 
 	# Restart Farm
-	if ( $restart_flag eq "true" && $initial_status ne 'down' )
+	if ( $restart_flag eq "true" and $initial_status ne 'down' )
 	{
 		&runFarmStop( $farmname, "true" );
 		&runFarmStart( $farmname, "true" );
-
-		&eload(
-			module => 'Zevenet::Cluster',
-			func   => 'runZClusterRemoteManager',
-			args   => ['farm', 'restart', $farmname],
-		) if ( $eload );
 	}
 
 	# no error found, return successful response
-	&zenlog( "Success, some parameters have been changed in farm $farmname.", "info", "DSLB" );
-
+	&zenlog( "Success, some parameters have been changed in farm $farmname.",
+			 "info", "DSLB" );
 
 	my $body = {
 				 description => $desc,
@@ -191,6 +184,7 @@ sub modify_datalink_farm    # ( $json_obj, $farmname )
 	};
 
 	&httpResponse( { code => 200, body => $body } );
+	return;
 }
 
 1;

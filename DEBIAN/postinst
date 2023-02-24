@@ -1,8 +1,8 @@
 #!/bin/bash
 ###############################################################################
 #
-#    Zevenet Software License
-#    This file is part of the Zevenet Load Balancer software package.
+#    ZEVENET Software License
+#    This file is part of the ZEVENET Load Balancer software package.
 #
 #    Copyright (C) 2014-today ZEVENET SL, Sevilla (Spain)
 #
@@ -25,7 +25,7 @@ GLOBALCF="/usr/local/zevenet/config/global.conf"
 GLOBALCFT="/usr/local/zevenet/share/global.conf.template"
 
 [ ! "$1" == "configure" ] && echo "Installation aborted $1 $2" && exit 1
-[   "$1" == "configure" ] && echo "Completing the Zevenet installation..."
+[   "$1" == "configure" ] && echo "Completing the ZEVENET installation..."
 
 # upgrading global.conf
 /usr/local/zevenet/bin/checkglobalconf
@@ -85,16 +85,16 @@ if [ ! -L ${LIBEXEC_PATH}/check_uplink ]; then
 	ln -s ${ZBIN_PATH}/check_uplink ${LIBEXEC_PATH}/check_uplink
 fi
 
-# Apply all migrating scripts to zevenet
+# Apply all migrating scripts to ZEVENET
 MIG_DIR="/usr/local/zevenet/migrating/"
 for SCRIPT in `ls $MIG_DIR`; do ${MIG_DIR}$SCRIPT; done
 
-# Restarting zevenet service
-echo "Zevenet will be unavailable while the service is restarting."
+# Restarting ZEVENET service
+echo "ZEVENET will be unavailable while the service is restarting."
 /etc/init.d/zevenet stop
 /etc/init.d/zevenet start
 
-# Add Zevenet Load Balancer service to boot process
+# Add ZEVENET Load Balancer service to boot process
 update-rc.d zevenet defaults
 
 # Setup motd.tail
@@ -113,4 +113,4 @@ perl -E " require Zevenet::System::Packages; &setSystemPackagesRepo();"
 ## Run checkupdates to update message
 $checkupdates_bin > /dev/null
 
-echo "Zevenet Load Balancer installation completed."
+echo "ZEVENET Load Balancer installation completed."
