@@ -60,6 +60,8 @@ foreach ( @farm_files )
 	my $cookie_params;
 	my $session_checker;
 	my $stat = 0;
+	my $name_index;
+	my $name_checker = 0;
 
 	for ( my $i = 0 ; $i < @array ; $i++ )
 	{
@@ -79,7 +81,7 @@ foreach ( @farm_files )
 		{
 			$bw = 0;
 		}
-		elsif ( $array[$i] =~ /^(User\s+\"(.+)\"|Group\s+\"(.+)\"|Name\s+(.+))$/ )
+		elsif ( $array[$i] =~ /^(User\s+\".+\"|Group\s+\".+\"|Name\s+.+)$/ )
 		{
 			splice @array, $i, 1;
 			$i--;
@@ -89,9 +91,9 @@ foreach ( @farm_files )
 			splice @array, $i, 1;
 			$i--;
 		}
-		elsif ( $array[$i] =~ /^\s*(#?)RewriteLocation\s+(\d)(\s+path)?$/ )
+		elsif ( $array[$i] =~ /^\s*#?RewriteLocation\s+\d(\s+path)?$/ )
 		{
-			if ( $3 )
+			if ( $1 )
 			{
 				$array[$i] =~ s/path/1/;
 			}
@@ -102,7 +104,11 @@ foreach ( @farm_files )
 		}
 		elsif ( $array[$i] =~ /^ListenHTTP$/ )
 		{
-			$array[$i] .= "\n\tName\t$farm_name";
+			$name_index = $i;
+		}
+		elsif ( $array[$i] =~ /^\s+Name\s+.+$/ )
+		{
+			$name_checker = 1;
 		}
 		elsif (
 				$array[$i] =~ /\t\t(#?)BackendCookie\s\"(.+)\"\s\"(.+)\"\s\"(.+)\"\s(\d+)/ )
@@ -147,21 +153,28 @@ foreach ( @farm_files )
 			}
 			if ( $sw == 1 and $bw == 0 )
 			{
-				if ( $cookie_params->{ enabled } == 1 )
+				if ( exists $cookie_params->{ enabled } )
 				{
-					$array[$i] = "\t\t\tID \"$cookie_params->{ id }\"";
-					$array[$i] .=
-					  "\n\t\t\tPath \"$cookie_params->{ path }\"\n\t\t\tDomain \"$cookie_params->{ domain }\"";
-				}
-				else
-				{
-					$array[$i] .= "\n\t\t\t#Path \"/\"\n\t\t\t#Domain \"domainname.com\"";
+					if ( $cookie_params->{ enabled } == 1 )
+					{
+						$array[$i] = "\t\t\tID \"$cookie_params->{ id }\"";
+						$array[$i] .=
+						  "\n\t\t\tPath \"$cookie_params->{ path }\"\n\t\t\tDomain \"$cookie_params->{ domain }\"";
+
+					}
+					else
+					{
+						$array[$i] .= "\n\t\t\t#Path \"/\"\n\t\t\t#Domain \"domainname.com\"";
+					}
 				}
 			}
 			else
 			{
-				$array[$i] = "\t\t\t#ID \"ZENSESSIONID\"";
-				$array[$i] .= "\n\t\t\t#Path \"/\"\n\t\t\t#Domain \"domainname.com\"";
+				if ( exists $cookie_params->{ enabled } )
+				{
+					$array[$i] = "\t\t\t#ID \"ZENSESSIONID\"";
+					$array[$i] .= "\n\t\t\t#Path \"/\"\n\t\t\t#Domain \"domainname.com\"";
+				}
 			}
 		}
 		elsif ( $array[$i] =~ /^\t\t#?End$/ )
@@ -172,6 +185,11 @@ foreach ( @farm_files )
 				$session_checker = 0;
 			}
 		}
+	}
+
+	if ( $name_checker == 0 )
+	{
+		$array[$name_index] .= "\n\tName\t$farm_name";
 	}
 
 	untie @array;
