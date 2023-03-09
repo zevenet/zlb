@@ -166,17 +166,15 @@ do
 	echo "# ps -feww | grep ${farm}_proxy.cfg | grep -v grep" >> $fstatus
 	ps -feww | grep ${farm}_proxy.cfg | grep -v grep >> $fstatus
 	echo "" >> $fstatus
-	echo "# $proxyctl -c $i" >> $fstatus
-	$proxyctl -c $i >> $fstatus
-	echo "" >> $fstatus
-	if [ "$proxy_ng" == "true" ]
+	if [ "$proxy_ng" == "false" ]
 	then
-		echo "# curl --connect-timeout 10 --unix-socket $i http://localhost/listener" >> $backup_dir/proxy_status.txt
-		$CURL --connect-timeout 10 --unix-socket $i http://localhost/listener >> $backup_dir/proxy_status.txt
+		echo "# $proxyctl -c $i" >> $fstatus
+		$proxyctl -c $i >> $fstatus
 		echo "" >> $fstatus
-		echo "" >> $fstatus
-		echo "# curl --connect-timeout 10 --unix-socket $i http://localhost/debug" >> $backup_dir/proxy_status.txt
-		$CURL --connect-timeout 10 --unix-socket $i http://localhost/debug  >> $fstatus
+	elif [ "$proxy_ng" == "true" ]
+	then
+		echo "# curl --connect-timeout 10 --unix-socket $i http://localhost/listener/0" >> $fstatus
+		$CURL --connect-timeout 10 --unix-socket $i http://localhost/listener/0 >> $fstatus
 		echo "" >> $fstatus
 	fi
 	echo "" >> $fstatus
