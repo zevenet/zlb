@@ -71,7 +71,61 @@ You can contribute with the evolution of the ZEVENET Load Balancer in a wide var
 - **Development** of new features.
 
 ### Reporting Bugs
-Please use the [GitHub project Issues](https://github.com/zevenet/zlb/issues) to report any issue or bug with the software. Try to describe the problem and a way to reproduce it. It'll be useful to attach the service and network configurations as well as system and services logs.
+
+1. Please use the GitHub project Issues to report any issue or bug with the software.
+2. Try to describe the problem and a way to reproduce it.
+3. To facilitate troubleshooting from our side, attach supportsave, tcpdump and .har files. Also, attach any screenshot if necessary.
+4. In case these files contain sensible information that the user does not want to share in GitHub, please send an email to ce-support@zevenet.com with the same subject as the issue title published in GitHub and the relevant files attached.
+
+### Generating Support Files:
+
+**First of all, enable debugging in the farms affected:**
+
+ ###### HTTP/S:
+  ```
+  cd /usr/local/zevenet/config
+  sed -i '/^LogLevel/c\LogLevel 7' FARMNAME_proxy.cfg` (replace FARMNAME with the name of the farm in question) 
+  ```
+  Restart the farm
+  
+ ###### L4XNAT:
+  ```
+  cd /usr/local/zevenet/config
+  sed -i '/^\$nftlb_debug/c\$nftlb_debug="9"' global.conf
+  /etc/init.d/zevenet stop
+  /etc/init.d/zevenet start
+  ```
+
+If the debug log are enabled, more information can be logged and it will help us to analyze the problem.
+
+**Then, proceed to collect the information that we need to start troubleshooting:**
+
+###### SUPORTSAVE:
+- Reproduce the error
+- Get the supportsave file via WebGUI or via commandline
+  - Via WebGui:
+    - Go to System-> Supportsave
+    - Click on "I understand ..."
+    - Click on "Generate report" and a file will be downloaded locally.
+   - Via Commandline:
+    ```
+    /usr/local/zevenet/bin/supportsave (a file will be saved in /tmp directory)
+    ```
+
+###### .HAR FILE:
+- Press F12 in the browser
+- Reproduce the error
+- Export .har file
+
+###### TCPDUMP FILE:
+```
+tcpdump -s 65535 -w <file>` (replace <file> with the filename where you want to capture the dump)
+```
+- Reproduce the error
+- Control+C to stop capturing
+
+###### SCREENSHOTS:
+- Do some screenshots if the issue is experienced in the WebGUI
 
 ### Development & Resolving Bugs
 In order to commit any change, as new features, bug fix or improvement, just perform a `git clone` of the repository, `git add` when all the changes has been made and `git commit` when you're ready to send the change.
