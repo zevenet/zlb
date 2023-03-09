@@ -249,13 +249,15 @@ sub getFileChecksumMD5
 			$md5 = { %{ $md5 }, %{ &getFileChecksumMD5( $filepath . "/" . $file ) } };
 		}
 	}
-	else
+	elsif ( -f $filepath )
 	{
-		use Digest::MD5;
-		open ( my $fh, '<', $filepath );
-		binmode ( $fh );
-		$md5->{ $filepath } = Digest::MD5->new->addfile( $fh )->hexdigest;
-		close $fh;
+		if ( open ( my $fh, '<', $filepath ) )
+		{
+			binmode ( $fh );
+			use Digest::MD5;
+			$md5->{ $filepath } = Digest::MD5->new->addfile( $fh )->hexdigest;
+			close $fh;
+		}
 	}
 	return $md5;
 }
