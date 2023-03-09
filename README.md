@@ -77,7 +77,7 @@ You can contribute with the evolution of the ZEVENET Load Balancer in a wide var
 3. To facilitate troubleshooting from our side, attach supportsave, tcpdump and .har files. Also, attach any screenshot if necessary.
 4. In case these files contain sensible information that the user does not want to share in GitHub, please send an email to ce-support@zevenet.com with the same subject as the issue title published in GitHub and the relevant files attached.
 
-### Generating Support Files:
+### Generating Support Files
 
 **First of all, enable debugging in the farms affected:**
 
