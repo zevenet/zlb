@@ -103,18 +103,22 @@ sub upIf    # ($if_ref, $writeconf)
 		my $cat       = &getGlobalConfiguration( 'cat_bin' );
 		my $status_if = &logAndGet( "$cat /sys/class/net/$$if_ref{name}/operstate" );
 		&zenlog( "Link status for $$if_ref{name} is $status_if", "info", "NETWORK" );
-		&zenlog( "Waiting link up for $$if_ref{name}",           "info", "NETWORK" );
-
-		use Time::HiRes qw(usleep);
-		my $max_retry = 50;
-		my $retry     = 0;
-		while ( $status_if =~ /down/ and $retry < $max_retry )
+		if ( $status_if =~ /down/ )
 		{
-			$status_if = &logAndGet( "$cat /sys/class/net/$$if_ref{name}/operstate" );
-			if ( $status_if !~ /down/ )
+			&zenlog( "Waiting link up for $$if_ref{name}", "info", "NETWORK" );
+			use Time::HiRes qw(usleep);
+			my $max_retry = 50;
+			my $retry     = 0;
+			while ( $status_if =~ /down/ and $retry < $max_retry )
 			{
-				&zenlog( "Link up for $$if_ref{name}", "info", "NETWORK" );
-				last;
+				$status_if = &logAndGet( "$cat /sys/class/net/$$if_ref{name}/operstate" );
+				if ( $status_if !~ /down/ )
+				{
+					&zenlog( "Link up for $$if_ref{name}", "info", "NETWORK" );
+					last;
+				}
+				$retry++;
+				usleep 100_000;
 			}
 			$retry++;
 			usleep 100_000;
