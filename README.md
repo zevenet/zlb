@@ -100,7 +100,7 @@ If the debug log are enabled, more information can be logged and it will help us
 
 **Then, proceed to collect the information that we need to start troubleshooting:**
 
-###### SUPORTSAVE:
+###### SUPPORTSAVE:
 - Reproduce the error
 - Get the supportsave file via WebGUI or via commandline
   - Via WebGui:
