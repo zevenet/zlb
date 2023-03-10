@@ -81,14 +81,14 @@ You can contribute with the evolution of the ZEVENET Load Balancer in a wide var
 
 **First of all, enable debugging in the farms affected:**
 
- ###### HTTP/S:
+###### HTTP/S:
   ```
   cd /usr/local/zevenet/config
   sed -i '/^LogLevel/c\LogLevel 7' FARMNAME_proxy.cfg` (replace FARMNAME with the name of the farm in question) 
   ```
   Restart the farm
   
- ###### L4XNAT:
+###### L4XNAT:
   ```
   cd /usr/local/zevenet/config
   sed -i '/^\$nftlb_debug/c\$nftlb_debug="9"' global.conf
@@ -108,6 +108,7 @@ If the debug log are enabled, more information can be logged and it will help us
     - Click on "I understand ..."
     - Click on "Generate report" and a file will be downloaded locally.
    - Via Commandline:
+
     ```
     /usr/local/zevenet/bin/supportsave (a file will be saved in /tmp directory)
     ```
