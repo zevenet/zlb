@@ -305,9 +305,11 @@ sub setLetsencryptFarmService
 		$error = &runHTTPFarmCreate( $vip, 80, $farm_name, "HTTP" );
 		if ( $error )
 		{
-			&zenlog( "Error creating Temporal Farm $le_farm", "Error", "LetsEncryptZ" );
+			&zenlog( "Error creating temporal Farm $farm_name", "Error", "LetsEncryptZ" );
 			return 1;
 		}
+		&zenlog( "The temporal Farm $farm_name has been created",
+				 "Info", "LetsEncryptZ" );
 
 	}
 
@@ -324,6 +326,8 @@ sub setLetsencryptFarmService
 			&zenlog( "Error creating the service $le_service", "Error", "LetsEncryptZ" );
 			return 1;
 		}
+		&zenlog( "The Service $le_service in Farm $farm_name has been created",
+				 "Info", "LetsEncryptZ" );
 
 	}
 	else
@@ -352,6 +356,9 @@ sub setLetsencryptFarmService
 		return 3;
 	}
 
+	&zenlog( "The Service $le_service in Farm $farm_name has been configured",
+			 "Info", "LetsEncryptZ" );
+
 	# Restart the farm
 	require Zevenet::Farm::Action;
 	if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
@@ -368,6 +375,7 @@ sub setLetsencryptFarmService
 			&zenlog( "Error starting the farm $farm_name", "Error", "LetsEncryptZ" );
 			return 6;
 		}
+		&zenlog( "The Farm $farm_name has been restarted", "Info", "LetsEncryptZ" );
 	}
 	else
 	{
@@ -377,6 +385,7 @@ sub setLetsencryptFarmService
 			&zenlog( "Error reloading the farm $farm_name", "Error", "LetsEncryptZ" );
 			return 5;
 		}
+		&zenlog( "The Farm $farm_name has been reloaded", "Info", "LetsEncryptZ" );
 	}
 
 	return 0;
@@ -419,43 +428,58 @@ sub unsetLetsencryptFarmService
 			&zenlog( "Error deleting the farm $farm_name", "Error", "LetsEncryptZ" );
 			return 2;
 		}
+		&zenlog( "The Farm $farm_name has been deleted", "Info", "LetsEncryptZ" );
 	}
 	else
 	{
 		require Zevenet::Farm::HTTP::Service;
-		my $error = &delHTTPFarmService( $farm_name, $le_service );
-		if ( $error )
+		if ( &getHTTPFarmServices( $farm_name, $le_service ) )
 		{
-			&zenlog( "Error Deleting the service $le_service on farm $farm_name",
-					 "Error", "LetsEncryptZ" );
-			return 3;
-		}
-
-		# Restart the farm
-		require Zevenet::Farm::Action;
-		if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
-		{
-			$error = &runFarmStop( $farm_name, "" );
+			my $error = &delHTTPFarmService( $farm_name, $le_service );
 			if ( $error )
 			{
-				&zenlog( "Error stopping the farm $farm_name", "Error", "LetsEncryptZ" );
-				return 1;
+				&zenlog( "Error Deleting the service $le_service on farm $farm_name",
+						 "Error", "LetsEncryptZ" );
+				return 3;
 			}
-			$error = &runFarmStart( $farm_name, "" );
-			if ( $error )
+			&zenlog( "The service $le_service on farm $farm_name has been deleted",
+					 "Info", "LetsEncryptZ" );
+
+			# Restart the farm
+			require Zevenet::Farm::Action;
+			if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
 			{
-				&zenlog( "Error starting the farm $farm_name", "Error", "LetsEncryptZ" );
-				return 4;
+				$error = &runFarmStop( $farm_name, "" );
+				if ( $error )
+				{
+					&zenlog( "Error stopping the farm $farm_name", "Error", "LetsEncryptZ" );
+					return 1;
+				}
+				$error = &runFarmStart( $farm_name, "" );
+				if ( $error )
+				{
+					&zenlog( "Error starting the farm $farm_name", "Error", "LetsEncryptZ" );
+					return 4;
+				}
+				&zenlog( "The Farm $farm_name has been restarted", "Info", "LetsEncryptZ" );
+			}
+			else
+			{
+				$error = &_runFarmReload( $farm_name );
+				if ( $error )
+				{
+					&zenlog( "Error reloading the farm $farm_name", "Error", "LetsEncryptZ" );
+					return 1;
+				}
+				&zenlog( "The farm $farm_name has been reloaded", "Info", "LetsEncryptZ" );
 			}
 		}
 		else
 		{
-			$error = &_runFarmReload( $farm_name );
-			if ( $error )
-			{
-				&zenlog( "Error reloading the farm $farm_name", "Error", "LetsEncryptZ" );
-				return 1;
-			}
+			&zenlog(
+				"The Service $le_service in Farm $farm_name can not be deleted, it does not exist",
+				"warning", "LetsEncryptZ"
+			);
 		}
 	}
 
@@ -507,6 +531,10 @@ sub runLetsencryptLocalWebserverStart
 		&zenlog( "Error starting Local Web Server", "Error", "LetsEncryptZ" );
 		$rc = 1;
 	}
+	else
+	{
+		&zenlog( "LetsencryptZ Local Web Server is running", "Info", "LetsEncryptZ" );
+	}
 
 	return $rc;
 
@@ -542,10 +570,20 @@ sub runLetsencryptLocalWebserverStop
 		my $error = &logAndRun( "$kill_bin -15 $pid" );
 		if ( $error )
 		{
-			&zenlog( "Error stopping Local Web Server", "Error", "LetsEncryptZ" );
+			&zenlog( "Error stopping LetsencryptZ Local Web Server",
+					 "Error", "LetsEncryptZ" );
 			return 1;
 		}
+		use Time::HiRes qw(usleep);
+		my $retry     = 0;
+		my $max_retry = 20;
+		while ( -f $pid_file and $retry < $max_retry )
+		{
+			$retry++;
+			usleep( 100_000 );
+		}
 		unlink $pid_file if ( -f $pid_file );
+		&zenlog( "LetsencryptZ Local Web Server is stopped", "Info", "LetsEncryptZ" );
 	}
 
 	return 0;
@@ -801,7 +839,7 @@ Parameters:
 	farm_name - Farm Name where Letsencrypt will connect.
 	vip - VIP where the new Farm and service is created. The virtual Port will be 80.
 	force_renewal - if "true" forces a renew even the cert not yet due for renewal( over 30 days for expire ).
-	test - if "true" the action simulates all the process but no certificate is created.
+	lock_fh - FileHandle to lock the process
 
 Returns:
 	error_ref - error object. code = 0, on success
@@ -815,11 +853,11 @@ Variable: $error_ref.
 
 =cut
 
-sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
+sub runLetsencryptRenew  # ( $le_cert_name, $farm_name, $vip, $force, $lock_fh )
 {
 	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my ( $le_cert_name, $farm_name, $vip, $force ) = @_;
+	my ( $le_cert_name, $farm_name, $vip, $force, $lock_fh ) = @_;
 
 	my $status;
 	my $error_ref = { code => 0 };
@@ -842,8 +880,21 @@ sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
 	$farm_name = $le_farm if ( not $farm_name );
 
 	# Lock process
-	my $lock_le_renew = "/tmp/letsencryptz-renew.lock";
-	my $lock_le_renew_fh = &openlock( $lock_le_renew, "w" );
+	my $lock_le_renew_fh;
+	if ( not $lock_fh )
+	{
+		my $lock_le_renew = "/tmp/letsencryptz-renew.lock";
+		if ( not -f $lock_le_renew )
+		{
+			my $touch = &getGlobalConfiguration( 'touch' );
+			&logAndRun( "$touch $lock_le_renew" );
+		}
+		$lock_le_renew_fh = &openlock( $lock_le_renew, "w" );
+	}
+	else
+	{
+		$lock_le_renew_fh = $lock_fh;
+	}
 
 	# start local Web Server
 	$status = &runLetsencryptLocalWebserverStart();
@@ -852,6 +903,7 @@ sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
 	{
 		$error_ref->{ code } = 1;
 		$error_ref->{ desc } = "Letsencrypt Local Webserver can not be created.";
+		close $lock_le_renew_fh;
 		return $error_ref;
 	}
 
@@ -861,6 +913,7 @@ sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
 	{
 		$error_ref->{ code } = 2;
 		$error_ref->{ desc } = "Letsencrypt Service can not be created.";
+		close $lock_le_renew_fh;
 		return $error_ref;
 	}
 
@@ -885,6 +938,7 @@ sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
 			 "Info", "LetsencryptZ" );
 	$status = &logRunAndGet( $cmd, "array" );
 
+	alarm ( 0 );
 	if ( $status->{ stderr } )
 	{
 		my $error_response = "Error creating new order";
@@ -935,8 +989,6 @@ sub runLetsencryptRenew    # ( $le_cert_name, $farm_name, $vip, $force, $test )
 	&runLetsencryptLocalWebserverStop();
 
 	close $lock_le_renew_fh;
-	unlink $lock_le_renew;
-
 	return $error_ref;
 }
 
