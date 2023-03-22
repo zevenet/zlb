@@ -1559,7 +1559,7 @@ sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 		#TTL
 		if ( $tag eq "ttl" )
 		{
-			if ( $line =~ /^\s*#?TTL(\s*\".*\"\s*)$/ and $sw == 1 )
+			if ( $line =~ /^\s*#?TTL(\s*\d+\s*)$/ and $sw == 1 )
 			{
 				if ( $string ne "" )
 				{
