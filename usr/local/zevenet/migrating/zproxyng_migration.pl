@@ -102,7 +102,7 @@ foreach ( @farm_files )
 				$array[$i] .= " 0";
 			}
 		}
-		elsif ( $array[$i] =~ /^ListenHTTP$/ )
+		elsif ( $array[$i] =~ /^ListenHTTPS?$/ )
 		{
 			$name_index = $i;
 		}

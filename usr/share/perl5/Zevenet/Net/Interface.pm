@@ -1455,7 +1455,9 @@ sub getIpAddressExists
 	{
 		foreach my $if_ref ( @{ $interface_list } )
 		{
-			if (     ( $if_ref->{ addr } eq $ip )
+			if (     defined $if_ref->{ addr }
+				 and ( $if_ref->{ addr } ne "" )
+				 and ( $if_ref->{ addr } eq $ip )
 				 and ( &ipversion( $if_ref->{ addr } ) eq $ip_ver ) )
 			{
 				$output = 1;
@@ -1463,6 +1465,7 @@ sub getIpAddressExists
 			}
 		}
 	}
+
 	elsif ( $ip_ver == 6 )
 	{
 		my $addr_ref = NetAddr::IP->new( $ip );
