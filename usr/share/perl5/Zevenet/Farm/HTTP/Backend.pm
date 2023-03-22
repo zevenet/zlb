@@ -759,7 +759,7 @@ sub getHTTPFarmBackends    # ($farm_name,$service,$param_status)
 	if ( not $param_status or $param_status eq "true" )
 	{
 		@be_status = @{ &getHTTPFarmBackendsStatus( $farmname, $service ) };
-		@be_status = () if $be_status[0] eq -1;
+		@be_status = () if ( exists $be_status[0] and ( $be_status[0] eq -1 ) );
 	}
 	my @out_ba;
 

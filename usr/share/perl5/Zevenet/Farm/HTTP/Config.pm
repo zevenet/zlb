@@ -2367,7 +2367,7 @@ sub setFarmProxyNGConf    # ($proxy_mode,$farm_name)
 				splice @array, $i, 1;
 				$i--;
 			}
-			elsif ( $array[$i] =~ /^ListenHTTP$/ )
+			elsif ( $array[$i] =~ /^ListenHTTPS?$/ )
 			{
 				$array[$i] .= "\n\tName\t$farm_name";
 			}
@@ -2591,7 +2591,7 @@ sub setFarmProxyNGConf    # ($proxy_mode,$farm_name)
 			elsif ( $array[$i] =~ /^\t\t\t(#?)TTL\s(\d+)/ )
 			{
 				$cookie_params->{ ttl } = $2;
-				if ( $cookie_params->{ enabled } == 1 )
+				if ( $cookie_params->{ enabled } )
 				{
 					$array[$i] = "\t\t\t#TTL 120";
 				}
@@ -2599,7 +2599,7 @@ sub setFarmProxyNGConf    # ($proxy_mode,$farm_name)
 			elsif ( $array[$i] =~ /^\t\t\t(#?)ID\s"(.+)"/ )
 			{
 				$cookie_params->{ id } = $2;
-				if ( $cookie_params->{ enabled } == 1 or $2 eq "ZENSESSIONID" )
+				if ( $cookie_params->{ enabled } or $2 eq "ZENSESSIONID" )
 				{
 					$array[$i] = "\t\t\t#ID \"sessionname\"";
 				}
@@ -2618,7 +2618,7 @@ sub setFarmProxyNGConf    # ($proxy_mode,$farm_name)
 			}
 			elsif ( $array[$i] =~ /^\t\tEnd$/ )
 			{
-				if ( ( $sw == 1 ) and ( $bw == 0 ) and ( $session_checker == 1 ) )
+				if ( ( $sw == 1 ) and ( $bw == 0 ) and ( $session_checker ) )
 				{
 					if ( $cookie_on eq "true" )
 					{
@@ -2642,12 +2642,13 @@ sub setFarmProxyNGConf    # ($proxy_mode,$farm_name)
 				}
 			}
 
-			# if ( exists $cookie_params->{ domain } and $session_checker == 1 )
-			if ( $cookie_params->{ domain } ne "" and $session_checker == 1 )
+			if (     exists $cookie_params->{ domain }
+				 and $cookie_params->{ domain } ne ""
+				 and $session_checker )
 			{
 				if ( $dw != 0 )
 				{
-					if ( $cookie_params->{ enabled } == 1 )
+					if ( $cookie_params->{ enabled } )
 					{
 						$array[$dw] .=
 						  "\n\t\tBackendCookie \"$cookie_params->{ id }\" \"$cookie_params->{ domain }\" \"$cookie_params->{ path }\" $cookie_params->{ ttl }";
@@ -2658,7 +2659,7 @@ sub setFarmProxyNGConf    # ($proxy_mode,$farm_name)
 						$array[$dw] .=
 						  "\n\t\t#BackendCookie \"ZENSESSIONID\" \"domainname.com\" \"/\" 0";
 					}
-					$cookie_on     = $cookie_params->{ enabled } == 1 ? "true" : "false";
+					$cookie_on     = $cookie_params->{ enabled } ? "true" : "false";
 					$cookie_params = undef;
 					$dw            = 0;
 				}
@@ -2672,7 +2673,6 @@ sub setFarmProxyNGConf    # ($proxy_mode,$farm_name)
 		}
 		for ( my $i = 0 ; $i < @array ; $i++ )
 		{
-			# if ( $array[$i] =~ /^ListenHTTP$/ )
 			if ( $array[$i] =~ /^#HTTP\(S\)\sLISTENERS$/ )
 			{
 				my $sizewaf = @wafs;

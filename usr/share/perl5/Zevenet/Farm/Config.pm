@@ -864,7 +864,7 @@ sub getPersistence
 	my $farm_ref;
 	my $nodestatus = "";
 	return 1 if $farm_type !~ /l4xnat|http/;
-	return 1 if ( $nodestatus ne "master" );
+	return 1 if ( defined $nodestatus and ( $nodestatus ne "master" ) );
 	if ( $farm_type eq 'l4xnat' )
 	{
 		require Zevenet::Farm::L4xNAT::Config;
