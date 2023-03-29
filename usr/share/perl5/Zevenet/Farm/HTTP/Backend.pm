@@ -1031,24 +1031,27 @@ sub setHTTPFarmBackendStatusFile    # ($farm_name,$backend,$status,$idsv)
 			require Zevenet::HTTPClient;
 			my $run = &runHTTPRequest( $call );
 			open my $fd, '>', "$status_file";
-			my @services   = @{ $run->{ return }->{ body }->{ services } };
-			my $srvc_index = 0;
-			my $bknd_index = 0;
-			foreach my $srvc ( @services )
+			if ( exists $run->{ return }->{ body }->{ services } )
 			{
-				my @backends = @{ $srvc->{ backends } };
-				if ( @backends )
+				my @services   = @{ $run->{ return }->{ body }->{ services } };
+				my $srvc_index = 0;
+				my $bknd_index = 0;
+				foreach my $srvc ( @services )
 				{
-					foreach my $bknd ( @backends )
+					my @backends = @{ $srvc->{ backends } };
+					if ( @backends )
 					{
-						if ( $bknd->{ status } ne "active" )
+						foreach my $bknd ( @backends )
 						{
-							print $fd "-b 0 $srvc_index $bknd_index fgDOWN\n";
+							if ( $bknd->{ status } ne "active" )
+							{
+								print $fd "-b 0 $srvc_index $bknd_index fgDOWN\n";
+							}
+							$bknd_index++;
 						}
-						$bknd_index++;
 					}
+					$srvc_index++;
 				}
-				$srvc_index++;
 			}
 			close $fd;
 		}
