@@ -116,6 +116,7 @@ sub runFarmCreateFrom
 	my $err    = 0;
 
 	# lock farm
+	require Zevenet::Lock;
 	my $lock_file = &getLockFile( $params->{ farmname } );
 	my $lock_fh = &openlock( $lock_file, 'w' );
 
