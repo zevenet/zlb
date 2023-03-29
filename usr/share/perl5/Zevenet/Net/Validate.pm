@@ -830,8 +830,8 @@ sub validateNetmask
 		else
 		{
 			require Net::Netmask;
-			my $block = Net::Netmask->new( $ip, $mask );
-			$success = ( not exists $block->{ 'ERROR' } );
+			my $block = Net::Netmask->new2( $ip, $mask );
+			$success = 1 if defined $block;
 		}
 	}
 
