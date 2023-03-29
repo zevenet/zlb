@@ -200,6 +200,13 @@ echo "Saving configuration files"
 #################################
 /bin/tar zcf $backup_dir/config.tar.gz $backupfor 2>/dev/null
 
+echo "Saving file descriptors data"
+#################################
+for i in `ls -d /proc/[0-9]*/` 
+do 
+	fd=`ls ${i}/fd/ | wc -l`
+	echo "${i//[!0-9]/} = $fd" >> $backup_dir/fd.txt
+done
 
 echo "Saving monitoring files"
 ##############################
