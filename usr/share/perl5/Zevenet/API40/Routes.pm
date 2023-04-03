@@ -467,10 +467,10 @@ if ( $q->path_info =~
 	 qr{^/system/(?:version|info|license|supportsave|language|packages)} )
 {
 	require Zevenet::API40::System::Info;
-
-	GET( qr{^/system/version$}     => \&get_version );
-	GET( qr{^/system/info$}        => \&get_system_info );
-	GET( qr{^/system/supportsave$} => \&get_supportsave );
+	GET( qr{^/system/version$}           => \&get_version );
+	GET( qr{^/system/info$}              => \&get_system_info );
+	GET( qr{^/system/supportsave$}       => \&get_supportsave );
+	GET( qr{^/system/supportsave/(all)$} => \&get_supportsave );
 
 	my $license_re = &getValidFormat( 'license_format' );
 	GET( qr{^/system/license/($license_re)$} => \&get_license );

@@ -57,12 +57,16 @@ sub get_license
 	return;
 }
 
+# GET /system/supportsave
+# GET /system/supportsave/all
 sub get_supportsave
 {
 	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
-	my $desc = "Get supportsave file";
+	my ( $type ) = @_;
 
+	$type = undef if ( $type ne "all" );
+	my $desc     = "Get supportsave file";
 	my $req_size = &checkSupportSaveSpace();
 	if ( $req_size )
 	{
@@ -72,7 +76,7 @@ sub get_supportsave
 		&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 	}
 
-	my $ss_filename = &getSupportSave();
+	my $ss_filename = &getSupportSave( $type );
 
 	&httpDownloadResponse(
 						   desc => $desc,

@@ -37,9 +37,39 @@ hostname=`hostname`
 home_dir="/usr/local/zevenet"
 ss_dir="supportsave_${hostname}_${tmp_name}"
 prefix="/tmp"
+all="false"
 
-if [ -d "$1" ]; then
-	prefix=${1}
+if [[ $1 == "--all" ]]; then
+	all="true"
+	echo "Generating supportsave with extended content."
+	if [[  "$2" =~ ^\/ ]]; then
+		prefix=$2
+	elif [ "$2" == "" ]; then
+		echo "Generating supportsave with default path."
+	else
+		echo "Argument 2 is not valid."
+		echo "Arguments accepted are a preferred path and/or --all to obtain extended content."
+		exit 1
+	fi
+elif [[  "$1" =~ ^\/ ]]; then
+	prefix=$1
+	if [[ $2 == "--all" ]]; then
+		all="true"
+		echo "Generating supportsave with extended content."
+	elif [ "$2" == "" ]; then
+		echo "Generating supportsave with default content."
+	else
+		echo "Argument 2 is not valid."
+		echo "Arguments accepted are a preferred path and/or --all to obtain extended content."
+		exit 1
+	fi
+elif [ "$1" == "" ]; then
+	echo "Generating supportsave with default path." 
+	echo "Generating supportsave with default content."
+else
+	echo "Argument 1 is not valid."
+	echo "Arguments accepted are a preferred path and/or --all to obtain extended content."
+	exit 1
 fi
 
 backup_dir="${prefix}/${ss_dir}"
@@ -196,9 +226,18 @@ fi
 
 echo $version > $backup_dir/zevenet_pkg_version
 
-echo "Saving configuration files"
+#Saving configuration files"
 #################################
-/bin/tar zcf $backup_dir/config.tar.gz $backupfor 2>/dev/null
+
+if [ $all ==  "true" ]; then
+	echo "Saving configuration files"
+	echo "Saving certificate files"
+	/bin/cp ${home_dir}/www/*.pem $backup_dir 2>/dev/null
+	/bin/tar zcf $backup_dir/config.tar.gz $backupfor 2>/dev/null
+else
+	echo "Saving configuration files"
+	/bin/tar zcf $backup_dir/config.tar.gz --exclude=${le_config_path} --exclude=${certdir} --exclude='*.pem' $backupfor 2>/dev/null
+fi
 
 echo "Saving file descriptors data"
 #################################
@@ -210,11 +249,9 @@ done
 
 echo "Saving monitoring files"
 ##############################
-/bin/cp ${home_dir}/www/*.pem $backup_dir 2>/dev/null
 /bin/tar zcf $backup_dir/monitoring.tar.gz $monitoring_paths 2>/dev/null
 
 if [ -f /usr/local/zevenet/bin/enterprise.bin ]; then
-	echo "Saving monitoring files"
 	/usr/local/zevenet/bin/supportsave_ext $backup_dir
 	# copiar al dir
 fi
