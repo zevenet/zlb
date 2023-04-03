@@ -227,7 +227,6 @@ sub getSpaceFormatHuman
 
 =begin nd
 Function: getSupportSaveSize
-
 	It gets the aproximate size that the supportsave will need.
 	The size is calculated using the config and log directories size and adding
 	a offset of 20MB
@@ -315,11 +314,15 @@ sub getSupportSave
 {
 	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
+	my ( $type ) = @_;
+
+	$type = "--all" if $type eq "all";
+
 	my $zbindir = &getGlobalConfiguration( 'zbindir' );
-	my @ss_output = @{ &logAndGet( "${zbindir}/supportsave", "array" ) };
+	my @ss_output = @{ &logAndGet( "${zbindir}/supportsave ${type}", "array" ) };
 
 	# get the last "word" from the first line
-	my $first_line = shift @ss_output;
+	my $first_line = $ss_output[2];
 	my $last_word = ( split ( ' ', $first_line ) )[-1];
 
 	my $ss_path = $last_word;
