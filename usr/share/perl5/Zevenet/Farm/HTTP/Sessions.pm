@@ -66,19 +66,14 @@ sub listL7FarmSessions
 	my $farmname = shift;
 	my $service  = shift;
 
-	require Zevenet::Farm::HTTP::Action;
-	require Zevenet::Farm::HTTP::Service;
-	require Zevenet::Farm::Core;
-	require Zevenet::Farm::Config;
+	require Zevenet::Farm::Base;
 	use POSIX 'floor';
-
-	my $service_id = &getHTTPServiceId( $farmname, $service );
 
 	my $output;
 
-	my $farm_st = &getFarmStruct( $farmname );
+	my $status = &getFarmVipStatus( $farmname );
 
-	if ( $farm_st->{ status } eq 'down' )
+	if ( $status eq 'down' )
 	{
 		my $static_sessions = &listConfL7FarmSessions( $farmname, $service );
 
@@ -100,20 +95,25 @@ sub listL7FarmSessions
 	}
 	else
 	{
-		$output = &sendL7ZproxyCmd(
-									{
-									  farm   => $farmname,
-									  uri    => "listener/0/services/$service_id/sessions",
-									  method => "GET",
-									}
-		);
+		require Zevenet::Farm::HTTP::Config;
+		$output = {
+					method   => "GET",
+					protocol => "http",
+					host     => "localhost",
+					path     => "/listener/0/service/$service",
+					socket   => &getHTTPFarmSocket( "$farmname" ),
+					json     => 3,
+		};
+
+		require Zevenet::HTTPClient;
+		$output = &runHTTPRequest( $output );
 	}
 
 	return $output if ( $output eq 1 );
 
 	my @result;
 
-	my $ttl = &getHTTPServiceStruct( $farmname, $service )->{ ttl };
+	my $ttl  = $output->{ ttl };
 	my $time = time ();
 	foreach my $ss ( @{ $output->{ sessions } } )
 	{
