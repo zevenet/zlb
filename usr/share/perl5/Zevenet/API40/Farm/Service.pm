@@ -201,6 +201,9 @@ sub farm_services
 	{
 		require Zevenet::Farm::HTTP::Sessions;
 		$service->{ sessions } = &listL7FarmSessions( $farmname, $servicename );
+
+		#return an empty array if there is an error fetching sessions
+		$service->{ sessions } = [] if $service->{ sessions } eq 1;
 	}
 
 	my $body = {

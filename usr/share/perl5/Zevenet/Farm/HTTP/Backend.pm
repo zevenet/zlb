@@ -1744,7 +1744,6 @@ sub getHTTPFarmBackendIdByIndex    # ($farm_name, $service, $backend_index)
 
 	my $backend_id;
 
-	require Zevenet::Farm::HTTP::Backends;
 	my $backends_ref = &getHTTPFarmBackends( $farm_name, $service, "false" );
 	if (     defined @{ $backends_ref }[$backend_idx]->{ ip }
 		 and defined @{ $backends_ref }[$backend_idx]->{ port } )

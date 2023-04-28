@@ -70,14 +70,16 @@ sub listL7FarmSessions
 	use POSIX 'floor';
 
 	my $output;
+	my $error = 1;
 
-	my $status = &getFarmVipStatus( $farmname );
+	require Zevenet::Farm::HTTP::Config;
+	my $status = &getHTTPFarmStatus( $farmname );
 
 	if ( $status eq 'down' )
 	{
 		my $static_sessions = &listConfL7FarmSessions( $farmname, $service );
 
-		return 1 if ( $static_sessions eq 1 );
+		return $error if ( $static_sessions eq 1 );
 
 		my @array;
 		foreach my $session ( @$static_sessions )
@@ -91,31 +93,64 @@ sub listL7FarmSessions
 				   }
 			);
 		}
-		$output->{ sessions } = \@array;
+		$output = \@array;
 	}
 	else
 	{
 		require Zevenet::Farm::HTTP::Config;
-		$output = {
-					method   => "GET",
-					protocol => "http",
-					host     => "localhost",
-					path     => "/listener/0/service/$service",
-					socket   => &getHTTPFarmSocket( "$farmname" ),
-					json     => 3,
+		my $call = {
+					 method   => "GET",
+					 protocol => "http",
+					 host     => "localhost",
+					 path     => "/listener/0/service/$service",
+					 socket   => &getHTTPFarmSocket( "$farmname" ),
+					 json     => 3,
 		};
 
 		require Zevenet::HTTPClient;
-		$output = &runHTTPRequest( $output );
+		$output = &runHTTPRequest( $call );
+
+		if ( $output->{ code } ne 0 )
+		{
+			&zenlog(
+					 "Zproxy socket HTTP request failed: "
+					   . $output->{ desc }
+					   . ", code: "
+					   . $output->{ code },
+					 "error",
+					 "HTTP"
+			);
+			return $error;
+		}
+
+		$output = $output->{ return }->{ body }->{ sessions };
+
+		require Zevenet::Farm::HTTP::Backend;
+		my $backend_id_ref;
+		foreach my $id ( @{ $output } )
+		{
+			if ( exists $backend_id_ref->{ $id->{ 'backend-id' } } )
+			{
+				$id->{ 'backend-id' } = $backend_id_ref->{ $id->{ 'backend-id' } };
+			}
+			else
+			{
+				$backend_id_ref->{ $id->{ 'backend-id' } } =
+				  &getHTTPFarmBackendIndexById( $farmname, $service, $id->{ 'backend-id' } );
+				$id->{ 'backend-id' } = $backend_id_ref->{ $id->{ 'backend-id' } };
+			}
+		}
 	}
 
-	return $output if ( $output eq 1 );
-
 	my @result;
-
-	my $ttl  = $output->{ ttl };
+	my $ttl = &getHTTPFarmVS( $farmname, $service, "ttl" );
+	if ( $ttl !~ /^\d+$/ )
+	{
+		&zenlog( "Unable to fetch ttl from farm $farmname", "error", "HTTP" );
+		return $error;
+	}
 	my $time = time ();
-	foreach my $ss ( @{ $output->{ sessions } } )
+	foreach my $ss ( @{ $output } )
 	{
 		my $min_rem =
 		  floor( ( $ttl - ( $time - $ss->{ 'last-seen' } ) ) / 60 );
