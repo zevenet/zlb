@@ -207,8 +207,21 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $error_msg );
 	}
 
-	# get an ID for the new backend
+	#check if there is other backend with same address
 	require Zevenet::Farm::HTTP::Backend;
+	my @be_list = @{ &getHTTPFarmBackends( $farmname, $service, "false" ) };
+	foreach my $backend ( @be_list )
+	{
+		if (     $backend->{ ip } eq $json_obj->{ ip }
+			 and $backend->{ port } eq $json_obj->{ port } )
+		{
+			my $msg =
+			  "A backend with address $json_obj->{ ip }:$json_obj->{ port } already exists";
+			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+		}
+	}
+
+	# get an ID for the new backend
 	my $id = &getHTTPFarmBackendAvailableID( $farmname, $service );
 
 # First param ($id) is an empty string to let function autogenerate the id for the new backend
@@ -569,10 +582,27 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 		&httpErrorResponse( code => 400, desc => $desc, msg => $error_msg );
 	}
 
-	# apply BACKEND change
+	#check if other BACKEND exists with the same address and apply address change
+	if ( $json_obj->{ ip } or $json_obj->{ port } )
+	{
+		$be->{ ip }   = $json_obj->{ ip }   // $be->{ ip };
+		$be->{ port } = $json_obj->{ port } // $be->{ port };
+		my $index = 0;
+		foreach my $backend ( @be_list )
+		{
+			if ( $backend->{ ip } eq $be->{ ip } and $backend->{ port } eq $be->{ port } )
+			{
+				if ( $index ne $id_server )
+				{
+					my $msg = "A backend with address $be->{ ip }:$be->{ port } already exists";
+					&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+				}
+			}
+			$index++;
+		}
+	}
 
-	$be->{ ip }       = $json_obj->{ ip }       // $be->{ ip };
-	$be->{ port }     = $json_obj->{ port }     // $be->{ port };
+	# apply other BACKEND params changes
 	$be->{ weight }   = $json_obj->{ weight }   // $be->{ weight };
 	$be->{ priority } = $json_obj->{ priority } // $be->{ priority };
 	$be->{ timeout }  = $json_obj->{ timeout }  // $be->{ timeout };
