@@ -356,12 +356,6 @@ sub delHTTPFarmService    # ($farm_name,$service)
 		}
 	}
 
-	# delete service's sessions from config file
-
-	if ( &getGlobalConfiguration( 'proxy_ng' ) )
-	{
-		&deleteConfL7FarmAllSession( $farm_name, $service );
-	}
 
 # change the ID value of services with an ID higher than the service deleted (value - 1)
 	tie my @contents, 'Tie::File', "$configdir\/$farm_name\_status.cfg";
@@ -1448,12 +1442,10 @@ sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 			 "debug", "PROFILING" );
 	my ( $farm_name, $service, $tag, $string ) = @_;
 
-	my $farm_filename  = &getFarmFile( $farm_name );
-	my $output         = 0;
-	my $sw             = 0;
-	my $j              = -1;
-	my $clean_sessions = 0;
-
+	my $farm_filename = &getFarmFile( $farm_name );
+	my $output        = 0;
+	my $sw            = 0;
+	my $j             = -1;
 	$string =~ s/^\s+//;
 	$string =~ s/\s+$//;
 
@@ -1679,7 +1671,6 @@ sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 				if ( $line =~ /^\t\t\t#?Type\s+(.*)\s*/ )
 				{
 					$line = "\t\t\tType $string";
-					$clean_sessions = 1 if ( $1 ne $string );
 				}
 				if ( $line =~ /^\t\t\t#?TTL/ )
 				{
@@ -1756,8 +1747,7 @@ sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 				}
 				if ( $line =~ /^\t\t\tType/ )
 				{
-					$line           = "\t\t\t#Type nothing";
-					$clean_sessions = 1;
+					$line = "\t\t\t#Type nothing";
 				}
 				if ( $line =~ "\t\t\tID |\t\t\t#ID " )
 				{
@@ -1780,12 +1770,6 @@ sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 				{
 					$line =~ s/\tDomain/\t#Domain/;
 				}
-			}
-			if ( $sw == 1 and $line =~ /End/ )
-			{
-				require Zevenet::Farm::HTTP::Sessions;
-				&deleteConfL7FarmAllSession( $farm_name, $service ) if ( $clean_sessions );
-				last;
 			}
 		}
 
