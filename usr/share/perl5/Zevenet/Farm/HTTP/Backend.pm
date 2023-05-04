@@ -551,11 +551,6 @@ sub runHTTPFarmServerDelete    # ($ids,$farm_name,$service)
 
 	close $lock_fh;
 
-	if ( $proxy_ng eq 'true' )
-	{
-		require Zevenet::Farm::HTTP::Sessions;
-		&deleteConfL7FarmAllSession( $farm_name, $service, $ids );
-	}
 
 	if ( $output != -1 )
 	{
