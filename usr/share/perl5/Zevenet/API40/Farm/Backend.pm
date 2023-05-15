@@ -193,8 +193,9 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 	}
 
 	require Zevenet::Farm::Validate;
-	my $params = &getZAPIModel( "farm_http_service_backend-add.json" );
-	if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+	my $params   = &getZAPIModel( "farm_http_service_backend-add.json" );
+	my $proxy_ng = &getGlobalConfiguration( 'proxy_ng' );
+	if ( $proxy_ng ne 'true' )
 	{
 		delete $params->{ "connection_limit" };
 		delete $params->{ "priority" };
@@ -209,15 +210,18 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 
 	#check if there is other backend with same address
 	require Zevenet::Farm::HTTP::Backend;
-	my @be_list = @{ &getHTTPFarmBackends( $farmname, $service, "false" ) };
-	foreach my $backend ( @be_list )
+	if ( $proxy_ng eq 'true' )
 	{
-		if (     $backend->{ ip } eq $json_obj->{ ip }
-			 and $backend->{ port } eq $json_obj->{ port } )
+		my @be_list = @{ &getHTTPFarmBackends( $farmname, $service, "false" ) };
+		foreach my $backend ( @be_list )
 		{
-			my $msg =
-			  "A backend with address $json_obj->{ ip }:$json_obj->{ port } already exists";
-			&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			if (     $backend->{ ip } eq $json_obj->{ ip }
+				 and $backend->{ port } eq $json_obj->{ port } )
+			{
+				my $msg =
+				  "A backend with address $json_obj->{ ip }:$json_obj->{ port } already exists";
+				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+			}
 		}
 	}
 
@@ -568,8 +572,9 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 	}
 
 	require Zevenet::Farm::Validate;
-	my $params = &getZAPIModel( "farm_http_service_backend-modify.json" );
-	if ( &getGlobalConfiguration( 'proxy_ng' ) ne 'true' )
+	my $params   = &getZAPIModel( "farm_http_service_backend-modify.json" );
+	my $proxy_ng = &getGlobalConfiguration( 'proxy_ng' );
+	if ( $proxy_ng ne 'true' )
 	{
 		delete $params->{ "connection_limit" };
 		delete $params->{ "priority" };
@@ -587,18 +592,21 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 	{
 		$be->{ ip }   = $json_obj->{ ip }   // $be->{ ip };
 		$be->{ port } = $json_obj->{ port } // $be->{ port };
-		my $index = 0;
-		foreach my $backend ( @be_list )
+		if ( $proxy_ng eq 'true' )
 		{
-			if ( $backend->{ ip } eq $be->{ ip } and $backend->{ port } eq $be->{ port } )
+			my $index = 0;
+			foreach my $backend ( @be_list )
 			{
-				if ( $index ne $id_server )
+				if ( $backend->{ ip } eq $be->{ ip } and $backend->{ port } eq $be->{ port } )
 				{
-					my $msg = "A backend with address $be->{ ip }:$be->{ port } already exists";
-					&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+					if ( $index ne $id_server )
+					{
+						my $msg = "A backend with address $be->{ ip }:$be->{ port } already exists";
+						&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
+					}
 				}
+				$index++;
 			}
-			$index++;
 		}
 	}
 
