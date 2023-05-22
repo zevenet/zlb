@@ -1664,9 +1664,10 @@ sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 				{
 					$line = "\t\tSession";
 				}
-				if ( $line =~ /\t\t#End/ )
+				if ( $line =~ /\t\t#?End/ )
 				{
 					$line = "\t\tEnd";
+					last;
 				}
 				if ( $line =~ /^\t\t\t#?Type\s+(.*)\s*/ )
 				{
@@ -1737,9 +1738,10 @@ sub setHTTPFarmVS    # ($farm_name,$service,$tag,$string)
 				{
 					$line = "\t\t#Session";
 				}
-				if ( $line =~ /^\t\tEnd/ )
+				if ( $line =~ /^\t\t#?End/ )
 				{
 					$line = "\t\t#End";
+					last;
 				}
 				if ( $line =~ /^\t\t\tTTL/ )
 				{
