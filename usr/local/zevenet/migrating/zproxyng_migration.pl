@@ -21,6 +21,8 @@
 #
 ###############################################################################
 
+#The following script migrates the farms configuration files from zproxy to zproxy_ng valid config.
+
 use strict;
 use warnings;
 require Zevenet::Config;
@@ -55,157 +57,247 @@ foreach ( @farm_files )
 	&zenlog( "Migrating $farm_name config file...", "debug1", " SYSTEM" );
 
 	my @array_bak = @array;
-	my $sw        = 0;
-	my $bw        = 0;
+	my $sw        = 0;        #service section
+	my $bw        = 0;        #backend section(s)
+	my $lw        = 0;        #listener section
+	my $mw        = 0;        #model section
+	my $ssw       = 0;        #sessions section
 	my $cookie_params;
-	my $session_checker;
-	my $stat = 0;
 	my $name_index;
-	my $name_checker = 0;
+	my $name_checker;
+	my $id_index;
+	my $path_checker;
+	my $ip_port;
+	my @backends;
+	my $backend_index;
+	my $delete_backend = 0;
 
 	for ( my $i = 0 ; $i < @array ; $i++ )
 	{
-		if ( $array[$i] =~ /^\s+Service/ )
+		if ( $lw == 0 )
 		{
-			$sw = 1;
-		}
-		elsif ( $array[$i] =~ /^\s+BackEnd/ and $sw == 1 )
-		{
-			$bw = 1;
-		}
-		elsif ( $array[$i] =~ /^\tEnd/ and $sw == 1 and $bw == 0 )
-		{
-			$sw = 0;
-		}
-		elsif ( $array[$i] =~ /^\t\tEnd/ and $sw == 1 and $bw == 1 )
-		{
-			$bw = 0;
-		}
-		elsif ( $array[$i] =~ /^(User\s+\".+\"|Group\s+\".+\"|Name\s+.+)$/ )
-		{
-			splice @array, $i, 1;
-			$i--;
-		}
-		elsif ( $array[$i] =~ /^Control\s+\".+\"$/ )
-		{
-			splice @array, $i, 1;
-			$i--;
-		}
-		elsif ( $array[$i] =~ /^\s*#?RewriteLocation\s+\d(\s+path)?$/ )
-		{
-			if ( $1 )
+			if ( $array[$i] =~ /^(User\s+\".+\"|Group\s+\".+\"|Name\s+.+)$/ )
 			{
-				$array[$i] =~ s/path/1/;
+				splice @array, $i, 1;
+				$i--;
 			}
-			else
+			elsif ( $array[$i] =~ /^Control\s+\".+\"$/ )
 			{
-				$array[$i] .= " 0";
+				splice @array, $i, 1;
+				$i--;
+			}
+			elsif ( $array[$i] =~ /^#HTTP\(S\) LISTENERS$/ )
+			{
+				$lw = 1;
 			}
 		}
-		elsif ( $array[$i] =~ /^ListenHTTPS?$/ )
+		else    # $lw == 1
 		{
-			$name_index = $i;
-		}
-		elsif ( $array[$i] =~ /^\s+Name\s+.+$/ )
-		{
-			$name_checker = 1;
-		}
-		elsif (
-				$array[$i] =~ /\t\t(#?)BackendCookie\s\"(.+)\"\s\"(.+)\"\s\"(.+)\"\s(\d+)/ )
-		{
-			$cookie_params->{ enabled } = $1 ne "#" ? 1 : 0;
-			$cookie_params->{ id }      = $2;
-			$cookie_params->{ domain }  = $3;
-			$cookie_params->{ path }    = $4;
-			$cookie_params->{ ttl }     = $5;
-
-			splice @array, $i, 1;
-			$i--;
-		}
-		elsif ( $array[$i] =~ /^\t\t#?Session$/ )
-		{
-			if ( $sw == 1 and $bw == 0 )
+			if ( $sw == 0 )
 			{
-				$array[$i] =~ s/#// if $cookie_params->{ enabled } == 1;
-				$session_checker = 1;
-			}
-		}
-		elsif ( $array[$i] =~ /^\t\t\t#?Type/ )
-		{
-			if ( $sw == 1 and $bw == 0 )
-			{
-				$array[$i] = "\t\t\tType BACKENDCOOKIE" if $cookie_params->{ enabled } == 1;
-			}
-		}
-		elsif ( $array[$i] =~ /^\t\t\t#?TTL/ )
-		{
-			if ( $sw == 1 and $bw == 0 )
-			{
-				$array[$i] = "\t\t\tTTL $cookie_params->{ ttl }"
-				  if $cookie_params->{ enabled } == 1;
-			}
-		}
-		elsif ( $array[$i] =~ /^(#)?(\s+#?ID\s+.*)$/ )
-		{
-			if ( $1 )
-			{
-				$array[$i] = $2;
-			}
-			if ( $sw == 1 and $bw == 0 )
-			{
-				if ( exists $cookie_params->{ enabled } )
+				if ( $mw == 0 )
 				{
-					if ( $cookie_params->{ enabled } == 1 )
+					if ( $array[$i] =~ /^ListenHTTPS?$/ )
 					{
-						$array[$i] = "\t\t\tID \"$cookie_params->{ id }\"";
-						$array[$i] .=
-						  "\n\t\t\tPath \"$cookie_params->{ path }\"\n\t\t\tDomain \"$cookie_params->{ domain }\"";
-
+						$name_index = $i;
 					}
-					else
+					elsif ( $array[$i] =~ /^\s+Name\s+.+$/ )
 					{
-						$array[$i] .= "\n\t\t\t#Path \"/\"\n\t\t\t#Domain \"domainname.com\"";
+						$name_checker = 1;
+					}
+					elsif ( $array[$i] =~ /^\s*#?RewriteLocation\s+\d(\s+path)?$/ )
+					{
+						if ( $1 )
+						{
+							$array[$i] =~ s/path/1/;
+						}
+						else
+						{
+							$array[$i] .= " 0";
+						}
+					}
+					elsif ( $array[$i] =~ /^\s+Service/ )
+					{
+						$sw = 1;
+					}
+					elsif ( $array[$i] =~ /^\s+#ZWACL-END$/ )
+					{
+						$mw = 1;
+					}
+				}
+				else    # $mw == 1
+				{
+					if ( $array[$i] =~ /\s+#BackendCookie\s\".+\"\s\".+\"\s\".+\"\s\d+/ )
+					{
+						splice @array, $i, 1;
+						$i--;
+					}
+					elsif ( $array[$i] =~ /^\s+#ID\s+.*$/ )
+					{
+						$id_index = $i;
+						$array[$i] = "\t\t\t#ID \"ZENSESSIONID\"";
+					}
+					elsif ( $array[$i] =~ /^\s+#Path\s+.*/ )
+					{
+						$path_checker = 1;
+						last;
 					}
 				}
 			}
-			else
+			else    # $sw == 1
 			{
-				if ( exists $cookie_params->{ enabled } )
+				if ( $ssw == 0 )
 				{
-					$array[$i] = "\t\t\t#ID \"ZENSESSIONID\"";
-					$array[$i] .= "\n\t\t\t#Path \"/\"\n\t\t\t#Domain \"domainname.com\"";
+					if ( $bw == 0 )
+					{
+						if ( $array[$i] =~ /^\s+BackEnd/ )
+						{
+							$bw            = 1;
+							$backend_index = $i;
+						}
+						elsif (
+								$array[$i] =~ /\s+(#?)BackendCookie\s\"(.+)\"\s\"(.+)\"\s\"(.+)\"\s(\d+)/ )
+						{
+							$cookie_params->{ enabled } = $1 ne "#" ? 1 : 0;
+							$cookie_params->{ id }      = $2;
+							$cookie_params->{ domain }  = $3;
+							$cookie_params->{ path }    = $4;
+							$cookie_params->{ ttl }     = $5;
+
+							splice @array, $i, 1;
+							$i--;
+						}
+						elsif ( $array[$i] =~ /^\s+#?Session$/ )
+						{
+							$array[$i] =~ s/#// if $cookie_params->{ enabled } == 1;
+							$ssw = 1;
+						}
+						elsif ( $array[$i] =~ /^\s*#?RewriteLocation\s+\d(\s+path)?$/ )
+						{
+							if ( $1 )
+							{
+								$array[$i] =~ s/path/1/;
+							}
+							else
+							{
+								$array[$i] .= " 0";
+							}
+						}
+						elsif ( $array[$i] =~ /^\s+End$/ )
+						{
+							#if the line End is located in the service block, but not in the
+							#backend or session sections, it can only be the #?End line that marks
+							#the ending of the service block.
+							@backends = ();
+							$sw       = 0;
+						}
+					}
+					else    # $bw == 1
+					{
+						if ( $array[$i] =~ /^\s+Address\s+(.+)$/ )
+						{
+							$ip_port = $1;
+						}
+						elsif ( $array[$i] =~ /^\t\t\tPort\s(\d+)$/ )
+						{
+							$ip_port = $ip_port . $1;
+							foreach my $backend ( @backends )
+							{
+								if ( $ip_port eq $backend )
+								{
+									$delete_backend = 1;
+								}
+							}
+							push ( @backends, $ip_port ) if $delete_backend != 1;
+						}
+						elsif ( $array[$i] =~ /^\s+End$/ )
+						{
+							if ( $delete_backend == 1 )
+							{
+								#If this backend is duplicated, it needs to be deleted.
+								$delete_backend = 0;
+								my $offset = $i - $backend_index + 1;
+								splice @array, $backend_index, $offset;
+								$i = $i - $offset;
+							}
+							$bw = 0;
+
+							#if the End line is located in the backend section of a service, it can
+							#only be the line that marks the ending of that backend section.
+						}
+					}
 				}
-			}
-		}
-		elsif ( $array[$i] =~ /^\t\t#?End$/ )
-		{
-			if ( $sw == 1 and $bw == 0 and $session_checker == 1 )
-			{
-				$array[$i] =~ s/#// if $cookie_params->{ enabled } eq 1;
-				$session_checker = 0;
+				else    # $ssw == 1
+				{
+					if ( $array[$i] =~ /^\s+#?Type/ )
+					{
+						$array[$i] = "\t\t\tType BACKENDCOOKIE" if $cookie_params->{ enabled } == 1;
+					}
+					elsif ( $array[$i] =~ /^\s+#?TTL/ )
+					{
+						$array[$i] = "\t\t\tTTL $cookie_params->{ ttl }"
+						  if $cookie_params->{ enabled } == 1;
+					}
+					elsif ( $array[$i] =~ /^(#*)(\s+#?ID\s+.*)$/ )
+					{
+						if ( $1 )
+						{
+							$array[$i] = $2;
+							if ( $array[$i] =~ /^\s+ID\s+.*$/ )
+							{
+								$array[$i] =~ s/ID/#ID/;
+							}
+						}
+						if ( exists $cookie_params->{ enabled } )
+						{
+							if ( $cookie_params->{ enabled } == 1 )
+							{
+								$array[$i] = "\t\t\tID \"$cookie_params->{ id }\"";
+								$array[$i] .=
+								  "\n\t\t\tPath \"$cookie_params->{ path }\"\n\t\t\tDomain \"$cookie_params->{ domain }\"";
+
+							}
+							else
+							{
+								$array[$i] .= "\n\t\t\t#Path \"/\"\n\t\t\t#Domain \"domainname.com\"";
+							}
+						}
+					}
+					elsif ( $array[$i] =~ /^\s+#?End$/ )
+					{
+						#if, on the other hand, the #?End line is located in the sessions section
+						#of the service, it must be the line that marks the ending of the session
+						#section.
+						$array[$i] =~ s/#// if $cookie_params->{ enabled } eq 1;
+						$ssw = 0;
+					}
+				}
 			}
 		}
 	}
 
+	if ( $path_checker == 0 )
+	{
+		$array[$id_index] .= "\n\t\t\t#Path \"/\"\n\t\t\t#Domain \"domainname.com\"";
+	}
 	if ( $name_checker == 0 )
 	{
 		$array[$name_index] .= "\n\tName\t$farm_name";
 	}
 
 	untie @array;
-
-	if ( &getHTTPFarmConfigIsOK( $farm_name ) )
+	my $config_error = &getHTTPFarmConfigErrorMessage( $farm_name );
+	if ( $config_error->{ code } )
 	{
 		tie my @array, 'Tie::File', "$configdir\/$_";
 		@array = @array_bak;
 		untie @array;
-		$stat = 1;
-		print ( "\nError migrating $farm_name config file!\n" );
-		&zenlog( "Error migrating $farm_name config file!", "error", "SYSTEM" );
+		print ( "\nError migrating $farm_name config file: $config_error->{ desc }\n" );
+		&zenlog( "Error migrating $farm_name config file: $config_error->{ desc }",
+				 "error", "SYSTEM" );
 	}
 	else
 	{
-		$stat = 0;
 		print ( "\nSuccess migrating $farm_name config file!\n" );
 		&zenlog( "Success migrating $farm_name config file!", "debug1", " SYSTEM" );
 	}

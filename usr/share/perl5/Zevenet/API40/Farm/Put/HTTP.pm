@@ -499,9 +499,9 @@ sub modify_http_farm    # ( $json_obj, $farmname )
 		else
 		{
 			my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-			if ( $config_error ne "" )
+			if ( $config_error->{ code } )
 			{
-				$body->{ warning } = "Farm '$farmname' config error: $config_error";
+				$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 			}
 			else
 			{

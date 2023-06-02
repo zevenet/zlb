@@ -514,6 +514,7 @@ sub getHTTPServiceBlocks
 			 "debug", "PROFILING" );
 	my $farm = shift;
 	my $srv  = shift;
+	$srv = "" if not defined $srv;
 	my $out = {
 				farm     => [],
 				services => {},

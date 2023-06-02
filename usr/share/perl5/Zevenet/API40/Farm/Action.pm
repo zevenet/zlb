@@ -51,9 +51,9 @@ sub farm_actions    # ( $json_obj, $farmname )
 		require Zevenet::Farm::HTTP::Config;
 		my $err_msg = &getHTTPFarmConfigErrorMessage( $farmname );
 
-		if ( $err_msg )
+		if ( $err_msg->{ code } )
 		{
-			&httpErrorResponse( code => 400, desc => $desc, msg => $err_msg );
+			&httpErrorResponse( code => 400, desc => $desc, msg => $err_msg->{ desc } );
 		}
 	}
 
