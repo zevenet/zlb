@@ -597,6 +597,14 @@ if ( $action eq "stop" )
 				print ( " \033[1;31m ERROR \033[0m \n" );
 			}
 		}
+		elsif ( $status eq "down" )
+		{
+			if ( &getFarmType( $farmname ) =~ "^http" )
+			{
+				use Zevenet::Farm::HTTP::Action;
+				&checkFarmHTTPSystemStatus( $farmname, "down", "true" );
+			}
+		}
 	}
 
 	print ( "* Stopping nftlb service:" );

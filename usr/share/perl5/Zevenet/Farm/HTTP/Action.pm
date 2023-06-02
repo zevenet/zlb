@@ -200,6 +200,7 @@ sub _runHTTPFarmStop    # ($farm_name, $writeconf)
 		require Zevenet::Lock;
 		my $lf = &getLockFile( $farm_name );
 		unlink ( $lf ) if -e $lf;
+
 	}
 	else
 	{
@@ -401,6 +402,51 @@ sub sendL7ZproxyCmd
 	}
 	return $resp;
 
+}
+
+=begin nd
+Function: checkFarmHTTPSystemStatus
+
+	Checks the process and PID file on the system and fixes the inconsistency.
+
+Parameters:
+	farm_name - farm that is going to be modified
+	status - Status to check. Only "down" status.
+	fix - True, do the necessary changes to get the inconsistency fixed. 
+
+Returns:
+	None
+
+=cut
+
+sub checkFarmHTTPSystemStatus    # ($farm_name, $status, $fix)
+{
+	&zenlog( __FILE__ . ":" . __LINE__ . ":" . ( caller ( 0 ) )[3] . "( @_ )",
+			 "debug", "PROFILING" );
+	my ( $farm_name, $status, $fix ) = @_;
+	if ( $status eq "down" )
+	{
+		my $pid_file = getHTTPFarmPidFile( $farm_name );
+		if ( -e $pid_file )
+		{
+			unlink $pid_file if ( defined $fix and $fix eq "true" );
+		}
+		my $pgrep = &getGlobalConfiguration( "pgrep" );
+		require Zevenet::Farm::Core;
+		my $farm_file    = &getFarmFile( $farm_name );
+		my $config_dir   = &getGlobalConfiguration( "configdir" );
+		my $proxy        = &getGlobalConfiguration( "proxy" );
+		my @pids_running = @{
+			&logAndGet( "$pgrep -f \"$proxy (-s )?-f $config_dir/$farm_file -p $pid_file\"",
+						"array" )
+		};
+
+		if ( @pids_running )
+		{
+			kill 9, @pids_running if ( defined $fix and $fix eq "true" );
+		}
+	}
+	return;
 }
 
 1;
