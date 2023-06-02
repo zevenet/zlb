@@ -294,9 +294,9 @@ sub new_service_backend    # ( $json_obj, $farmname, $service )
 		{
 			require Zevenet::Farm::HTTP::Config;
 			my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-			if ( $config_error ne "" )
+			if ( $config_error->{ code } )
 			{
-				$body->{ warning } = "Farm '$farmname' config error: $config_error";
+				$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 			}
 			else
 			{
@@ -670,9 +670,9 @@ sub modify_service_backends    #( $json_obj, $farmname, $service, $id_server )
 		{
 			require Zevenet::Farm::HTTP::Config;
 			my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-			if ( $config_error ne "" )
+			if ( $config_error->{ code } )
 			{
-				$body->{ warning } = "Farm '$farmname' config error: $config_error";
+				$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 			}
 			else
 			{
@@ -867,9 +867,9 @@ sub delete_service_backend    # ( $farmname, $service, $id_server )
 		{
 			require Zevenet::Farm::HTTP::Config;
 			my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-			if ( $config_error ne "" )
+			if ( $config_error->{ code } )
 			{
-				$body->{ warning } = "Farm '$farmname' config error: $config_error";
+				$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 			}
 			else
 			{

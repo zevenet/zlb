@@ -94,9 +94,9 @@ sub add_addheader    # ( $json_obj, $farmname )
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -189,9 +189,9 @@ sub modify_addheader    # ( $json_obj, $farmname, $index )
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -262,9 +262,9 @@ sub del_addheader
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -347,9 +347,9 @@ sub add_headremove    # ( $json_obj, $farmname )
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -442,9 +442,9 @@ sub modify_headremove    # ( $json_obj, $farmname, $index )
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -515,9 +515,9 @@ sub del_headremove
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -600,9 +600,9 @@ sub add_addResponseheader    # ( $json_obj, $farmname )
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -695,9 +695,9 @@ sub modify_addResponseheader    # ( $json_obj, $farmname, $index )
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -768,9 +768,9 @@ sub del_addResponseheader
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -891,9 +891,9 @@ sub add_replaceheader            # ( $json_obj, $farmname, $type )
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -1033,9 +1033,9 @@ sub modify_replaceHeader    # ( $json_obj, $farmname, $type, $index )
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -1126,9 +1126,9 @@ sub del_replaceheader
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -1237,9 +1237,9 @@ sub move_replaceheader    # ( $json_obj, $type, $regex, $farmname, $index )
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -1322,9 +1322,9 @@ sub add_removeResponseheader    # ( $json_obj, $farmname )
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -1417,9 +1417,9 @@ sub modify_removeResponseheader    # ( $json_obj, $farmname )
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{
@@ -1490,9 +1490,9 @@ sub del_removeResponseHeader
 			{
 				require Zevenet::Farm::HTTP::Config;
 				my $config_error = &getHTTPFarmConfigErrorMessage( $farmname );
-				if ( $config_error ne "" )
+				if ( $config_error->{ code } )
 				{
-					$body->{ warning } = "Farm '$farmname' config error: $config_error";
+					$body->{ warning } = "Farm '$farmname' config error: $config_error->{ desc }";
 				}
 				else
 				{

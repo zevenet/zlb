@@ -1544,7 +1544,9 @@ Parameters:
 	farmname - Farm name
 
 Returns:
-	Scalar - If there is an error, it returns a message, else it returns a blank string
+	Error_ref - A hashref that maps error code and description
+                $error_ref->{ code } - Integer. Error code. Equals 0 when no error.
+                $error_ref->{ desc } - String. Description of the error. Empty string when no error.
 
 =cut
 
@@ -1553,7 +1555,7 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 	&zenlog( __FILE__ . q{:} . __LINE__ . q{:} . ( caller ( 0 ) )[3] . "( @_ )",
 			 "debug", "PROFILING" );
 	my $farm_name = shift;
-	my $service;
+	my $error_ref;
 
 	my $proxy         = &getGlobalConfiguration( 'proxy' );
 	my $farm_filename = &getFarmFile( $farm_name );
@@ -1561,13 +1563,16 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 
 # do not use the function 'logAndGet' here is managing the error output and error code
 	my @run = `$proxy_command 2>&1`;
-	my $rc  = $?;
+	$error_ref->{ code } = $?;
 
-	return "" unless ( $rc );
+	if ( $error_ref->{ code } == 0 )
+	{
+		$error_ref->{ desc } = "";
+		return $error_ref;
+	}
 
 	shift @run if ( $run[0] =~ /starting\.\.\./ );
 	chomp @run;
-	my $msg;
 
 	&zenlog( "Error checking $configdir\/$farm_filename.", "Error", "http" );
 	&zenlog( $run[0],                                      "Error", "http" );
@@ -1575,12 +1580,11 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 	$run[0] = $run[1] if ( $run[0] =~ /waf/i );
 
 	$run[0] =~ / line (\d+): /;
-	my $line_num = $1;
+	my $line_num = defined $1 ? $1 : 0;
 
 	# get line
-	( $farm_name, $service ) = @_;
-	my $file_id = 0;
-	my $file_line;
+	my $file_id   = 0;
+	my $file_line = "";
 	my $srv;
 
 	open my $fileconf, '<', "$configdir/$farm_filename";
@@ -1602,36 +1606,37 @@ sub getHTTPFarmConfigErrorMessage    # ($farm_name)
 #	AAAhttps, /usr/local/zevenet/config/AAAhttps_proxy.cfg line 36: unknown directive
 #	AAAhttps, /usr/local/zevenet/config/AAAhttps_proxy.cfg line 40: SSL_CTX_use_PrivateKey_file failed - aborted
 	$file_line =~ /\s*([\w-]+)/;
-	my $param = $1;
-	$msg = "Error in the configuration file";
+	my $param = defined $1 ? $1 : "";
+	$error_ref->{ desc } = "Error in the configuration file";
 
 	# parse line
 	if ( $param eq "Cert" )
 	{
 		# return pem name if the pem file is not correct
 		$file_line =~ /([^\/]+)\"$/;
-		$msg = "Error loading the certificate: $1" if $1;
+		$error_ref->{ desc } = "Error loading the certificate: $1" if $1;
 	}
 	elsif ( $param eq "WafRules" )
 	{
 		# return waf rule name  if the waf rule file is not correct
 		$file_line =~ /([^\/]+)\"$/;
-		$msg = "Error loading the WafRuleSet: $1" if $1;
+		$error_ref->{ desc } = "Error loading the WafRuleSet: $1" if $1;
 	}
 	elsif ( $param )
 	{
 		$srv = "in the service $srv" if ( $srv );
-		$msg = "Error in the parameter $param ${srv}";
+		$error_ref->{ desc } = "Error in the parameter $param ${srv}";
 	}
 
 	elsif ( &debug() )
 	{
-		$msg = $run[0];
+		$srv = "in the service $srv" if ( $srv );
+		$error_ref->{ desc } = $run[0] . " $srv";
 	}
 
-	&zenlog( "Error checking config file: $msg", 'debug' );
+	&zenlog( "Error checking config file: $error_ref->{ desc }", 'debug' );
 
-	return $msg;
+	return $error_ref;
 }
 
 sub getHTTPFarmStruct
