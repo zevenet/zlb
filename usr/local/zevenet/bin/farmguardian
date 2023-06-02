@@ -36,7 +36,7 @@
 use strict;
 use warnings;
 
-#~ use Data::Dumper;
+#use Data::Dumper;
 use Proc::Daemon;
 use POSIX ":sys_wait_h";
 
@@ -68,6 +68,7 @@ my $fg_conf;
 my $timetocheck;
 my $timeout;
 my $check_cmd_tpl;
+my $http_prio;
 my $cutConns;
 my $pidfile;
 
@@ -126,13 +127,21 @@ if ( not $fgname )
 }
 else
 {
-	$fg_conf       = &getFGObject( $fgname );
-	$timetocheck   = $fg_conf->{ interval };
-	$timeout       = $fg_conf->{ timeout };
-	$check_cmd_tpl = $fg_conf->{ command };
-	$cutConns      = $fg_conf->{ cut_conns };
-	$useAlias      = $fg_conf->{ backend_alias } if ( $useAlias ne 'true' );    #
-	$logging       = 'enabled' if ( $fg_conf->{ log } eq 'true' );
+	$fg_conf     = &getFGObject( $fgname );
+	$timetocheck = $fg_conf->{ interval };
+	$timeout     = $fg_conf->{ timeout };
+	if ( $fg_conf->{ command } =~ /(.*);(\w+)\s+((:?\d\s*)+)$/ )
+	{
+		$check_cmd_tpl = $1;
+		@{ $http_prio } = split ( /\s+/, $3 ) if $2 eq "priority";
+	}
+	else
+	{
+		$check_cmd_tpl = $fg_conf->{ command };
+	}
+	$cutConns = $fg_conf->{ cut_conns };
+	$useAlias = $fg_conf->{ backend_alias } if ( $useAlias ne 'true' );    #
+	$logging  = 'enabled' if ( $fg_conf->{ log } eq 'true' );
 }
 
 # create farmguardian pidfile
@@ -203,15 +212,16 @@ while ( 1 )
 	my @backendstatus;
 	my @backendprio;
 	my @backendmark;
+	my @backendorder;
 	my $i = 0;
-	my $j = 0;
 
 	### Collect variable values for the diferent farm types ###
 
 	# Collect HTTP/S farm variables values
 	if ( $type eq 'http' )
 	{
-		my $status = &getHTTPFarmStatus( $farmname );
+		my $proxy_ng = &getGlobalConfiguration( 'proxy_ng' );
+		my $status   = &getHTTPFarmStatus( $farmname );
 		if ( $status ne "up" )
 		{
 			my $msg = "Farm $farmname is down, abort.";
@@ -239,7 +249,39 @@ while ( 1 )
 			$backendip[$i]     = $subbe[3];
 			$backendport[$i]   = $subbe[5];
 			$backendstatus[$i] = &getHTTPBackendStatusFromFile( $farmname, $i, $service );
+			if ( defined $http_prio )
+			{
+
+				if ( $proxy_ng ne "true" )
+				{
+					if ( defined @{ $http_prio }[$i] )
+					{
+						$backendprio[$i] = @{ $http_prio }[$i];
+					}
+					else
+					{
+						# Priority 1 by default
+						$backendprio[$i] = 1;
+					}
+				}
+			}
 			$i++;
+		}
+
+		# reorder backends by prio if defined
+		if ( @backendprio )
+		{
+			my $index = 0;
+			my $order;
+			foreach my $prio ( @backendprio )
+			{
+				push @{ $order->{ $prio } }, $index;
+				$index++;
+			}
+			foreach my $prio ( sort keys %{ $order } )
+			{
+				push @backendorder, @{ $order->{ $prio } };
+			}
 		}
 
 		# get the farm's timeout
@@ -274,34 +316,77 @@ while ( 1 )
 	{
 		my $logline = '';
 		$logline .= "Farm $farmname - ";
+		$logline .= "Service $service - " if $service ne '';
 		$logline .= "timetocheck $timetocheck - ";
 		$logline .= "portadmin $portadmin - " if defined $portadmin;
 		$logline .= "command $check_cmd_tpl";
+		if ( @backendorder )
+		{
+			$logline .= " - prio: ";
+			foreach my $prio ( @{ $http_prio } )
+			{
+				$logline .= "$prio ";
+			}
+		}
 
 		&zenlog( $logline );
 	}
 
 	# backend loop. checking every backend.
+	my $backendidx = 0;
+	my $j;
+	my $svc_prio = 1;
+
+	my $logheader;
+	my $logline;
+	my $command;
   BACKEND_IDX:
-	while ( $j < $i )
+	while ( $backendidx < $i )
 	{
-		my $logline;
+		if ( @backendorder )
+		{
+			$j = $backendorder[$backendidx];
+		}
+		else
+		{
+			$j = $backendidx;
+		}
+
 		if ( $logging eq 'enabled' )
 		{
-			$logline .= "Farm $farmname - ";
-			$logline .= "server[$backendid[$j]] $backendserv[$j]";
-			$logline .= ":$backendport[$j]" if $backendport[$j];
+			$logheader = "Farm $farmname - ";
+			$logheader .= "Service $service - " if $service ne '';
+			$logheader .= "server[$backendid[$j]] $backendserv[$j]";
+			$logheader .= ":$backendport[$j]"   if $backendport[$j];
+			$logline = $logheader;
+			$logline .= " - priority $backendprio[$j]" if defined $backendprio[$j];
 			$logline .= " - status $backendstatus[$j] - ";
 		}
 
 		# jump to next backend if this one is in maintenance
 		if ( $backendstatus[$j] =~ /maintenance/ )
 		{
-			$j++;
+			$backendidx++;
+			if ( defined $backendprio[$j] )
+			{
+				if ( $backendprio[$j] <= $svc_prio )
+				{
+					$svc_prio++;
+					if ( $logging eq 'enabled' )
+					{
+						&zenlog( "$logheader increasing service priority to $svc_prio" );
+					}
+				}
+				$logline .= "service priority $svc_prio";
+			}
+			if ( $logging eq 'enabled' )
+			{
+				&zenlog( $logline );
+			}
 			next BACKEND_IDX;
 		}
 
-		my $command = $check_cmd_tpl;
+		$command = $check_cmd_tpl;
 
 		# substitute HOST and PORT variables for this backend's values
 		$command =~ s/HOST/$backendserv[$j]/g;
@@ -338,16 +423,53 @@ while ( 1 )
 			} while $kid > 0;
 		};
 
+		my $http_prio_enable  = 1;
+		my $http_prio_disable = 0;
+		if ( @backendorder )
+		{
+			if ( $backendprio[$j] > $svc_prio )
+			{
+				$http_prio_enable  = 0;
+				$http_prio_disable = 1;
+
+				if ( $backendstatus[$j] eq 'fgDOWN' )
+				{
+					$http_prio_disable = 0;
+				}
+			}
+		}
+		if ( ( defined $backendprio[$j] ) and ( $backendprio[$j] <= $svc_prio ) )
+		{
+			if (     ( $timedout == 1 or $errorcode != 0 )
+				 and ( $backendstatus[$j] eq 'fgDOWN' ) )
+			{
+				$svc_prio++;
+				if ( $logging eq 'enabled' )
+				{
+					&zenlog( "$logheader increasing service priority to $svc_prio" );
+				}
+			}
+		}
+
 		# being verbose the check output
 		if ( $logging eq 'enabled' )
 		{
+			if ( defined $backendprio[$j] )
+			{
+				$logline .= "service priority $svc_prio - ";
+			}
 			&zenlog( $logline . "timedout $timedout - errorcode $errorcode" );
 		}
 
 		### Enable backend
 		my $auxLog;
-		if ( ( $timedout == 0 and $errorcode == 0 and $backendstatus[$j] =~ /down/i )
-			 or $first_exec )
+		if (
+			 (
+			   ( $timedout == 0 and $errorcode == 0 and $backendstatus[$j] =~ /down/i )
+			   or $first_exec
+			 )
+			 and $http_prio_enable
+		  )
 		{
 			if ( $logging eq 'enabled' )
 			{
@@ -427,8 +549,12 @@ while ( 1 )
 		}
 		### Disable backend
 		elsif (
-				( ( $timedout == 1 or $errorcode != 0 ) and $backendstatus[$j] ne 'fgDOWN' )
-				or $first_exec )
+			 (
+			   ( ( $timedout == 1 or $errorcode != 0 ) and $backendstatus[$j] ne 'fgDOWN' )
+			   or $first_exec
+			 )
+			 or $http_prio_disable
+		  )
 		{
 			if ( $logging eq 'enabled' )
 			{
@@ -485,6 +611,14 @@ while ( 1 )
 
 				$auxLog = " in farm: '$farmname'";
 			}
+			if ( defined $backendprio[$j] and ( $backendprio[$j] <= $svc_prio ) )
+			{
+				$svc_prio++;
+				if ( $logging eq 'enabled' )
+				{
+					&zenlog( "$logheader increasing service priority to $svc_prio" );
+				}
+			}
 
 			$backendstatus[$j] = 'fgDOWN';
 
@@ -492,7 +626,7 @@ while ( 1 )
 			&zenlog( "BackEnd $backendserv[$j]:$backendport[$j] down$auxLog" )
 			  if ( not $first_exec );
 		}
-		$j++;
+		$backendidx++;
 	}
 
 	$first_exec = 0;
