@@ -108,6 +108,11 @@ sub farm_actions    # ( $json_obj, $farmname )
 				my $msg = "The virtual IP '$ip' is not UP";
 				&httpErrorResponse( code => 400, desc => $desc, msg => $msg );
 			}
+			if ( $farm_type eq "http" or $farm_type eq "https" )
+			{
+				require Zevenet::Farm::HTTP::Action;
+				&checkFarmHTTPSystemStatus( $farmname, "down", "true" );
+			}
 
 			my $port = &getFarmVip( "vipp", $farmname );
 			if ( not &validatePort( $ip, $port, undef, $farmname ) )
