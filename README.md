@@ -1,6 +1,9 @@
 # [ZEVENET Load Balancer](https://www.zevenet.com)
 This is the repository of **ZEVENET Load Balancer** Community Edition (**Zen Load Balancer** CE next generation) and it'll guide you to install a development and testing instance of load balancer.
 
+**ZEVENET becomes SKUDONET and RELIANOID**
+ZEVENET project and brand is in the process of extinction in favor of the two new awesome projects called [SKUDONET](https://www.skudonet.com) and [RELIANOID](https://www.relianoid.com) which will ensure the continuity of the Zevenet products and services to all our customers and users. Both projects are legitimate to continue with the great work done all these years with Zevenet. You’re in good hands.
+
 ## Repository Contents
 In this repository you'll find the source code usually placed into the folder `/usr/local/zevenet/` with the following structure:
 - **app/**: Applications, binaries and libraries that ZEVENET Load Balancer requires.
