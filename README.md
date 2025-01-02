@@ -1,8 +1,7 @@
-# [ZEVENET Load Balancer](https://www.zevenet.com)
+# [ZEVENET is now RELIANOID Load Balancer](https://www.relianoid.com)
 This is the repository of **ZEVENET Load Balancer** Community Edition (**Zen Load Balancer** CE next generation) and it'll guide you to install a development and testing instance of load balancer.
 
-**ZEVENET becomes SKUDONET and RELIANOID**
-ZEVENET project and brand is in the process of extinction in favor of the two new awesome projects called [SKUDONET](https://www.skudonet.com) and [RELIANOID](https://www.relianoid.com) which will ensure the continuity of the Zevenet products and services to all our customers and users. Both projects are legitimate to continue with the great work done all these years with Zevenet. You’re in good hands.
+ZEVENET project is inactive, please follow the continued project at [RELIANOID](https://www.relianoid.com)
 
 ## Repository Contents
 In this repository you'll find the source code usually placed into the folder `/usr/local/zevenet/` with the following structure:
@@ -27,7 +26,7 @@ There are two options to deploy a ZEVENET load balancer: The first is deploying 
 
 ZEVENET CE ISO is a Debian Buster template with ZEVENET already installed. It can be got from the following link, clicking on the "Download ISO image" button.
 
-https://www.zevenet.com/products/community/
+https://www.relianoid.com/products/community/
 
 
 ### Installation on Debian Buster
@@ -48,8 +47,8 @@ Please, take into account these **requirements** before installing the load bala
 This git repository only contains the source code, the installable packages based in this code are updated in our Zevenet APT repos, you can use them configuring your Debian Buster system as follows: 
 
 ```
-root@zevenetlb#> echo "deb http://repo.zevenet.com/ce/v5 buster main" >> /etc/apt/sources.list.d/zevenet.list
-root@zevenetlb#> wget -O - http://repo.zevenet.com/zevenet.com.gpg.key | apt-key add -
+root@zevenetlb#> echo "deb http://repo.relianoid.com/ce/v5 buster main" >> /etc/apt/sources.list.d/zevenet.list
+root@zevenetlb#> wget -O - http://repo.relianoid.com/zevenet.com.gpg.key | apt-key add -
 ```
 Now, update the local APT database
 ```
@@ -78,7 +77,7 @@ You can contribute with the evolution of the ZEVENET Load Balancer in a wide var
 1. Please use the GitHub project Issues to report any issue or bug with the software.
 2. Try to describe the problem and a way to reproduce it.
 3. To facilitate troubleshooting from our side, attach supportsave, tcpdump and .har files. Also, attach any screenshot if necessary.
-4. In case these files contain sensible information that the user does not want to share in GitHub, please send an email to ce-support@zevenet.com with the same subject as the issue title published in GitHub and the relevant files attached.
+4. In case these files contain sensible information that the user does not want to share in GitHub, please send an email to support@relianoid.com with the same subject as the issue title published in GitHub and the relevant files attached.
 
 ### Generating Support Files
 
@@ -162,15 +161,7 @@ Finally, just execute a `git push` and request a pull of your changes. In additi
 In the official [GitHub wiki](https://github.com/zevenet/zlb/wiki) there is available a list of pages and it's translations. Please clone the wiki, apply your changes and request a pull in order to be applied.
 
 ### Helping another Users
-The official distribution list could be accessed through the [zevenet-ce-users google group](https://groups.google.com/a/zevenet.com/group/zevenet-ce-users/).
-
-To post in this group, send email to [zevenet-ce-users@zevenet.com](mailto:zevenet-ce-users@zevenet.com).
-
-But **you need to request a join** first into the group by sending an email to [zevenet-ce-users+subscribe@zevenet.com](mailto:zevenet-ce-users+subscribe@zevenet.com).
-
-To unsubscribe from this group, send email to zevenet-ce-users+unsubscribe@zevenet.com
-
-For more options, visit https://groups.google.com/a/zevenet.com/d/optout
+The official distribution list could be accessed through the [Community Support List](https://www.relianoid.com/community/support/).
 
 
-## [www.zevenet.com](https://www.zevenet.com)
+## [www.relianoid.com](https://www.relianoid.com)
